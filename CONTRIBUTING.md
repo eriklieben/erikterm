@@ -21,6 +21,8 @@ You need the .NET 10 SDK (`global.json` pins the version), and SDL3, FreeType an
 manager. [Developing erikterm](docs/development/README.md) has the architecture and debugging tips,
 [Testing and benchmarking](bench/README.md) the test conventions.
 
+New functionality comes with tests, and a bug fix with a test that fails without it.
+
 ```sh
 scripts/run.sh                                 # publish with Native AOT and start it
 dotnet test --project tests/ErikTerm.Tests     # the tests
