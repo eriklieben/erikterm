@@ -11,6 +11,7 @@ run-name: Release${{ inputs.first_release && ' (first release)' || '' }}${{ inpu
 #                v<version>, creates the GitHub release with the downloads, their SBOMs and SHA256SUMS; then attests
 #                their build provenance and SBOMs (public repository only).
 #   4. packages  packages.yml: the same, released files into eriklieben/packages (pacman repository, Scoop bucket).
+#   5. winget    the installer into winget (microsoft/winget-pkgs) with wingetcreate, once WINGET_TOKEN exists.
 # Overview, setup and how to retry: docs/releasing.md.
 #
 # Started:
@@ -352,3 +353,142 @@ jobs:
     with:
       version: ${{ needs.release.outputs.version }}
     secrets: inherit
+
+  # The released installer into winget (microsoft/winget-pkgs), as a pull request there made by wingetcreate
+  # (github.com/microsoft/winget-create) from the owner's fork: the first release submits the manifests in
+  # packaging/winget/ filled in for it (wingetcreate submit, a new package), later ones update the package once it is
+  # in winget-pkgs (wingetcreate update --submit). Skipped with a notice without the secret WINGET_TOKEN (release
+  # environment; docs/releasing.md, "winget") and for prerelease versions. It runs after the GitHub release and the
+  # packages job, and a failure here is a warning: the release itself is done (continue-on-error). To try again:
+  # re-run this job.
+  winget:
+    name: winget
+    needs: [release, packages]
+    if: ${{ !cancelled() && !inputs.dry_run && needs.release.outputs.tag != '' }}
+    runs-on: windows-2025
+    timeout-minutes: 20
+    continue-on-error: true
+    # The environment holds WINGET_TOKEN.
+    environment: release
+    permissions:
+      contents: read         # the templates and the released installer
+    env:
+      VERSION: ${{ needs.release.outputs.version }}
+      TAG: ${{ needs.release.outputs.tag }}
+      PACKAGE_ID: ErikLieben.Terminal
+      # The manifests' folder in winget-pkgs (manifests/<first letter, lower case>/<publisher>/<name>).
+      PACKAGE_PATH: manifests/e/ErikLieben/Terminal
+      # wingetcreate v1.12.13.0 (writes and checks manifest schema 1.12.0, the one in packaging/winget/) and the
+      # SHA-256 of its wingetcreate.exe on that release.
+      WINGETCREATE_URL: https://github.com/microsoft/winget-create/releases/download/v1.12.13.0/wingetcreate.exe
+      WINGETCREATE_SHA256: 24042bd37915805615e6cf969ac57c6439124c3fe85823327f5f3fb24bd9ffea
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Anything to submit
+        id: gate
+        env:
+          HAS_TOKEN: ${{ secrets.WINGET_TOKEN != '' }}
+        run: |
+          if ($env:HAS_TOKEN -ne 'true') {
+            $msg = "winget: no secret WINGET_TOKEN in the release environment, so $env:TAG is not submitted to winget (docs/releasing.md, winget)."
+          } elseif ($env:VERSION -notmatch '^\d+\.\d+\.\d+$') {
+            $msg = "winget: $env:VERSION is a prerelease, which winget doesn't get."
+          } else {
+            "submit=true" >> $env:GITHUB_OUTPUT
+            exit 0
+          }
+          "::notice::$msg"
+          $msg >> $env:GITHUB_STEP_SUMMARY
+          "submit=false" >> $env:GITHUB_OUTPUT
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: steps.gate.outputs.submit == 'true'
+        with:
+          sparse-checkout: packaging/winget
+          persist-credentials: false
+
+      - name: New package or update
+        id: mode
+        if: steps.gate.outputs.submit == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # The versions of the package in winget-pkgs (its master branch): none yet means a new package.
+          $out = gh api "repos/microsoft/winget-pkgs/contents/$env:PACKAGE_PATH" --jq '.[].name' 2>&1
+          if ($LASTEXITCODE -ne 0) {
+            if ("$out" -match 'HTTP 404') { $versions = @() } else { throw "Looking up $env:PACKAGE_PATH in microsoft/winget-pkgs failed: $out" }
+          } else {
+            $versions = @($out)
+          }
+          if ($versions -contains $env:VERSION) {
+            $msg = "winget: $env:PACKAGE_ID $env:VERSION is already in winget-pkgs, nothing to submit."
+            "::notice::$msg"
+            $msg >> $env:GITHUB_STEP_SUMMARY
+            "mode=none" >> $env:GITHUB_OUTPUT
+          } elseif ($versions.Count -eq 0) {
+            "mode=new" >> $env:GITHUB_OUTPUT
+          } else {
+            "Versions in winget-pkgs: $($versions -join ', ')"
+            "mode=update" >> $env:GITHUB_OUTPUT
+          }
+          # gh's exit code for a 404 would otherwise be this step's.
+          exit 0
+
+      - name: Download the installer and wingetcreate
+        id: files
+        if: steps.mode.outputs.mode == 'new' || steps.mode.outputs.mode == 'update'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download $env:TAG -R $env:GITHUB_REPOSITORY -D dist -p erikterm-win-x64-setup.exe -p SHA256SUMS
+          if ($LASTEXITCODE -ne 0) { throw "Downloading the installer of $env:TAG failed" }
+          $sha = (Get-FileHash dist/erikterm-win-x64-setup.exe -Algorithm SHA256).Hash
+          $listed = Get-Content dist/SHA256SUMS | ForEach-Object { if ($_ -match '^([0-9a-f]{64})\s+\*?erikterm-win-x64-setup\.exe$') { $Matches[1] } } | Select-Object -First 1
+          if ($listed -ne $sha.ToLowerInvariant()) { throw "erikterm-win-x64-setup.exe doesn't match the release's SHA256SUMS" }
+          $published = gh release view $env:TAG -R $env:GITHUB_REPOSITORY --json publishedAt --jq .publishedAt
+          if ($LASTEXITCODE -ne 0) { throw "Reading the release date of $env:TAG failed" }
+          "sha256=$sha" >> $env:GITHUB_OUTPUT
+          "date=$(([datetimeoffset]$published).UtcDateTime.ToString('yyyy-MM-dd'))" >> $env:GITHUB_OUTPUT
+          "url=https://github.com/$env:GITHUB_REPOSITORY/releases/download/$env:TAG/erikterm-win-x64-setup.exe" >> $env:GITHUB_OUTPUT
+
+          Invoke-WebRequest -Uri $env:WINGETCREATE_URL -OutFile "$env:RUNNER_TEMP/wingetcreate.exe"
+          $got = (Get-FileHash "$env:RUNNER_TEMP/wingetcreate.exe" -Algorithm SHA256).Hash
+          if ($got -ne $env:WINGETCREATE_SHA256.ToUpperInvariant()) { throw "wingetcreate.exe has SHA-256 $got, expected $env:WINGETCREATE_SHA256" }
+
+      - name: Submit the new package
+        if: steps.mode.outputs.mode == 'new'
+        env:
+          # wingetcreate reads the token from here (not --token, which could end up in the log).
+          WINGET_CREATE_GITHUB_TOKEN: ${{ secrets.WINGET_TOKEN }}
+          SHA256: ${{ steps.files.outputs.sha256 }}
+          RELEASE_DATE: ${{ steps.files.outputs.date }}
+        run: |
+          $dir = "$env:RUNNER_TEMP/winget/$env:VERSION"
+          ./packaging/winget/fill.ps1 -Version $env:VERSION -InstallerSha256 $env:SHA256 -ReleaseDate $env:RELEASE_DATE -OutDir $dir
+          Get-ChildItem $dir | ForEach-Object { "--- $($_.Name)"; Get-Content $_.FullName }
+          # submit checks the manifests (the winget manifest schema) before it opens the pull request.
+          & "$env:RUNNER_TEMP/wingetcreate.exe" submit --no-open --prtitle "New package: $env:PACKAGE_ID version $env:VERSION" $dir
+          if ($LASTEXITCODE -ne 0) { throw "wingetcreate submit failed ($LASTEXITCODE)" }
+          "Submitted $env:PACKAGE_ID $env:VERSION to winget as a new package: https://github.com/microsoft/winget-pkgs/pulls?q=is%3Apr+$env:PACKAGE_ID" >> $env:GITHUB_STEP_SUMMARY
+
+      - name: Update the package
+        if: steps.mode.outputs.mode == 'update'
+        env:
+          WINGET_CREATE_GITHUB_TOKEN: ${{ secrets.WINGET_TOKEN }}
+          URL: ${{ steps.files.outputs.url }}
+          RELEASE_DATE: ${{ steps.files.outputs.date }}
+        run: |
+          & "$env:RUNNER_TEMP/wingetcreate.exe" update $env:PACKAGE_ID --version $env:VERSION --urls "$env:URL|x64" `
+            --release-notes-url "https://github.com/$env:GITHUB_REPOSITORY/releases/tag/$env:TAG" `
+            --release-date $env:RELEASE_DATE --submit --no-open
+          if ($LASTEXITCODE -ne 0) { throw "wingetcreate update failed ($LASTEXITCODE)" }
+          "Submitted $env:PACKAGE_ID $env:VERSION to winget: https://github.com/microsoft/winget-pkgs/pulls?q=is%3Apr+$env:PACKAGE_ID" >> $env:GITHUB_STEP_SUMMARY
+
+      - name: Report a failure as a warning
+        if: failure()
+        run: |
+          $msg = "winget: submitting $env:PACKAGE_ID $env:VERSION failed (the release itself is done). See this job's log, then re-run the job."
+          "::warning::$msg"
+          $msg >> $env:GITHUB_STEP_SUMMARY

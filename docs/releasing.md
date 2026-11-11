@@ -10,6 +10,7 @@ releases: [Commit messages and releases](development/README.md#commit-messages-a
 | [`.github/workflows/release.yml`](../.github/workflows/release.yml) | The release: next version, build, semantic-release, attestations, packages. |
 | [`.github/workflows/build-binaries.yml`](../.github/workflows/build-binaries.yml) | The four downloads and their SBOMs; used by CI (development build) and by releases (with the version). |
 | [`.github/workflows/packages.yml`](../.github/workflows/packages.yml) | Publishes a release to [eriklieben/packages](https://github.com/eriklieben/packages) (pacman, signed; Scoop). |
+| [`packaging/winget/`](../packaging/winget) | The winget manifest templates and `fill.ps1`, used by the Release workflow's `winget` job ([winget](#winget)). |
 | [`.github/workflows/commit-messages.yml`](../.github/workflows/commit-messages.yml) | Checks PR titles (and, as a warning, PR commits) with [`commitlint.config.mjs`](../commitlint.config.mjs). |
 | [`eng/release-gate.mjs`](../eng/release-gate.mjs) | Whether a green push to `main` releases: the `cut-release` label. |
 | [`eng/first-release.mjs`](../eng/first-release.mjs) | The Release workflow's *First release* option: releases 1.0.0 while there is no release tag yet. |
@@ -45,6 +46,7 @@ up in erikterm.
    - once the repository is public, the workflow attests the build provenance of every asset and each download's SBOM
      ([Verifying a download](#verifying-a-download)).
 5. **packages:** `packages.yml` puts the release into eriklieben/packages ([Packages](#packages)).
+6. **winget:** the installer goes to winget as a pull request on microsoft/winget-pkgs ([winget](#winget)).
 
 The binaries carry the commit they were built from (`erikterm --version`); with the App that's the parent of the
 tagged release commit, which only adds `CHANGELOG.md`.
@@ -210,6 +212,68 @@ made (kept offline, not in GitHub).
 4. Later, remove the old key from `eriklieben.asc`. A compromised key is revoked right away instead: publish the
    revocation (`gpg --import` the certificate, then `--send-keys`), and users run `sudo pacman-key --refresh-keys`.
 
+## winget
+
+The Release workflow's last job, `winget` (a Windows runner), submits the installer `erikterm-win-x64-setup.exe` to
+[winget](https://learn.microsoft.com/windows/package-manager/) as package **`ErikLieben.Terminal`** (moniker
+`erikterm`, so `winget install erikterm` finds it too), with Microsoft's
+[wingetcreate](https://github.com/microsoft/winget-create) (`wingetcreate.exe` of a pinned release, checked against
+its SHA-256). Every submission is a pull request on [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs)
+from your fork of it (wingetcreate creates the fork if it doesn't exist); winget-pkgs' bots validate it, install it in
+a sandbox and merge it, and the first one is also reviewed by a moderator, which can take a few days.
+
+- **While the package isn't in winget-pkgs yet** (the first release): the job fills the manifests in
+  [`packaging/winget/`](../packaging/winget) for the release (`fill.ps1`: version, installer URL and SHA-256, release
+  date, release notes URL; the `ProductCode` is the installer's AppId plus `_is1`) and submits them with
+  `wingetcreate submit`, which checks them against the manifest schema first.
+- **Once `manifests/e/ErikLieben/Terminal` exists in winget-pkgs** (looked up through the GitHub API on every run):
+  `wingetcreate update ErikLieben.Terminal --version <version> --urls <setup.exe URL>|x64 --submit`, which takes
+  the latest manifest there and changes the version, URL, SHA-256, release date and release notes URL. A release
+  made while the first pull request is still open submits as a new package once more, with its own version folder;
+  close the older pull request if it's still open by then. If you change [`packaging/winget/`](../packaging/winget) after that (a description, tags), submit
+  it by hand (below), because `update` doesn't read these files.
+- **Skipped, with a notice:** without the secret `WINGET_TOKEN`, for a prerelease version (with a `-` suffix), when
+  that version is already in winget-pkgs, and in a dry run (nothing is released).
+- **A failure is a warning**, not a failed release: the job runs after the GitHub release and the packages and has
+  `continue-on-error`, so the run still counts as successful. To try again, re-run just this job (the re-run button
+  next to *winget* in the Release run).
+
+### Setting it up (once)
+
+1. **The token.** wingetcreate needs a **classic** personal access token: it doesn't support fine-grained tokens
+   ([winget-create#595](https://github.com/microsoft/winget-create/issues/595)). On GitHub: **Settings →
+   Developer settings → Personal access tokens → Tokens (classic) → Generate new token (classic)**, note
+   `erikterm winget`, an expiration (put a reminder in your calendar: the job then fails with a warning until the
+   secret is replaced), scope **`public_repo`** only. (`delete_repo` is optional and not needed: it only lets
+   wingetcreate delete a fork it just created when the submission fails.)
+2. **The secret.** In this repository: **Settings → Environments → `release` → Environment secrets → Add secret**,
+   name `WINGET_TOKEN`, the token as value. The job runs in the `release` environment, so the token is only available
+   to runs on `main`. It is given to wingetcreate through `WINGET_CREATE_GITHUB_TOKEN`, never on the command line.
+3. **Nothing else.** The next release (1.0.0 included) submits the new package by itself.
+
+### By hand
+
+To submit without a release run, or after changing [`packaging/winget/`](../packaging/winget), on Windows with
+[wingetcreate](https://github.com/microsoft/winget-create) installed (`winget install wingetcreate`), for a version
+already released:
+
+```powershell
+$v = '1.0.0'
+gh release download "v$v" --repo eriklieben/erikterm --pattern erikterm-win-x64-setup.exe --dir $env:TEMP
+$sha = (Get-FileHash "$env:TEMP\erikterm-win-x64-setup.exe" -Algorithm SHA256).Hash
+./packaging/winget/fill.ps1 -Version $v -InstallerSha256 $sha -ReleaseDate 2026-11-12 -OutDir "$env:TEMP\winget\$v"
+winget validate --manifest "$env:TEMP\winget\$v"
+wingetcreate submit --prtitle "New package: ErikLieben.Terminal version $v" "$env:TEMP\winget\$v"
+```
+
+(the release date is the GitHub release's). Without `--token`, wingetcreate signs you in through the browser. Once
+the package is in winget-pkgs, a new version without the templates is
+`wingetcreate update ErikLieben.Terminal --version $v --urls "https://github.com/eriklieben/erikterm/releases/download/v$v/erikterm-win-x64-setup.exe|x64" --submit`.
+
+The zip isn't offered through winget: winget installs a zip as a "portable" package by linking only `erikterm.exe`
+into its links folder, without a Start menu entry or the uninstall entry the installer has, and the installer already
+covers a per-user install without administrator rights.
+
 ## Dry run
 
 - **GitHub:** Actions → **Release** → *Run workflow* → branch `main`, *Dry run* ticked (the default). The log of
@@ -238,5 +302,6 @@ Look at which job of the Release run failed:
 | *semantic-release*, before the tag | Nothing was released (the log says so). Re-run, or run the workflow again. "The binaries were built as X, but the next version is now Y" means another release happened in between: run the workflow again. |
 | *semantic-release*, after the tag | Rare (a GitHub outage while uploading). semantic-release now counts the tag as released, so a re-run finds nothing to do: finish the GitHub release by hand with the run's artifacts (`gh run download <run id> --pattern 'erikterm-*' --dir dist`, then `gh release create` or `gh release upload` with `dist/*` and a `SHA256SUMS` from `node eng/release-assets.mjs checksums dist`), then publish the packages. A failed release also opens an issue *The automated release is failing*, closed by the next successful one. |
 | *packages* | The erikterm release is done. **Actions → Publish packages → Run workflow** (branch `main`) with the version, e.g. `1.2.1`. Every step can run twice. A failed *Signing key* has published nothing; its error says which of [Signing](#signing) is off. "The database is signed" from *Add it to the pacman repository*: `ARCH_SIGNING_KEY` is missing. |
+| *winget* (a warning) | The erikterm release is done. Read the job's log (a token that expired or lacks `public_repo`, a validation error from wingetcreate), fix it, then re-run the *winget* job (the run itself succeeded, so use the job's own re-run button); or submit by hand ([winget](#by-hand)). |
 
 Don't edit `CHANGELOG.md` or create `v*` tags by hand.
