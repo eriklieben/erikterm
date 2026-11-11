@@ -133,8 +133,8 @@ gh release download "$tag" --repo eriklieben/erikterm --dir release
 cd release && sha256sum -c SHA256SUMS
 ```
 
-Once the repository is public, every release asset also has a signed SLSA build provenance attestation, and each
-download an SBOM attestation, made by the Release workflow ([`actions/attest-build-provenance`](https://github.com/actions/attest-build-provenance),
+Every release asset also has a signed SLSA build provenance attestation, and each download an SBOM attestation,
+made by the Release workflow ([`actions/attest-build-provenance`](https://github.com/actions/attest-build-provenance),
 [`actions/attest`](https://github.com/actions/attest)). They tie each file's SHA-256 to this repository, the
 workflow and the commit:
 
@@ -148,6 +148,13 @@ gh attestation verify erikterm-win-x64.zip --repo eriklieben/erikterm --predicat
 
 The attestations are listed under **Actions → Attestations**. While the repository is private these steps are
 skipped (artifact attestations need a public repository); `SHA256SUMS` and the SBOMs are there either way.
+
+The provenance is also attached to the release as `erikterm-<tag>.intoto.jsonl` (the Sigstore bundle), so it can be
+checked without asking GitHub for it:
+
+```bash
+gh attestation verify erikterm-linux-x64.tar.gz --repo eriklieben/erikterm --bundle "erikterm-$tag.intoto.jsonl"
+```
 
 ## Packages
 

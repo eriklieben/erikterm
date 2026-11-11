@@ -286,12 +286,24 @@ jobs:
       # matter that they run after the upload. Artifact attestations need a public repository (or GitHub Enterprise
       # Cloud): skipped while the repository is private.
       - name: Attest build provenance
+        id: provenance
         if: ${{ !cancelled() && steps.tag.outputs.tag != '' && !github.event.repository.private }}
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: |
             dist/erikterm-*
             dist/SHA256SUMS
+      # The same provenance as a release asset too (a Sigstore bundle with the in-toto statement), so tools that look
+      # at the release itself find it, such as OpenSSF Scorecard's Signed-Releases check.
+      - name: Attach the provenance to the release
+        if: ${{ !cancelled() && steps.provenance.outputs.bundle-path != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.tag.outputs.tag }}
+          BUNDLE: ${{ steps.provenance.outputs.bundle-path }}
+        run: |
+          cp "$BUNDLE" "dist/erikterm-$TAG.intoto.jsonl"
+          gh release upload "$TAG" "dist/erikterm-$TAG.intoto.jsonl" --clobber
       - name: Attest the SBOM (linux-x64)
         if: ${{ !cancelled() && steps.tag.outputs.tag != '' && !github.event.repository.private }}
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
