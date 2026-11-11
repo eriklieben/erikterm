@@ -1,0 +1,161 @@
+name: Publish packages
+run-name: Publish erikterm ${{ inputs.version }} to eriklieben/packages
+
+# Puts a released version into eriklieben/packages, what used to be done by hand:
+#   1. the GitHub release erikterm-v<version> there, with the Linux tar.gz, the Windows zip and the installer;
+#   2. arch/erikterm/PKGBUILD (_tag, pkgver, pkgrel, sha256sums), bucket/erikterm.json (version, url, hash) and the
+#      installer link in README.md (eng/packages.mjs update);
+#   3. the pacman package (makepkg, as a normal user) added to the database on the `arch` release
+#      (scripts/publish-arch.sh of that repository: repo-add, upload);
+#   4. the commit "Update erikterm to <version>" on its main, through the GitHub API as the release GitHub App, so
+#      GitHub signs it ("Verified") (eng/packages.mjs commit).
+# The files are the ones on the erikterm GitHub release v<version> (checked against its SHA256SUMS and, once the
+# repository is public, its attestations): the same, already released binaries, never a rebuild.
+#
+# Runs as the last job of release.yml, and by hand (Actions > Publish packages > Run workflow, branch main, the version
+# without the v) to try again after a failure: every step can run twice (assets are replaced, repo-add replaces the
+# package, an unchanged checkout commits nothing).
+#
+# Needs the release GitHub App (variable RELEASE_APP_ID, secret RELEASE_APP_PRIVATE_KEY in the release environment)
+# installed on eriklieben/packages with Contents: read and write. Without it this workflow does nothing: no unsigned
+# commits there. Its token is limited to eriklieben/packages and never printed.
+#
+# Actions are pinned to a commit SHA (the version in the comment); the Arch image to a digest.
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: The released version, e.g. 1.2.1
+        type: string
+        required: true
+  workflow_dispatch:
+    inputs:
+      version:
+        description: The released version, e.g. 1.2.1 (without the v)
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: pacman repository and Scoop bucket
+    # No App, nothing to publish with (the release itself is done by then).
+    if: vars.RELEASE_APP_ID != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    # The environment holds RELEASE_APP_PRIVATE_KEY.
+    environment: release
+    concurrency:
+      group: publish-packages
+      cancel-in-progress: false
+    permissions:
+      contents: read         # download the erikterm GitHub release
+      attestations: read     # verify its attestations (public repository only)
+    # archlinux:base-devel (makepkg, repo-add), pinned to the image index digest of 2026-11-10.
+    container: archlinux:base-devel@sha256:fa2d4ce3310ddd90a4208e5168be8ad367da5129af1245f38fd2d803bcbe3239
+    env:
+      VERSION: ${{ inputs.version }}
+      ERIKTERM_REPO: ${{ github.repository }}
+      PACKAGES_REPO: ${{ github.repository_owner }}/packages
+    steps:
+      - name: Tools
+        run: |
+          case "$VERSION" in
+            [0-9]*.[0-9]*.[0-9]*) ;;
+            *) echo "::error::Not a version: $VERSION (no leading v)"; exit 1 ;;
+          esac
+          # git and gh for the checkouts and releases, node for eng/packages.mjs, the PKGBUILD's depends and
+          # makedepends (makepkg checks they are installed).
+          pacman -Syu --noconfirm --needed git github-cli nodejs sdl3 freetype2 harfbuzz ncurses
+          git config --global --add safe.directory '*'
+          useradd --create-home builder
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: erikterm
+          persist-credentials: false
+
+      - name: GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: packages
+          permission-contents: write
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ env.PACKAGES_REPO }}
+          ref: main
+          path: packages
+          token: ${{ steps.app-token.outputs.token }}
+          persist-credentials: false
+
+      - name: Download the released files
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          draft=$(gh release view "v$VERSION" -R "$ERIKTERM_REPO" --json isDraft --jq .isDraft)
+          if [ "$draft" != "false" ]; then echo "::error::v$VERSION is not a published release of $ERIKTERM_REPO"; exit 1; fi
+          gh release download "v$VERSION" -R "$ERIKTERM_REPO" -D dist \
+            -p erikterm-linux-x64.tar.gz -p erikterm-win-x64.zip -p erikterm-win-x64-setup.exe -p SHA256SUMS
+          gh release view "v$VERSION" -R "$ERIKTERM_REPO" --json body --jq .body > dist/notes.md
+          cd dist
+          sha256sum -c --ignore-missing SHA256SUMS
+
+      - name: Verify the attestations
+        # Artifact attestations exist once the repository is public (release.yml).
+        if: ${{ !github.event.repository.private }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for f in erikterm-linux-x64.tar.gz erikterm-win-x64.zip erikterm-win-x64-setup.exe; do
+            gh attestation verify "dist/$f" --repo "$ERIKTERM_REPO"
+          done
+
+      - name: Release erikterm-v${{ inputs.version }} on eriklieben/packages
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          tag="erikterm-v$VERSION"
+          if ! gh release view "$tag" -R "$PACKAGES_REPO" >/dev/null 2>&1; then
+            node erikterm/eng/packages.mjs notes "$VERSION" < dist/notes.md > dist/packages-notes.md
+            prerelease=()
+            case "$VERSION" in *-*) prerelease=(--prerelease) ;; esac
+            gh release create "$tag" -R "$PACKAGES_REPO" --title "erikterm $VERSION" --notes-file dist/packages-notes.md "${prerelease[@]}"
+          fi
+          gh release upload "$tag" -R "$PACKAGES_REPO" --clobber \
+            dist/erikterm-linux-x64.tar.gz dist/erikterm-win-x64.zip dist/erikterm-win-x64-setup.exe
+
+      - name: Update the PKGBUILD, Scoop manifest and README
+        run: node erikterm/eng/packages.mjs update packages "$VERSION" dist
+
+      - name: Build the pacman package
+        run: |
+          mkdir -p /tmp/build
+          cp packages/arch/erikterm/PKGBUILD /tmp/build/
+          # The source the PKGBUILD names, already here: makepkg checks it against sha256sums and doesn't download it.
+          cp dist/erikterm-linux-x64.tar.gz "/tmp/build/erikterm-linux-x64-$VERSION.tar.gz"
+          chown -R builder: /tmp/build
+          su builder -c 'cd /tmp/build && makepkg --cleanbuild --noconfirm'
+          ls -l /tmp/build/*.pkg.tar.zst
+
+      - name: Add it to the pacman repository
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: packages/scripts/publish-arch.sh /tmp/build/erikterm-*.pkg.tar.zst
+
+      - name: Commit to eriklieben/packages
+        env:
+          PACKAGES_TOKEN: ${{ steps.app-token.outputs.token }}
+          PACKAGES_REPOSITORY: ${{ env.PACKAGES_REPO }}
+        run: node erikterm/eng/packages.mjs commit packages "$VERSION"
+
+      - name: Summary
+        run: |
+          echo "Published erikterm $VERSION: https://github.com/$PACKAGES_REPO/releases/tag/erikterm-v$VERSION (pacman: https://github.com/$PACKAGES_REPO/releases/tag/arch)" >> "$GITHUB_STEP_SUMMARY"

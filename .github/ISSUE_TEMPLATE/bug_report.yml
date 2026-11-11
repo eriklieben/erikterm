@@ -1,0 +1,88 @@
+name: Bug report
+description: Something in erikterm doesn't work as expected.
+labels: [bug, needs-triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this. For security problems, please use
+        [private vulnerability reporting](https://github.com/eriklieben/erikterm/security/advisories/new) instead.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before you report
+      options:
+        - label: I searched the [existing issues](https://github.com/eriklieben/erikterm/issues?q=is%3Aissue) and this isn't reported yet.
+          required: true
+        - label: It still happens with the [latest release](https://github.com/eriklieben/erikterm/releases).
+          required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead? Screenshots or a short recording help.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: The program you ran in the pane, the keys you pressed, and any output that triggers it.
+      placeholder: |
+        1. Open a new tab with Ctrl+Shift+T
+        2. Run nvim and split the pane with Ctrl+Shift+\
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Version and diagnostics
+      description: >-
+        Open *Help › About erikterm* (command palette or right-click menu) and press Ctrl+C to copy the diagnostics:
+        version, renderer, fonts and session. Or paste the output of `erikterm --version`. Remove anything private.
+      render: text
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Linux
+        - Windows
+        - macOS
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: OS version, desktop and shell
+      description: On Linux the compositor or window manager, and Wayland or X11. The shell running in the pane.
+      placeholder: Arch Linux, Hyprland 0.52 (Wayland), zsh 5.9
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How is erikterm installed?
+      options:
+        - Arch Linux package
+        - Windows installer
+        - Zip / tar.gz from a release
+        - Built from source
+        - Other
+  - type: textarea
+    id: config
+    attributes:
+      label: Config
+      description: The part of `~/.config/erikterm/erikterm.toml` that matters, or "none" when you use the defaults.
+      render: toml
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: >-
+        A crash log from `$XDG_STATE_HOME/erikterm/crash-*.log` (About shows the latest), or the lines from
+        `ERIKTERM_LOG_UNHANDLED=1 erikterm` when a program's output looks wrong.
+      render: text

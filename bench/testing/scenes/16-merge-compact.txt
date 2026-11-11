@@ -1,0 +1,7 @@
+# Scene: the conflict resolver in a narrow pane: stacked cards instead of columns (reference-shots.sh).
+# cwd: mergerepo
+# set: default_prog=["{bin}", "mergetool"]
+# set: initial_cols=80
+# set: initial_rows=26
+sleep:2500
+shot:{out}/merge-compact.bmp

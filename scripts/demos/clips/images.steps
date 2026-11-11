@@ -1,0 +1,12 @@
+# images: a program draws a tide chart inline with the kitty graphics protocol (a PNG), followed by its table. It
+# opens on a finished build rather than an empty screen.
+sleep:1500
+ckey:l
+sleep:300
+run:dotnet build
+sleep:5200
+record:on
+sleep:900
+run:dotnet run --project src/Tidewatch -- chart
+sleep:5000
+end

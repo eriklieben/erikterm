@@ -1,0 +1,11 @@
+\e[H\e[2J\e[1;38;5;111m erikterm reference: vim mode\e[0m
+
+  The scrollback is a buffer you can move through with vim keys:
+  words, lines, paragraphs, marks, search and yank all work, and
+  visual mode selects characters, lines or a block (Ctrl-v).
+
+  fn main() {
+      let greeting = "hello, erikterm";
+      println!("{greeting}");
+  }
+

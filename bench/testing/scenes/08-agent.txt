@@ -1,0 +1,20 @@
+# Scene: coding-agent status, simulated with OSC 7501 (what Claude Code 2.1+ sends): a pane that needs
+# permission next to one that is working, the Agents overview, then closing the agent pane asks first.
+sleep:1500
+action:SplitHorizontal
+sleep:700
+feedfile:agent-working.vt
+action:ActivatePaneDirection(Left)
+sleep:300
+feedfile:agent.vt
+sleep:1500
+shot:{out}/agent-status.bmp
+action:AgentsOverview
+sleep:500
+shot:{out}/agents-overview.bmp
+key:escape
+sleep:300
+action:CloseCurrentPane
+sleep:500
+shot:{out}/close-confirm.bmp
+key:escape

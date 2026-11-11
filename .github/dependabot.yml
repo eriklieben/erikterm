@@ -1,0 +1,110 @@
+# Dependabot: dependency update pull requests. docs/development/code-analysis.md, "Dependency updates".
+#
+# The PR title is the squash-merge commit message, so it decides about releases:
+# - ci(deps): ...        GitHub Actions and the CI tools in .config/dotnet-tools.json (the SonarQube Cloud scanner).
+# - build(deps): ...     the .NET SDK (global.json) and the test project's NuGet packages (TUnit).
+# - build(deps-dev): ... the release and commit tooling in package.json (devDependencies).
+# None of them releases: the shipped binary takes no packages (src/ and bench/ have no PackageReference), so there is
+# no fix(deps). Should something that ships ever get a dependency, give it its own entry with prefix "fix".
+#
+# Security updates come on top, as soon as an alert is raised (Settings → Advanced Security → Dependabot security
+# updates), with the same prefixes.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '05:00'
+      timezone: Europe/Amsterdam
+    # Supply chain: wait until a release is 3 days old (yanked or compromised releases are usually gone by then).
+    cooldown:
+      default-days: 3
+    # Actions are pinned to a commit SHA with the version in a comment; Dependabot updates both.
+    commit-message:
+      prefix: ci
+      include: scope
+    labels: [dependencies]
+    groups:
+      github-actions:
+        patterns: ['*']
+
+  # The test project, the only one with packages.
+  - package-ecosystem: nuget
+    directory: /tests/ErikTerm.Tests
+    schedule:
+      interval: weekly
+      day: monday
+      time: '05:00'
+      timezone: Europe/Amsterdam
+    cooldown:
+      default-days: 3
+    commit-message:
+      # NuGet updates come without a scope (and then with a capital "Bump"): give the scope here.
+      prefix: build(deps)
+    labels: [dependencies]
+    groups:
+      tunit:
+        patterns: ['TUnit', 'TUnit.*']
+
+  # The root: only the .NET tool manifest (.config/dotnet-tools.json). The allow list keeps the test project's
+  # packages, which the solution also leads to, in the entry above.
+  - package-ecosystem: nuget
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '05:00'
+      timezone: Europe/Amsterdam
+    cooldown:
+      default-days: 3
+    commit-message:
+      # NuGet updates come without a scope (and then with a capital "Bump"): give the scope here.
+      prefix: ci(deps)
+    labels: [dependencies]
+    allow:
+      - dependency-name: dotnet-sonarscanner
+
+  - package-ecosystem: dotnet-sdk
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '05:00'
+      timezone: Europe/Amsterdam
+    commit-message:
+      # NuGet updates come without a scope (and then with a capital "Bump"): give the scope here.
+      prefix: build(deps)
+    labels: [dependencies]
+
+  # The root package.json holds the release and commit tooling (semantic-release, commitlint), not part of erikterm.
+  # The npm ecosystem also covers pnpm (pnpm-lock.yaml).
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '05:00'
+      timezone: Europe/Amsterdam
+    cooldown:
+      default-days: 3
+    versioning-strategy: increase
+    commit-message:
+      prefix: build
+      prefix-development: build
+      include: scope
+    labels: [dependencies]
+    groups:
+      release-tooling:
+        patterns:
+          - semantic-release
+          - '@semantic-release/*'
+          - '@commitlint/*'
+          - conventional-changelog-*
+          - simple-git-hooks
+    ignore:
+      # conventional-changelog-conventionalcommits 10+ belongs to the next major versions of the semantic-release
+      # plugins (commit-analyzer 14, release-notes-generator 15): move them together, by hand.
+      - dependency-name: conventional-changelog-conventionalcommits
+        versions: ['>=10']

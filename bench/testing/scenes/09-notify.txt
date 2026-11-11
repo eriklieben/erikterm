@@ -1,0 +1,10 @@
+# Scene: the notification bar (OSC 777 while the window counts as unfocused), then the OSC 52
+# clipboard prompt.
+sleep:1500
+unfocus
+feedfile:notify.vt
+sleep:1500
+shot:{out}/notification-bar.bmp
+feedfile:osc52.vt
+sleep:800
+shot:{out}/osc52-prompt.bmp

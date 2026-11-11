@@ -1,0 +1,7 @@
+\e[H\e[2J\e[1;38;5;111m erikterm reference: quick select\e[0m
+
+  commit 9f3c2a1b7e  Merge branch fix/parser   https://github.com/erikterm/erikterm/pull/42
+  error in /usr/local/share/erikterm/themes/macchiato.toml:12:7
+  host 203.0.113.20 port 8080   id 3f2504e0-4f89-11d3-9a0c-0305e82c3301   size 4096
+  see ~/.config/erikterm/erikterm.toml
+

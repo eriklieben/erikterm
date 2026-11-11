@@ -1,0 +1,63 @@
+# Scene: tab colors and OSC 9;4 progress (tabs, and split panes), the Tab Color entries in the palette, a pane whose
+# program exited with exit_behavior = "Hold", then a long command's notification (OSC 133, window unfocused).
+# (Tabs are renamed because the default title is the foreground program, which differs per platform.)
+# set: exit_behavior=Hold
+# set: notify_command_duration=1
+sleep:1500
+feed:\e[H\e[2J\e[1;38;5;111m erikterm reference: progress and tab colors\e[0m\r\n\r\n  OSC 9;4;1;65  normal, 65%\e]9;4;1;65\e\\
+action:SetTabColor(blue)
+action:SplitHorizontal
+sleep:700
+feed:\e[H\e[2J\r\n\r\n  OSC 9;4;2;80  error, 80%\e]9;4;2;80\e\\
+action:SpawnTab
+sleep:700
+feed:\e[H\e[2J\r\n\r\n  OSC 9;4;3  indeterminate\e]9;4;3\e\\
+action:SetTabColor(green)
+action:SpawnTab
+sleep:700
+feed:\e[H\e[2J\r\n\r\n  OSC 9;4;4;30  paused, 30%\e]9;4;4;30\e\\
+action:SetTabColor(magenta)
+action:SpawnTab
+sleep:700
+feed:\e[H\e[2J\r\n\r\n  no progress, no color
+action:ActivateCommandPalette
+type:Rename Tab
+key:enter
+type:shell
+key:enter
+action:ActivateTab(0)
+action:ActivateCommandPalette
+type:Rename Tab
+key:enter
+type:build
+key:enter
+action:ActivateTab(1)
+action:ActivateCommandPalette
+type:Rename Tab
+key:enter
+type:deploy
+key:enter
+action:ActivateTab(2)
+action:ActivateCommandPalette
+type:Rename Tab
+key:enter
+type:upload
+key:enter
+action:ActivateTab(0)
+sleep:500
+shot:{out}/progress.bmp
+action:ActivateCommandPalette
+type:Tab Color
+sleep:400
+shot:{out}/tab-colors.bmp
+key:escape
+exit:3
+sleep:900
+shot:{out}/held-pane.bmp
+action:ActivateTab(3)
+unfocus
+feed:\e[H\e[2J\e]133;A\e\\$ \e]133;B\e\\make test\r\n\e]133;C;cmdline_url=make%20test\e\\
+sleep:1300
+feed:\e]133;D;0\e\\
+sleep:700
+shot:{out}/command-finished.bmp

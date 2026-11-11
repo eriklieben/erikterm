@@ -1,0 +1,12 @@
+# Scene: the conflict resolver (two columns over the result) in a repository stopped on a merge (reference-shots.sh).
+# cwd: mergerepo
+# set: default_prog=["{bin}", "mergetool"]
+# set: font_size=8
+sleep:2500
+shot:{out}/merge-tool.bmp
+type:o
+sleep:800
+type:n
+type:t
+sleep:800
+shot:{out}/merge-tool-decided.bmp

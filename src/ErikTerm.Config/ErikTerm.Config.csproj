@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>ErikTerm.Config</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../ErikTerm.Core/ErikTerm.Core.csproj" />
+  </ItemGroup>
+</Project>

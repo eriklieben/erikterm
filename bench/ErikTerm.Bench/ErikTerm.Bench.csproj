@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="$(MSBuildThisFileDirectory)../../build/NativeAot.props" />
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>ErikTerm.Bench</RootNamespace>
+    <AssemblyName>erikterm-bench</AssemblyName>
+    <ServerGarbageCollector>false</ServerGarbageCollector>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/ErikTerm.Core/ErikTerm.Core.csproj" />
+    <ProjectReference Include="../../src/ErikTerm.Pty/ErikTerm.Pty.csproj" />
+  </ItemGroup>
+</Project>

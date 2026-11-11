@@ -1,0 +1,5 @@
+\e[H\e[2J\e[1;38;5;111m erikterm reference: window\e[0m
+
+  A plain pane. Window padding, background and cursor come from scene.toml.
+
+ \e[32m$\e[0m 

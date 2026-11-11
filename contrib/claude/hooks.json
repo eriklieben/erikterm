@@ -1,0 +1,23 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      { "hooks": [{ "type": "command", "timeout": 5, "command": "[ -n \"$ERIKTERM_SOCKET\" ] && erikterm cli set-agent-status --state working --hook-input 2>/dev/null; true" }] }
+    ],
+    "PreToolUse": [
+      { "matcher": "*", "hooks": [{ "type": "command", "timeout": 5, "command": "[ -n \"$ERIKTERM_SOCKET\" ] && erikterm cli set-agent-status --state working --hook-input 2>/dev/null; true" }] }
+    ],
+    "PostToolUse": [
+      { "matcher": "*", "hooks": [{ "type": "command", "timeout": 5, "command": "[ -n \"$ERIKTERM_SOCKET\" ] && erikterm cli set-agent-status --state working 2>/dev/null; true" }] }
+    ],
+    "Notification": [
+      { "matcher": "permission_prompt", "hooks": [{ "type": "command", "timeout": 5, "command": "[ -n \"$ERIKTERM_SOCKET\" ] && erikterm cli set-agent-status --state waiting --kind permission --hook-input 2>/dev/null; true" }] },
+      { "matcher": "elicitation_dialog", "hooks": [{ "type": "command", "timeout": 5, "command": "[ -n \"$ERIKTERM_SOCKET\" ] && erikterm cli set-agent-status --state waiting --kind question --hook-input 2>/dev/null; true" }] }
+    ],
+    "Stop": [
+      { "hooks": [{ "type": "command", "timeout": 5, "command": "[ -n \"$ERIKTERM_SOCKET\" ] && erikterm cli set-agent-status --state done 2>/dev/null; true" }] }
+    ],
+    "SessionEnd": [
+      { "hooks": [{ "type": "command", "timeout": 5, "command": "[ -n \"$ERIKTERM_SOCKET\" ] && erikterm cli set-agent-status --state clear 2>/dev/null; true" }] }
+    ]
+  }
+}

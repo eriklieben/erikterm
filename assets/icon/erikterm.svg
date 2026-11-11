@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="512" height="512">
+  <!-- erikterm app icon (master; 16/24/32 px have hand-tuned drawings next to it). Render: scripts/render-icons.sh.
+       © 2026 Erik Lieben. Same license as erikterm. -->
+  <title>erikterm</title>
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#363a4f"/>
+      <stop offset="1" stop-color="#1e2030"/>
+    </linearGradient>
+  </defs>
+  <!-- Tile: Catppuccin Macchiato surface0 → mantle, with a hairline lavender rim. -->
+  <rect x="4" y="4" width="56" height="56" rx="14" fill="url(#tile)"/>
+  <rect x="4.5" y="4.5" width="55" height="55" rx="13.5" fill="none" stroke="#b7bdf8" stroke-opacity=".45"/>
+  <!-- Prompt chevron (lavender) and a slim caret (blue). -->
+  <path d="M20 21 L32 32 L20 43" fill="none" stroke="#b7bdf8" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="39" y="19" width="5" height="26" rx="2.5" fill="#8aadf4"/>
+</svg>

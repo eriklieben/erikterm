@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The SonarQube Cloud analysis settings for .github/workflows/sonar.yml: SonarScanner for .NET reads them with /s:
+     (it doesn't read sonar-project.properties). docs/development/code-analysis.md explains each choice. -->
+<SonarQubeAnalysisProperties xmlns="http://www.sonarsource.com/msbuild/integration/2015/1">
+  <!-- Not shipped: the benchmark, build output, generated code (the P/Invoke stubs), scripts, packaging and the shell
+       and editor integration files. tests/** is test code: the scanner analyses it with the test rules and doesn't
+       count it as lines of code. -->
+  <Property Name="sonar.exclusions">bench/**,artifacts/**,**/bin/**,**/obj/**,**/*.g.cs,scripts/**,packaging/**,contrib/**,coverage/**</Property>
+  <!-- The coverage of the three test jobs of build.yml, with paths of this checkout (scripts/sonar-coverage.py). A line
+       counts as covered when any platform ran it, as in the coverage job. -->
+  <Property Name="sonar.cs.cobertura.reportsPaths">coverage/*/coverage.xml</Property>
+  <!-- Compiler and analyzer warnings aren't imported: build.yml's quality job gates the SDK analyzers
+       (build/quality.globalconfig), and they would show up twice next to Sonar's own rules. -->
+  <Property Name="sonar.cs.roslyn.ignoreIssues">true</Property>
+</SonarQubeAnalysisProperties>

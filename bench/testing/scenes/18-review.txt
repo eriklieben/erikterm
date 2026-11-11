@@ -1,0 +1,27 @@
+# Scene: a local PR review of a worktree: the palette entry, the tab, moving across files, commits, reuse, Finish (reference-shots.sh).
+# cwd: reviewrepo.worktrees/fix-cart-total
+# set: font_size=8
+sleep:800
+action:ActivateCommandPalette
+sleep:500
+type:compare with main
+sleep:800
+shot:{out}/review-palette.bmp
+key:enter
+sleep:3500
+type:]
+sleep:1200
+shot:{out}/review.bmp
+type:c
+sleep:800
+shot:{out}/review-commits.bmp
+key:escape
+sleep:400
+action:ActivateTab(0)
+sleep:800
+action:CompareWithMain
+sleep:1500
+shot:{out}/review-tab-reused.bmp
+type:f
+sleep:2000
+shot:{out}/review-finish.bmp

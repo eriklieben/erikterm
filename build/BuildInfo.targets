@@ -1,0 +1,47 @@
+<Project>
+  <!--
+    Stamps the build with its product version, git commit and date, read back at runtime from
+    [AssemblyMetadata] attributes (the About screen, "Copy diagnostics"). Git is optional: outside a
+    checkout, or without git installed, the commit is simply left empty. CI or packagers can set
+    -p:ErikTermCommit=abc1234 -p:ErikTermDirty=false to skip the git calls.
+  -->
+  <!--
+    The version of a development build. Releases pass theirs in (VersionPrefix + VersionSuffix from the environment,
+    .github/workflows/build-binaries.yml; docs/releasing.md), so this stays as it is; a release never changes it.
+    Only an empty VersionPrefix is replaced: this file is imported before the SDK's own 1.0.0 default, so a 1.0.0 here
+    was set on purpose (a stable release).
+  -->
+  <PropertyGroup>
+    <VersionPrefix Condition="'$(VersionPrefix)' == ''">0.1.0</VersionPrefix>
+  </PropertyGroup>
+
+  <Target Name="ErikTermBuildInfo" BeforeTargets="GetAssemblyAttributes">
+    <Exec Condition="'$(ErikTermCommit)' == ''" Command="git rev-parse --short=7 HEAD" WorkingDirectory="$(MSBuildProjectDirectory)"
+          ConsoleToMSBuild="true" EchoOff="true" IgnoreExitCode="true" ContinueOnError="true"
+          IgnoreStandardErrorWarningFormat="true" StandardOutputImportance="low" StandardErrorImportance="low">
+      <Output TaskParameter="ConsoleOutput" PropertyName="_ErikTermGitHead" />
+      <Output TaskParameter="ExitCode" PropertyName="_ErikTermGitExit" />
+    </Exec>
+    <Exec Condition="'$(ErikTermCommit)' == '' and '$(_ErikTermGitExit)' == '0'" Command="git status --porcelain --untracked-files=no"
+          WorkingDirectory="$(MSBuildProjectDirectory)"
+          ConsoleToMSBuild="true" EchoOff="true" IgnoreExitCode="true" ContinueOnError="true"
+          IgnoreStandardErrorWarningFormat="true" StandardOutputImportance="low" StandardErrorImportance="low">
+      <Output TaskParameter="ConsoleOutput" PropertyName="_ErikTermGitStatus" />
+    </Exec>
+
+    <PropertyGroup>
+      <ErikTermCommit Condition="'$(ErikTermCommit)' == '' and '$(_ErikTermGitExit)' == '0'">$(_ErikTermGitHead.Trim())</ErikTermCommit>
+      <ErikTermDirty Condition="'$(ErikTermDirty)' == '' and '$(_ErikTermGitStatus)' != ''">true</ErikTermDirty>
+      <ErikTermDirty Condition="'$(ErikTermDirty)' == ''">false</ErikTermDirty>
+      <!-- Minutes in Release; just the day in Debug so incremental builds don't recompile every run. -->
+      <ErikTermBuildDate Condition="'$(ErikTermBuildDate)' == '' and '$(Configuration)' == 'Release'">$([System.DateTime]::UtcNow.ToString("yyyy-MM-dd HH:mm 'UTC'"))</ErikTermBuildDate>
+      <ErikTermBuildDate Condition="'$(ErikTermBuildDate)' == ''">$([System.DateTime]::UtcNow.ToString("yyyy-MM-dd"))</ErikTermBuildDate>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <AssemblyMetadata Include="ErikTerm.Commit" Value="$(ErikTermCommit)" />
+      <AssemblyMetadata Include="ErikTerm.Dirty" Value="$(ErikTermDirty)" />
+      <AssemblyMetadata Include="ErikTerm.BuildDate" Value="$(ErikTermBuildDate)" />
+    </ItemGroup>
+  </Target>
+</Project>

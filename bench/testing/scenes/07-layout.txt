@@ -1,0 +1,46 @@
+# Scene: splits (right, then down), zoom, the pane picker, then three named tabs.
+# (Tabs are renamed because the default title is the foreground program, which differs per platform.)
+sleep:1500
+feed:\e[H\e[2J pane 1
+action:SplitHorizontal
+sleep:700
+feed:\e[H\e[2J pane 2: split right (Ctrl+Shift+\\)
+action:SplitVertical
+sleep:700
+feed:\e[H\e[2J pane 3: split down (Ctrl+Shift+-), focused
+sleep:500
+shot:{out}/splits.bmp
+action:TogglePaneZoomState
+sleep:400
+shot:{out}/zoom.bmp
+action:TogglePaneZoomState
+sleep:300
+action:PaneSelect
+sleep:400
+shot:{out}/pane-select.bmp
+key:escape
+action:SpawnTab
+sleep:700
+feed:\e[H\e[2J tab 2 (Ctrl+Shift+T)
+action:SpawnTab
+sleep:700
+feed:\e[H\e[2J tab 3
+action:ActivateCommandPalette
+type:Rename Tab
+key:enter
+type:logs
+key:enter
+action:ActivateTab(0)
+action:ActivateCommandPalette
+type:Rename Tab
+key:enter
+type:editor
+key:enter
+action:ActivateTab(1)
+action:ActivateCommandPalette
+type:Rename Tab
+key:enter
+type:build
+key:enter
+sleep:500
+shot:{out}/tabs.bmp

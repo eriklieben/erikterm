@@ -1,0 +1,12 @@
+# Scene: side-by-side compare with noise rules (reference-shots.sh).
+# cwd: comparefiles
+# set: default_prog=["{bin}", "compare", "main/cart.ts", "branch/cart.ts"]
+# set: font_size=8
+sleep:2000
+type:i
+sleep:1200
+shot:{out}/compare-rules.bmp
+sleep:600
+type:i
+sleep:1200
+shot:{out}/compare.bmp

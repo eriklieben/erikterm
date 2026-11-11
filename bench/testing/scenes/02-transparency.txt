@@ -1,0 +1,7 @@
+# Scene: window_background_opacity = 0.8. The PNG keeps the alpha channel (what the compositor blends
+# with the desktop; blur is the compositor's).
+# set: window_background_opacity=0.8
+sleep:1500
+feedfile:plain.vt
+sleep:500
+shot:{out}/transparency.bmp

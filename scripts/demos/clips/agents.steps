@@ -1,0 +1,34 @@
+# agents: four simulated agents in three tabs change state; Ctrl+Shift+A lists them, waiting first; Enter jumps to
+# the one that needs permission, y approves it and it goes back to work.
+sleep:1500
+type:helper "Add moon phases"
+key:enter
+sleep:300
+cskey:\
+sleep:500
+type:DEMO_AGENT_DONE_AFTER=8 helper "Document the station format"
+key:enter
+sleep:300
+cskey:t
+sleep:500
+type:DEMO_AGENT_BLOCK_AFTER=6 helper "Fix the flaky forecast test"
+key:enter
+sleep:300
+cskey:t
+sleep:500
+type:helper "Review the parser"
+key:enter
+sleep:600
+cskey:1
+sleep:600
+action:ActivatePaneDirection(Left)
+sleep:400
+record:on
+sleep:5800
+cskey:a
+sleep:2400
+key:enter
+sleep:1600
+type:y
+sleep:2500
+end

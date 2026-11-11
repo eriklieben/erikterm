@@ -1,0 +1,25 @@
+# The checks of `dotnet build -p:Quality=true` (the "code quality" CI job). Only analyzers that ship with the .NET SDK.
+# Everything else stays off: a rule belongs here when what it finds is worth fixing every time.
+is_global = true
+
+# Methods too complex to follow. scripts/check-complexity.py compares these with build/complexity-baseline.txt.
+dotnet_diagnostic.CA1502.severity = warning
+
+# Dead code.
+dotnet_diagnostic.CA1823.severity = error
+dotnet_diagnostic.IDE0060.severity = error
+dotnet_code_quality_unused_parameters = non_public
+
+# Mistakes.
+dotnet_diagnostic.CA1821.severity = error
+dotnet_diagnostic.CA2011.severity = error
+dotnet_diagnostic.CA2013.severity = error
+dotnet_diagnostic.CA2014.severity = error
+dotnet_diagnostic.CA2016.severity = error
+dotnet_diagnostic.CA2018.severity = error
+dotnet_diagnostic.CA2022.severity = error
+dotnet_diagnostic.CA2200.severity = error
+dotnet_diagnostic.CA2219.severity = error
+dotnet_diagnostic.CA2241.severity = error
+dotnet_diagnostic.CA2242.severity = error
+dotnet_diagnostic.CA2245.severity = error

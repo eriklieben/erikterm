@@ -1,0 +1,54 @@
+name: OpenSSF Scorecard
+
+# Checks the repository's supply-chain practices (pinned actions, token permissions, branch protection, code review,
+# dependency updates, signed releases, ...) and publishes the result for the README badge (scorecard.dev).
+# docs/development/code-analysis.md.
+#
+# Only for a public repository: publish_results is refused for a private one, and the checks that read the repository
+# settings need a token of their own there. Pushes carry the repository's visibility, so they skip while it is private;
+# a scheduled run has no repository in its event, so it waits for the repository variable PUBLIC_REPO = true instead.
+#
+# publish_results puts rules on this file, which scorecard.dev checks before it accepts the result: no top-level env or
+# defaults, no write permissions at the top, a GitHub-hosted Ubuntu runner, and only the actions used below.
+on:
+  branch_protection_rule: # the Branch-Protection check changes with the rules
+  schedule:
+    - cron: '41 4 * * 1'
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions: read-all
+
+jobs:
+  analysis:
+    name: scorecard
+    if: (github.event_name == 'schedule' && vars.PUBLIC_REPO == 'true') || github.event_name == 'workflow_dispatch' || github.event.repository.private == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      security-events: write # upload the results to code scanning
+      id-token: write # publish_results: proves to scorecard.dev that the result comes from this workflow
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: ossf/scorecard-action@fa7117db83c52d787ae5a89f350999701505d78e # v2.5.0
+        with:
+          results_file: results.sarif
+          results_format: sarif
+          publish_results: true
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: scorecard
+          path: results.sarif
+          retention-days: 5
+
+      # Security → Code scanning lists each failed check with what to change.
+      - uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          sarif_file: results.sarif

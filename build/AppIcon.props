@@ -1,0 +1,7 @@
+<Project>
+  <!-- The window icon (src/ErikTerm.App/Native/WindowIcon.cs), rendered by scripts/render-icons.sh. One PNG, not the
+       whole set: about 5 KB in the binary. Imported by the app and by the tests (which check it decodes). -->
+  <ItemGroup>
+    <EmbeddedResource Include="$(MSBuildThisFileDirectory)../assets/icon/png/erikterm-128.png" LogicalName="erikterm-icon.png" Visible="false" />
+  </ItemGroup>
+</Project>

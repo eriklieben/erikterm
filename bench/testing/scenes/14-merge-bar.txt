@@ -1,0 +1,5 @@
+# Scene: the merge/rebase state bar, in a repository stopped on a rebase conflict (reference-shots.sh).
+# cwd: rebasing
+# set: git_status=true
+sleep:5000
+shot:{out}/merge-bar.bmp

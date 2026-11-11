@@ -1,0 +1,34 @@
+# Scene: New Agent Worktree: the form, then the tab it opens. reference-shots.sh runs it in a throwaway repository with
+# fake agents on PATH (nothing real is started).
+sleep:1500
+action:NewAgentWorktree
+sleep:900
+type:Fix the login redirect loop
+key:down
+type:--model haiku
+key:up
+sleep:400
+shot:{out}/agent-worktree.bmp
+key:enter
+sleep:2500
+shot:{out}/agent-worktree-tab.bmp
+exit:0
+sleep:1200
+shot:{out}/agent-worktree-exited.bmp
+action:NewAgentWorktree
+sleep:900
+type:second task
+ckey:enter
+sleep:1200
+type:third task
+ckey:enter
+sleep:1500
+key:escape
+sleep:500
+shot:{out}/agent-worktree-background.bmp
+action:NewAgentWorktree
+sleep:900
+type:open in a split
+alt:enter
+sleep:2500
+shot:{out}/agent-worktree-split.bmp

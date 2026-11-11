@@ -1,0 +1,38 @@
+# The README clips' config: a clean look, nothing from the machine it runs on.
+font = "JetBrainsMono Nerd Font"
+font_size = 12
+line_height = 1.1
+harfbuzz_features = ["calt=1", "liga=1", "clig=1"]
+color_scheme = "Catppuccin Mocha"
+bold_brightens_ansi_colors = true
+
+window_background_opacity = 1.0
+window_decorations = "RESIZE"
+window_padding = 10
+initial_cols = 126
+initial_rows = 30
+
+default_cursor_style = "SteadyBar"
+cursor_blink_rate = 0
+cursor_animation = true
+animation_duration_ms = 160
+smooth_scrolling = true
+
+enable_tab_bar = true
+hide_tab_bar_if_only_one_tab = false
+inactive_pane_hsb = { saturation = 0.9, brightness = 0.7 }
+command_palette_font_size = 12
+command_palette_rows = 10
+
+default_prog = ["bash"]
+shell_integration = "auto"
+git_status = true
+github_status = false
+git_conflict_check = false
+restore_session = false
+single_instance = false
+os_notifications = "off"
+tmux_emulation = false
+remember_commands = false
+window_close_confirmation = "NeverPrompt"
+notification_bar = true

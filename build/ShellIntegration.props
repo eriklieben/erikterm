@@ -1,0 +1,13 @@
+<Project>
+  <!-- contrib/shell, embedded so automatic shell integration (src/ErikTerm.App/Integrations/ShellIntegration.cs) needs
+       no installed files; the package and the docs ship the same files. Imported by the app and by the tests. -->
+  <ItemGroup>
+    <EmbeddedResource Include="$(MSBuildThisFileDirectory)../contrib/shell/erikterm.zsh" LogicalName="shell/erikterm.zsh" Visible="false" />
+    <EmbeddedResource Include="$(MSBuildThisFileDirectory)../contrib/shell/erikterm.bash" LogicalName="shell/erikterm.bash" Visible="false" />
+    <EmbeddedResource Include="$(MSBuildThisFileDirectory)../contrib/shell/erikterm.fish" LogicalName="shell/erikterm.fish" Visible="false" />
+    <EmbeddedResource Include="$(MSBuildThisFileDirectory)../contrib/shell/erikterm.ps1" LogicalName="shell/erikterm.ps1" Visible="false" />
+    <EmbeddedResource Include="$(MSBuildThisFileDirectory)../contrib/shell/inject/zsh/.zshenv" LogicalName="shell/inject/zsh/.zshenv" Visible="false" />
+    <EmbeddedResource Include="$(MSBuildThisFileDirectory)../contrib/shell/inject/bash/erikterm-inject.bash" LogicalName="shell/inject/bash/erikterm-inject.bash" Visible="false" />
+    <EmbeddedResource Include="$(MSBuildThisFileDirectory)../contrib/shell/inject/fish/vendor_conf.d/00-erikterm.fish" LogicalName="shell/inject/fish/vendor_conf.d/00-erikterm.fish" Visible="false" />
+  </ItemGroup>
+</Project>

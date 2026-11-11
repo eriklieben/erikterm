@@ -1,0 +1,20 @@
+# review: erikterm review compares the branch with main like a pull request: files on the left, the compare on the
+# right; ] steps through changes, J to the next file, i toggles the noise rules. It opens and ends inside the review.
+sleep:1500
+ckey:l
+sleep:300
+run:erikterm review
+sleep:2400
+record:on
+sleep:1200
+type:]
+sleep:1300
+type:]
+sleep:1300
+type:J
+sleep:1500
+type:]
+sleep:1300
+type:J
+sleep:2000
+end

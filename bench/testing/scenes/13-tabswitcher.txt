@@ -1,0 +1,93 @@
+# Scene: the Ctrl+Tab tab switcher (most recently used first, colors, agent status, progress, a filter) and the tab bar
+# overflowing: a window onto the tabs and "N more" with its attention dot, then the list from that button.
+# (Tabs are renamed because the default title is the foreground program, which differs per platform.)
+sleep:1500
+feed:\e[H\e[2J tab 1
+action:SetTabColor(blue)
+action:SpawnTab
+sleep:500
+feed:\e[H\e[2J tab 2\e]7501;state=blocked:app=claude-code:kind=permission:msg=QXBwcm92ZSBydW5uaW5nIGdpdCBwdXNo\e\\
+action:SetTabColor(green)
+action:SpawnTab
+sleep:500
+feed:\e[H\e[2J tab 3\e]9;4;1;40\e\\\e]7501;state=working:app=claude-code\e\\
+action:SetTabColor(magenta)
+action:SpawnTab
+sleep:500
+feed:\e[H\e[2J tab 4\e]7501;state=done:app=claude-code\e\\
+action:ActivateCommandPalette
+type:Rename Tab
+key:enter
+type:feature/add-the-ctrl-tab-switcher-with-recency-and-overflow
+key:enter
+action:ActivateTab(0)
+action:ActivateCommandPalette
+type:Rename Tab
+key:enter
+type:build
+key:enter
+action:ActivateTab(1)
+action:ActivateCommandPalette
+type:Rename Tab
+key:enter
+type:agent review
+key:enter
+action:ActivateTab(2)
+action:ActivateCommandPalette
+type:Rename Tab
+key:enter
+type:deploy
+key:enter
+action:ActivateTab(3)
+sleep:300
+# Most recently used first: tab 4, 3, 2, 1. Ctrl+Tab held past the delay shows the list on tab 3.
+ckey:tab
+sleep:400
+shot:{out}/tab-switcher.bmp
+type:rev
+sleep:300
+shot:{out}/tab-switcher-filter.bmp
+key:escape
+sleep:300
+# A quick tap: Ctrl+Tab and straight back up, no list, the previous tab (tab 3).
+ctrl-tap
+sleep:400
+shot:{out}/tab-quick-tap.bmp
+action:ActivateTab(0)
+sleep:300
+# Enough tabs that they can't all fit: the active one stays in view and "N more" appears beside the +.
+action:SpawnTab
+sleep:300
+action:SpawnTab
+sleep:300
+action:SpawnTab
+sleep:300
+action:SpawnTab
+sleep:300
+action:SpawnTab
+sleep:300
+action:SpawnTab
+sleep:300
+action:SpawnTab
+sleep:300
+action:SpawnTab
+sleep:300
+action:SpawnTab
+sleep:300
+action:SpawnTab
+sleep:300
+action:SpawnTab
+sleep:300
+action:SpawnTab
+sleep:300
+action:SpawnTab
+sleep:300
+action:SpawnTab
+sleep:300
+action:SpawnTab
+sleep:400
+shot:{out}/tab-overflow.bmp
+clickmore
+sleep:400
+shot:{out}/tab-overflow-list.bmp
+key:escape

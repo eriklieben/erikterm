@@ -1,0 +1,10 @@
+# Scene: vim mode: a visual selection with the mode pill, then the g? cheat sheet.
+sleep:1500
+feedfile:prose.vt
+sleep:400
+vim:gg7jwwve
+sleep:500
+shot:{out}/vim-visual.bmp
+vim:<Esc>g?
+sleep:500
+shot:{out}/vim-help.bmp

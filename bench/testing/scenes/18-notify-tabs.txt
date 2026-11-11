@@ -1,0 +1,18 @@
+# Scene: the notification bar scoped to the open tab, with "+1 in other tabs", and the panel listing every tab.
+# (OSC 777 while the window counts as unfocused: a focused pane's notifications would be read at once.)
+sleep:1500
+feed:\e[H\e[2J tab 1
+action:SpawnTab
+sleep:500
+unfocus
+feed:\e[H\e[2J tab 2\e]777;notify;Tests failed;3 failures in the parser\a
+sleep:300
+action:ActivateTab(0)
+sleep:800
+unfocus
+feed:\e]777;notify;Build finished;All 1405 tests passed\a
+sleep:800
+shot:{out}/notification-other-tabs.bmp
+action:NotificationsPanel
+sleep:500
+shot:{out}/notification-panel.bmp

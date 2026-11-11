@@ -1,0 +1,58 @@
+{
+  "timestamp": "2026-11-07T18:34:17.4843578+01:00",
+  "machine": "arch",
+  "runtime": ".NET 10.0.12",
+  "size": "120x40",
+  "megabytes": 16,
+  "results": [
+    {
+      "name": "ascii",
+      "medianMBps": 245.1,
+      "bestMBps": 255.23,
+      "allocPerMB": 0,
+      "gen0": 0
+    },
+    {
+      "name": "sgr-256",
+      "medianMBps": 96.71,
+      "bestMBps": 98.94,
+      "allocPerMB": 0,
+      "gen0": 0
+    },
+    {
+      "name": "sgr-truecolor",
+      "medianMBps": 111.28,
+      "bestMBps": 113.37,
+      "allocPerMB": 0,
+      "gen0": 0
+    },
+    {
+      "name": "unicode",
+      "medianMBps": 65.7,
+      "bestMBps": 66.46,
+      "allocPerMB": 0,
+      "gen0": 0
+    },
+    {
+      "name": "cursor",
+      "medianMBps": 128.61,
+      "bestMBps": 129.74,
+      "allocPerMB": 0,
+      "gen0": 0
+    },
+    {
+      "name": "scroll-region",
+      "medianMBps": 154.56,
+      "bestMBps": 158.93,
+      "allocPerMB": 0,
+      "gen0": 0
+    },
+    {
+      "name": "alt-screen",
+      "medianMBps": 387.41,
+      "bestMBps": 394.17,
+      "allocPerMB": 0,
+      "gen0": 0
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+# hero: one tab holds an editor, a test run and an agent at work; a second tab builds; git badges, progress, the agent
+# pill. It opens and ends on that busy first tab (GitHub shows the first frame, and hero.png is the last).
+sleep:1500
+# the second tab, built once already
+cskey:t
+sleep:400
+ckey:l
+sleep:200
+run:dotnet build
+sleep:3200
+cskey:1
+sleep:400
+ckey:l
+sleep:300
+run:nvim src/Tidewatch/Moon.cs
+sleep:900
+# keys go to nvim: it's the program
+type:9j
+sleep:300
+cskey:\
+sleep:500
+run:dotnet test
+sleep:2800
+cskey:-
+sleep:500
+run:helper "Add moon phases"
+sleep:1300
+record:on
+sleep:1800
+# the test pane: cleared and run again, so the last frame matches the first
+action:ActivatePaneDirection(Up)
+sleep:400
+ckey:l
+sleep:100
+run:dotnet test
+sleep:2700
+# start a build in the second tab and come straight back: its tab shows the progress
+cskey:2
+sleep:300
+run:dotnet build
+sleep:600
+cskey:1
+sleep:5000
+shot:{FRAMES}/STILL.bmp
+sleep:200
+end

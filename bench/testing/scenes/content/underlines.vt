@@ -1,0 +1,13 @@
+\e[H\e[2J\e[1;38;5;111m erikterm reference: underline styles\e[0m
+
+ \e[38;5;245m4 / 4:1   \e[0m  \e[4msingle underline\e[0m   \e[4;58;2;138;173;244mblue (58;2;r;g;b)\e[0m   \e[4;58;5;203mindexed (58;5;n)\e[0m
+ \e[38;5;245m4:2 / 21  \e[0m  \e[4:2mdouble underline\e[0m   \e[21mSGR 21 is double too\e[0m   \e[4:2;58:5:114mgreen double\e[0m
+ \e[38;5;245m4:3       \e[0m  \e[4:3mcurly in the text color\e[0m   \e[4:3;58:2::237:135:150merror (LSP)\e[0m   \e[4:3;58:2::238:212:159mwarning\e[0m
+ \e[38;5;245m4:4       \e[0m  \e[4:4mdotted underline\e[0m   \e[4:4;58;2;138;173;244mteh speling misteaks\e[0m
+ \e[38;5;245m4:5       \e[0m  \e[4:5mdashed underline\e[0m   \e[4:5;58:5:114mgreen dashes\e[0m
+ \e[38;5;245m53        \e[0m  \e[53moverline\e[0m   \e[53;4moverline + underline\e[0m   \e[53;9;4:3;58:2::237:135:150mall at once\e[0m
+ \e[38;5;245m59 / 24   \e[0m  \e[4:3;58:2::237:135:150mred \e[59mthen the text color\e[0m   \e[4:3mcurly \e[24mthen none\e[0m
+ \e[38;5;245mstyles    \e[0m  \e[1;4:3;58:2::237:135:150mbold\e[0m \e[3;4:4;58;2;138;173;244mitalic\e[0m \e[7;4:3;58:2::237:135:150minverse\e[0m \e[31;4:5mred text dashed\e[0m \e[38;2;166;218;149;4:3;58:2::237:135:150mgreen text, red curl\e[0m
+ \e[38;5;245mwide      \e[0m  \e[4:3;58:2::237:135:150m日本語のテキスト\e[0m  \e[4:4;58;2;138;173;244m😀 👍🏽 🚀\e[0m  \e[4:2m한국어\e[0m
+
+ \e[32m$\e[0m 

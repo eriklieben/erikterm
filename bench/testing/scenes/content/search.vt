@@ -1,0 +1,25 @@
+\e[H\e[2J
+  2026-11-07T10:01:00  \e[32minfo \e[0m  worker-1  processed batch 17 in 3 ms
+  2026-11-07T10:02:00  \e[32minfo \e[0m  worker-2  processed batch 34 in 6 ms
+  2026-11-07T10:03:00  \e[32minfo \e[0m  worker-3  processed batch 51 in 9 ms
+  2026-11-07T10:04:00  \e[32minfo \e[0m  worker-0  processed batch 68 in 12 ms
+  2026-11-07T10:05:00  \e[31merror\e[0m  worker-1  connection reset by peer, retrying
+  2026-11-07T10:06:00  \e[32minfo \e[0m  worker-2  processed batch 102 in 18 ms
+  2026-11-07T10:07:00  \e[32minfo \e[0m  worker-3  processed batch 119 in 21 ms
+  2026-11-07T10:08:00  \e[32minfo \e[0m  worker-0  processed batch 136 in 24 ms
+  2026-11-07T10:09:00  \e[32minfo \e[0m  worker-1  processed batch 153 in 27 ms
+  2026-11-07T10:10:00  \e[31merror\e[0m  worker-2  connection reset by peer, retrying
+  2026-11-07T10:11:00  \e[32minfo \e[0m  worker-3  processed batch 187 in 33 ms
+  2026-11-07T10:12:00  \e[32minfo \e[0m  worker-0  processed batch 204 in 36 ms
+  2026-11-07T10:13:00  \e[32minfo \e[0m  worker-1  processed batch 221 in 39 ms
+  2026-11-07T10:14:00  \e[32minfo \e[0m  worker-2  processed batch 238 in 42 ms
+  2026-11-07T10:15:00  \e[31merror\e[0m  worker-3  connection reset by peer, retrying
+  2026-11-07T10:16:00  \e[32minfo \e[0m  worker-0  processed batch 272 in 48 ms
+  2026-11-07T10:17:00  \e[32minfo \e[0m  worker-1  processed batch 289 in 51 ms
+  2026-11-07T10:18:00  \e[32minfo \e[0m  worker-2  processed batch 306 in 54 ms
+  2026-11-07T10:19:00  \e[32minfo \e[0m  worker-3  processed batch 323 in 57 ms
+  2026-11-07T10:20:00  \e[31merror\e[0m  worker-0  connection reset by peer, retrying
+  2026-11-07T10:21:00  \e[32minfo \e[0m  worker-1  processed batch 357 in 63 ms
+  2026-11-07T10:22:00  \e[32minfo \e[0m  worker-2  processed batch 374 in 66 ms
+  2026-11-07T10:23:00  \e[32minfo \e[0m  worker-3  processed batch 391 in 69 ms
+  2026-11-07T10:24:00  \e[32minfo \e[0m  worker-0  processed batch 408 in 72 ms

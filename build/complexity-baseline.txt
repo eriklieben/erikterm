@@ -1,0 +1,4 @@
+# Methods over the complexity limit when the check was introduced. Only ever shrinks: see scripts/check-complexity.py.
+  80 src/ErikTerm.Core/Terminal.cs::CsiDispatch
+  41 src/ErikTerm.Core/Terminal.cs::Sgr
+  38 src/ErikTerm.Core/VtParser.cs::Advance

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16">
+  <!-- erikterm symbolic icon (freedesktop: one color, recolored by the toolkit). © 2026 Erik Lieben. Same license as erikterm. -->
+  <g fill="#2e3436">
+    <path d="M4.5 1h7A3.5 3.5 0 0 1 15 4.5v7a3.5 3.5 0 0 1-3.5 3.5h-7A3.5 3.5 0 0 1 1 11.5v-7A3.5 3.5 0 0 1 4.5 1zm0 1A2.5 2.5 0 0 0 2 4.5v7A2.5 2.5 0 0 0 4.5 14h7a2.5 2.5 0 0 0 2.5-2.5v-7A2.5 2.5 0 0 0 11.5 2z"/>
+    <path d="M4 4h2v1h1v1h1v1h1v2h-1v1h-1v1h-1v1h-2v-1h1v-1h1v-1h1v-2h-1v-1h-1v-1h-1z"/>
+    <rect x="10" y="4" width="2" height="8"/>
+  </g>
+</svg>

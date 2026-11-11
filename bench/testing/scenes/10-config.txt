@@ -1,0 +1,12 @@
+# Scene: config problems: two bad --set overrides give the startup toast, then palette > Show Config
+# Problems lists them.
+# set: font_size=huge
+# set: no_such_option=1
+sleep:1800
+shot:{out}/config-toast.bmp
+action:ActivateCommandPalette
+type:Show Config Problems
+key:enter
+sleep:500
+shot:{out}/config-problems.bmp
+key:escape

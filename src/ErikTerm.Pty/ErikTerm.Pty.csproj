@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>ErikTerm.Pty</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- The pure Windows helpers (command line, environment block) are unit-tested on every platform. -->
+    <InternalsVisibleTo Include="ErikTerm.Tests" />
+  </ItemGroup>
+</Project>

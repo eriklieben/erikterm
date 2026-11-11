@@ -1,0 +1,259 @@
+name: build
+
+# Native AOT can't cross-compile, so every platform builds on its own runner (build-binaries.yml). Each run uploads one
+# download per platform (Actions → the run → Artifacts). Every pushed branch is built, so a work branch (e.g. one
+# pushed from a Windows machine) gets the same Linux/Windows/macOS build and tests as main, per commit; documentation-only
+# changes and Dependabot's pull requests run only the Linux jobs (the `scope` job).
+#
+# Releases: when everything passed on a push to main, the last job (`release`) starts the Release workflow
+# (release.yml) if a pull request merged since the last release has the label cut-release or security
+# (eng/release-gate.mjs). See docs/releasing.md. Pushing a v* tag no longer does anything: semantic-release makes the
+# tags, and the release (no longer a draft) carries binaries built with the release version.
+#
+# Actions are pinned to a commit SHA (the version in the comment).
+on:
+  push:
+    # Dependabot's branches are built by their pull request; building the push as well would double every run.
+    branches: ['**', '!dependabot/**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# main: builds queue, so a slow first Windows build (vcpkg) still finishes and fills its cache, and every green push
+# to main gets to its release job. Work branches and pull requests: a new push replaces the running build of the same
+# branch.
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+env:
+  DOTNET_NOLOGO: '1'
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+
+jobs:
+  # What this run needs: everything, or only the Linux jobs. Documentation-only changes (docs/, Markdown, LICENSE, the
+  # issue and pull request templates) and Dependabot's pull requests skip macOS, Windows, coverage and the binaries:
+  # on a private repository a macOS minute costs ten times a Linux one. The Linux jobs still run, so every commit gets
+  # a green (or red) CI run that a release can check.
+  scope:
+    name: scope
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      full: ${{ steps.scope.outputs.full }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Decide
+        id: scope
+        env:
+          EVENT: ${{ github.event_name }}
+          ACTOR: ${{ github.actor }}
+          BEFORE: ${{ github.event.before }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          full=true
+          from=""
+          case "$EVENT" in
+            push) from="$BEFORE" ;;
+            pull_request) from="$BASE" ;;
+          esac
+          if [ "$ACTOR" = "dependabot[bot]" ]; then
+            full=false
+          elif [ -n "$from" ] && ! printf '%s' "$from" | grep -qE '^0+$' && git cat-file -e "$from^{commit}" 2>/dev/null; then
+            # Any changed path outside the documentation means a full run.
+            code=$(git diff --name-only "$from" "$GITHUB_SHA" | grep -vE '^(docs/|LICENSE$|\.github/ISSUE_TEMPLATE/|\.github/pull_request_template\.md$)|\.md$' || true)
+            if [ -z "$code" ]; then full=false; fi
+          fi
+          echo "full=$full" >> "$GITHUB_OUTPUT"
+          echo "Full run (macOS, Windows, coverage, binaries): $full" >> "$GITHUB_STEP_SUMMARY"
+
+  test:
+    name: test (linux)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # build/BuildInfo.targets stamps the commit
+          persist-credentials: false
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: '10.0.x'
+      - name: Native libraries the tests load
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libfreetype6 libharfbuzz0b fontconfig fonts-dejavu-core
+      - name: Test
+        run: dotnet test --project tests/ErikTerm.Tests --coverage --coverage-output-format cobertura --coverage-output coverage.xml --results-directory coverage
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coverage-linux
+          path: coverage/coverage.xml
+          if-no-files-found: error
+
+  # The suite on a real Mac: the pty (spawn helper, controlling tty, libproc), IPC paths and font scan run for real.
+  test-macos:
+    name: test (macos)
+    needs: scope
+    if: needs.scope.outputs.full == 'true'
+    runs-on: macos-15
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: '10.0.x'
+      - name: Native libraries the tests load
+        run: brew install freetype harfbuzz
+      - name: Test
+        run: dotnet test --project tests/ErikTerm.Tests --coverage --coverage-output-format cobertura --coverage-output coverage.xml --results-directory coverage
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coverage-macos
+          path: coverage/coverage.xml
+          if-no-files-found: error
+
+  # The suite on Windows: ConPTY, the foreground process detection (WindowsForegroundProcessTests) and the Windows-only
+  # tests run for real.
+  test-windows:
+    name: test (windows)
+    needs: scope
+    if: needs.scope.outputs.full == 'true'
+    runs-on: windows-2025
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: '10.0.x'
+      # The same packages and cache key as the win-x64 build, so whichever job saves the cache saves all of them.
+      - name: Cache vcpkg packages
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}\vcpkg-cache
+          key: vcpkg-x64-windows-sdl3-freetype-harfbuzz-v1
+      - name: Native libraries the tests load (vcpkg)
+        shell: pwsh
+        env:
+          VCPKG_DEFAULT_BINARY_CACHE: ${{ runner.temp }}\vcpkg-cache
+        run: |
+          New-Item -ItemType Directory -Force $env:VCPKG_DEFAULT_BINARY_CACHE | Out-Null
+          & "$env:VCPKG_INSTALLATION_ROOT\vcpkg.exe" install sdl3 freetype harfbuzz --triplet x64-windows --clean-after-build
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Build
+        run: dotnet build tests/ErikTerm.Tests
+      # erikterm loads these only from its own directory (NativeLibraries.cs); for the tests that is the output folder.
+      - name: DLLs next to the test assembly
+        shell: pwsh
+        run: Copy-Item "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\bin\*.dll" tests\ErikTerm.Tests\bin\Debug\net10.0\
+      - name: Test
+        run: dotnet test --project tests/ErikTerm.Tests --no-build --coverage --coverage-output-format cobertura --coverage-output coverage.xml --results-directory coverage
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coverage-windows
+          path: coverage/coverage.xml
+          if-no-files-found: error
+
+  # The SDK's analyzers (build/quality.globalconfig) and the complexity limit (build/complexity-baseline.txt).
+  quality:
+    name: code quality
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: '10.0.x'
+      - name: Build with the analyzers
+        shell: bash
+        run: dotnet build src/ErikTerm.App -p:Quality=true --no-incremental -nologo -v q -clp:NoSummary | tee quality.log
+      - name: Check method complexity
+        run: python3 scripts/check-complexity.py quality.log build/complexity-baseline.txt
+
+  # The release tooling in eng/ (release gate, API release commit, SBOMs, release assets, packages), against mocks.
+  release-scripts:
+    name: release scripts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: lts/*
+      - name: Tests
+        run: node --test eng/
+
+  # Line coverage over all three platforms: code for one system is measured on that system.
+  coverage:
+    name: coverage
+    needs: [test, test-macos, test-windows]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: coverage-*
+          path: coverage
+      - name: Merge and check
+        run: python3 scripts/merge-coverage.py coverage/*/coverage.xml --min ErikTerm.Core=80 --min ErikTerm.Config=80 --min ErikTerm.Ui=80 --min ErikTerm.Pty=80
+
+  # The downloads, as a development build (no release version). Releases build with release.yml.
+  build:
+    name: build
+    needs: [test, test-macos, test-windows]
+    uses: ./.github/workflows/build-binaries.yml
+
+  # ------------------------------------------------------------------------------------------------ release
+  release:
+    name: release
+    # Only after everything above passed, for pushes to main: starts the Release workflow (release.yml) for this
+    # commit when a pull request merged since the last release tag has the label cut-release or security
+    # (eng/release-gate.mjs). semantic-release then decides from the commit messages whether there is anything to
+    # release (release.config.mjs, docs/releasing.md). A GITHUB_TOKEN may start workflow_dispatch runs (unlike pushes
+    # and most other events it causes). Commits pushed straight to main without such a pull request wait: release them
+    # with Actions > Release > Run workflow (dry run off).
+    needs: [test, test-macos, test-windows, quality, release-scripts, coverage, build]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: write        # start the Release workflow (workflow_dispatch)
+      contents: read        # gh reads release.yml to check its inputs; the commits since the last tag
+      pull-requests: read   # the labels of the pull requests merged since the last tag
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check for a release label
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node eng/release-gate.mjs
+
+      - name: Start the Release workflow
+        if: steps.gate.outputs.release == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh workflow run release.yml --ref "$GITHUB_REF_NAME" -f dry_run=false -f commit="$GITHUB_SHA"
+          url="https://github.com/$GH_REPO/actions/workflows/release.yml?query=branch%3A$GITHUB_REF_NAME"
+          echo "Started the Release workflow for $GITHUB_SHA on $GITHUB_REF_NAME: $url"
+          echo "Started the [Release workflow]($url) for \`$GITHUB_SHA\` on \`$GITHUB_REF_NAME\`." >> "$GITHUB_STEP_SUMMARY"

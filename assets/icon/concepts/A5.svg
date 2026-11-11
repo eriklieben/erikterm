@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="512" height="512">
+<!-- erikterm icon concept A5. © 2026 Erik Lieben. Same license as the erikterm repository. -->
+<defs><linearGradient id="A5-tile" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3e3652"/><stop offset="1" stop-color="#1f1c2c"/></linearGradient></defs>
+<rect x="4" y="4" width="56" height="56" rx="14" fill="url(#A5-tile)"/><rect x="4.5" y="4.5" width="55" height="55" rx="13.5" fill="none" stroke="#c6a0f6" stroke-opacity=".4"/><path d="M17 21 L29 32 L17 43" fill="none" stroke="#b7bdf8" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/><rect x="34" y="21" width="11" height="22" rx="2.5" fill="#8aadf4"/>
+</svg>

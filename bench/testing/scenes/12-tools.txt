@@ -1,0 +1,28 @@
+# Scene: scrollbar marks (prompts, failed commands in red, search matches), broadcast input (rim and pill on every
+# receiving pane), and the theme browser (filtered, with its live preview).
+sleep:1500
+feedfile:marks.vt
+scroll:40
+sleep:500
+shot:{out}/scrollbar-marks.bmp
+action:Search
+type:error
+sleep:800
+shot:{out}/scrollbar-search.bmp
+key:escape
+sleep:300
+action:ScrollToBottom
+action:SplitHorizontal
+sleep:700
+action:SplitVertical
+sleep:700
+action:ToggleBroadcastInput
+sleep:400
+shot:{out}/broadcast.bmp
+action:ToggleBroadcastInput
+sleep:300
+action:BrowseThemes
+type:catppuccin
+sleep:500
+shot:{out}/theme-browser.bmp
+key:escape

@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The README demo tooling (see scripts/demos/README.md): one program, "demo", with a command per job. Not part of
+       ErikTerm.slnx; record.sh builds it into artifacts/demos/tool. No packages. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>demo</AssemblyName>
+    <RootNamespace>Demos</RootNamespace>
+    <IsAotCompatible>false</IsAotCompatible>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <!-- The demo repository's own source: compiled in (the fake dotnet run draws the chart with it) and embedded, so the
+       world command writes the very same files into the demo repository. Moon.cs keeps its lines under about 56
+       columns: the hero and palette clips show it in half a window. -->
+  <ItemGroup>
+    <EmbeddedResource Include="Tidewatch/*.cs" LogicalName="Tidewatch/%(Filename)%(Extension)" />
+  </ItemGroup>
+
+</Project>

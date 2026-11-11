@@ -1,0 +1,20 @@
+<Project>
+  <!-- Imported by executables that ship: Native AOT, tuned for speed. -->
+  <PropertyGroup>
+    <PublishAot>true</PublishAot>
+    <OptimizationPreference>Speed</OptimizationPreference>
+    <StripSymbols>true</StripSymbols>
+  </PropertyGroup>
+
+  <!--
+    AVX2-class baseline for x64 targets so span searches (IndexOfAnyExceptInRange) vectorize at 256 bits.
+    Decided by the target RuntimeIdentifier (not the build machine): a target, because the SDK infers the RID
+    after this file is evaluated. Nothing for arm64. Override with -p:IlcInstructionSet=...
+  -->
+  <Target Name="ErikTermIlcInstructionSet" BeforeTargets="WriteIlcRspFileForCompilation"
+          Condition="'$(IlcInstructionSet)' == '' and $(RuntimeIdentifier.EndsWith('-x64'))">
+    <PropertyGroup>
+      <IlcInstructionSet>x86-64-v3</IlcInstructionSet>
+    </PropertyGroup>
+  </Target>
+</Project>

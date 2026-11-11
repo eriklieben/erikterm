@@ -1,0 +1,38 @@
+# palette: Ctrl+Shift+P, fuzzy "theme", Browse Themes, live preview while moving through the list; Esc goes back.
+sleep:1500
+type:nvim src/Tidewatch/Moon.cs
+key:enter
+sleep:900
+type:14j
+cskey:\
+sleep:500
+type:dotnet test
+key:enter
+sleep:2800
+action:ActivatePaneDirection(Left)
+sleep:600
+record:on
+sleep:800
+cskey:p
+sleep:600
+typeslow:themes
+sleep:900
+key:enter
+sleep:1000
+key:down
+sleep:800
+key:down
+sleep:800
+key:down
+sleep:800
+key:down
+sleep:800
+key:down
+sleep:800
+key:down
+sleep:900
+key:escape
+sleep:600
+key:escape
+sleep:1200
+end

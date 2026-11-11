@@ -1,0 +1,15 @@
+bin/
+obj/
+artifacts/
+*.user
+.vs/
+.idea/
+bench-results/
+.claude/
+TestResults/
+deps/
+# Release and commit tooling (package.json; dev-only, never part of erikterm)
+node_modules/
+# Release assets, filled by the Release workflow (eng/release-assets.mjs)
+dist/
+

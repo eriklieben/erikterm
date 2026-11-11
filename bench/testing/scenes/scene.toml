@@ -1,0 +1,40 @@
+# The fixed configuration of the reference scenes (bench/testing/README.md).
+# Every platform renders the scenes with these settings, so screenshots compare side by side.
+# The runners (scripts/reference-shots.sh / .ps1) prepend `default_prog` (a program that prints nothing
+# and waits) and pass a scene's own `# set:` lines as --set overrides. No [tables] here: the runner
+# prepends top-level keys.
+
+font = "JetBrainsMono Nerd Font"   # install it (nerdfonts.com); without it the fallback differs per OS
+font_size = 12
+line_height = 1.2
+harfbuzz_features = ["calt=1", "liga=1", "clig=1"]
+color_scheme = "Catppuccin Macchiato"
+bold_brightens_ansi_colors = true
+
+window_background_opacity = 1.0    # the transparency scene sets 0.8
+window_decorations = "RESIZE"
+window_padding = 8
+initial_cols = 100
+initial_rows = 26
+
+default_cursor_style = "SteadyBlock"
+cursor_blink_rate = 0              # no blink, no glide: the frame doesn't depend on timing
+cursor_animation = false
+animation_duration_ms = 0
+smooth_scrolling = false
+
+enable_tab_bar = true
+hide_tab_bar_if_only_one_tab = true
+inactive_pane_hsb = { saturation = 0.9, brightness = 0.6 }
+command_palette_font_size = 12
+command_palette_rows = 10
+
+# Nothing from the machine the scene runs on: no git badges, no session, no desktop notifications.
+git_status = false
+github_status = false
+restore_session = false
+single_instance = false
+os_notifications = "off"
+osc52 = "ask"
+tmux_emulation = false
+window_close_confirmation = "AlwaysPrompt"

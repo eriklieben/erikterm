@@ -1,0 +1,24 @@
+# Scene: the command palette, the context menu, search and quick select.
+sleep:1500
+feedfile:search.vt
+sleep:500
+action:ActivateCommandPalette
+type:split
+sleep:400
+shot:{out}/palette.bmp
+key:escape
+menu
+sleep:400
+shot:{out}/context-menu.bmp
+key:escape
+action:Search
+type:error
+sleep:600
+shot:{out}/search.bmp
+key:escape
+feedfile:quickselect.vt
+sleep:400
+action:QuickSelect
+sleep:500
+shot:{out}/quick-select.bmp
+key:escape

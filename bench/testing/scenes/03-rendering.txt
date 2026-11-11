@@ -1,0 +1,13 @@
+# Scene: text rendering (ligatures, styles, emoji, CJK, combining marks, Nerd Font icons, powerline,
+# box drawing), then the color palette (16 ANSI, 256 cube, grayscale, truecolor gradients), then underline styles
+# (single, double, curly, dotted, dashed), underline colors and overline.
+sleep:1500
+feedfile:text.vt
+sleep:1500
+shot:{out}/text.bmp
+feedfile:colors.vt
+sleep:700
+shot:{out}/colors.bmp
+feedfile:underlines.vt
+sleep:700
+shot:{out}/underlines.bmp

@@ -1,0 +1,39 @@
+# vim mode: Ctrl+Shift+X, [[ jumps between prompts, j/w move, v$ selects a commit message, y copies it, q leaves.
+sleep:1500
+ckey:l
+sleep:300
+run:git log --oneline -6
+sleep:300
+run:dotnet test
+sleep:3200
+record:on
+sleep:800
+cskey:x
+sleep:900
+vim:[[
+sleep:700
+vim:[[
+sleep:900
+vim:j
+sleep:350
+vim:j
+sleep:350
+vim:j
+sleep:600
+vim:w
+sleep:600
+vim:v
+sleep:500
+vim:e
+sleep:300
+vim:e
+sleep:300
+vim:e
+sleep:600
+vim:$
+sleep:900
+vim:y
+sleep:1800
+vim:q
+sleep:1200
+end

@@ -1,0 +1,16 @@
+# Scene: inline images (kitty graphics, iTerm2, sixel), then links: an OSC 8 hyperlink hovered with
+# Ctrl held, and a plain URL hovered.
+sleep:1500
+feedfile:images.vt
+sleep:1200
+shot:{out}/images.bmp
+feedfile:links.vt
+sleep:300
+mouse:24,2
+ctrl:1
+sleep:500
+shot:{out}/hyperlink.bmp
+ctrl:0
+mouse:30,3
+sleep:500
+shot:{out}/url-hover.bmp

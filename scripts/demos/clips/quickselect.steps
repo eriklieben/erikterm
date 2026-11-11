@@ -1,0 +1,23 @@
+# quick select: labels on hashes, paths and URLs; Shift+label copies one and pastes it at the prompt.
+sleep:1500
+ckey:l
+sleep:300
+run:git log --oneline -5
+sleep:300
+run:git status --short
+sleep:300
+run:dotnet nuget list source
+sleep:500
+record:on
+sleep:600
+typeslow:git show --stat
+typex:\x20
+sleep:700
+action:QuickSelect
+sleep:1600
+# Shift+j: copy the hash of "Add moon phases" and paste it at the prompt
+skey:j
+sleep:1000
+key:enter
+sleep:2600
+end

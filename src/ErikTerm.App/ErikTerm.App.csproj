@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="$(MSBuildThisFileDirectory)../../build/NativeAot.props" />
+  <Import Project="$(MSBuildThisFileDirectory)../../build/BuildInfo.targets" />
+  <Import Project="$(MSBuildThisFileDirectory)../../build/AppIcon.props" />
+  <Import Project="$(MSBuildThisFileDirectory)../../build/ShellIntegration.props" />
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>ErikTerm.App</RootNamespace>
+    <AssemblyName>erikterm</AssemblyName>
+    <!-- session.json uses source-generated serializers only (Session/SessionModel.cs): trims the reflection paths. -->
+    <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
+  </PropertyGroup>
+  <!-- Windows: a GUI-subsystem exe, so Explorer/shortcuts open no console window (Native/WindowsConsole.cs
+       re-attaches to the launching console for diagnostics and `erikterm cli`). The icon becomes a Win32 resource,
+       which Native AOT copies into the native exe; SDL also uses it for the window class (title bar, taskbar). -->
+  <PropertyGroup Condition="'$(OS)' == 'Windows_NT' or $(RuntimeIdentifier.StartsWith('win'))">
+    <OutputType>WinExe</OutputType>
+    <ApplicationIcon>$(MSBuildThisFileDirectory)../../assets/icon/erikterm.ico</ApplicationIcon>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../ErikTerm.Core/ErikTerm.Core.csproj" />
+    <ProjectReference Include="../ErikTerm.Config/ErikTerm.Config.csproj" />
+    <ProjectReference Include="../ErikTerm.Pty/ErikTerm.Pty.csproj" />
+    <ProjectReference Include="../ErikTerm.Ui/ErikTerm.Ui.csproj" />
+  </ItemGroup>
+</Project>

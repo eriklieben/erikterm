@@ -1,0 +1,11 @@
+\e[H\e[2J\e]0;✳ Fix the parser\a
+\e[38;5;209m╭──────────────────────────────────────────╮\e[0m
+\e[38;5;209m│\e[0m ✻ Claude Code (simulated with OSC 7501)  \e[38;5;209m│\e[0m
+\e[38;5;209m╰──────────────────────────────────────────╯\e[0m
+
+ ● Bash(rm -rf build && dotnet build)
+
+ Do you want to proceed?
+ \e[38;5;111m❯ 1. Yes\e[0m
+   2. No, and tell Claude what to do
+\e]7501;state=blocked:app=claude-code:kind=permission:msg=QmFzaDogcm0gLXJmIGJ1aWxk\e\\

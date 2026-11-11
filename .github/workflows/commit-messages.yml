@@ -1,0 +1,61 @@
+name: Commit messages
+
+# A pull request squash-merged with its title as the commit message lets the title decide the release (feat -> minor,
+# fix / perf -> patch, a breaking change -> major, see docs/development/README.md, "Commit messages and releases"): it
+# must follow the Angular format. The commits inside the PR are checked too, as a warning only (squash merging replaces
+# them; a PR merged with a merge commit keeps them, and then they decide the release).
+# Rules: commitlint.config.mjs. Commits pushed straight to main are checked by the local commit-msg hook only.
+#
+# Actions are pinned to a commit SHA (the version in the comment).
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: commit-messages-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  commitlint:
+    name: PR title (Angular format)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: lts/*
+
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          cache: true
+          cache_dependency_path: pnpm-lock.yaml
+
+      - name: Install commitlint
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: PR title
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          if ! printf '%s\n' "$TITLE" | npx --no -- commitlint; then
+            echo "::error title=PR title::'$TITLE' isn't an Angular-style commit message, e.g. 'feat(tabs): reopen a closed tab' or 'fix(pty): ...'. See docs/development/README.md, \"Commit messages and releases\"."
+            exit 1
+          fi
+
+      - name: Commits (advisory)
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if ! npx --no -- commitlint --from "$BASE" --to "$HEAD_SHA"; then
+            echo "::warning title=Commit messages::Some commits in this PR don't follow the Angular format. That's fine when the PR is squash merged: the PR title becomes the commit message."
+          fi

@@ -1,0 +1,342 @@
+name: Release
+run-name: Release${{ inputs.first_release && ' (first release)' || '' }}${{ inputs.dry_run && ' (dry run)' || '' }}${{ inputs.commit != '' && format(' of {0}', inputs.commit) || '' }}
+
+# semantic-release (release.config.mjs) over four jobs, because the binaries are built on three operating systems
+# (Native AOT can't cross-compile), before anything is released:
+#   1. version   semantic-release --dry-run: the next version from the commit messages since the last tag (Angular
+#                format, see docs/development/README.md), e.g. 1.2.1. Nothing to release: the run ends here.
+#   2. build     build-binaries.yml with that version: the four downloads and their SBOMs (the same build as CI's).
+#   3. release   semantic-release for real: checks the version is still the one just built and that dist/ is complete
+#                (eng/release-assets.mjs), with the GitHub App also commits CHANGELOG.md (signed, "Verified"), tags
+#                v<version>, creates the GitHub release with the downloads, their SBOMs and SHA256SUMS; then attests
+#                their build provenance and SBOMs (public repository only).
+#   4. packages  packages.yml: the same, released files into eriklieben/packages (pacman repository, Scoop bucket).
+# Overview, setup and how to retry: docs/releasing.md.
+#
+# Started:
+# - by build.yml (job `release`, `gh workflow run`) after every CI job passed on a push to main, when a pull request
+#   merged since the last tag has the label cut-release or security, with dry_run=false and commit=<the CI run's
+#   commit>. If main has moved on by then, this run releases nothing: the CI run of the newer commit starts its own.
+# - by hand (Actions > Release > Run workflow, branch main): a dry run by default (prints the next version and its
+#   notes, builds and publishes nothing). With dry run off it releases the head of main, which needs a green CI run:
+#   that's how commits pushed straight to main are released, and how a failed release is tried again.
+# - by hand with first_release ticked: only for the very first release of the repository, while there is no v* tag
+#   yet. It releases 1.0.0 whatever the commit types are (eng/first-release.mjs, in the dry run and the real run
+#   alike), and refuses once any v* tag exists.
+#
+# Actions are pinned to a commit SHA (the version in the comment).
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Dry run (show the next version and its release notes, build and publish nothing)
+        type: boolean
+        default: true
+      commit:
+        description: "Set by CI: release only while the branch is still at this commit (leave empty by hand)"
+        type: string
+        default: ""
+      first_release:
+        description: "Only for the very first release of the repository: releases 1.0.0 when there's no release tag yet"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+# One release run at a time; a queued run never cancels a running one (a newer queued run replaces an older queued
+# one, which is fine: it releases everything the older one would have).
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Check the commit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: read          # look up the CI run of the commit
+      contents: read         # first_release: list the v* tags
+    outputs:
+      release: ${{ steps.head.outputs.release }}
+    steps:
+      - name: Release branch
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::Releases are made from main only (this run is on $GITHUB_REF_NAME)."
+          exit 1
+
+      - name: First release only without a release tag
+        if: inputs.first_release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tags=$(gh api --paginate "repos/${{ github.repository }}/git/matching-refs/tags/v" --jq '.[].ref')
+          if [ -n "$tags" ]; then
+            echo "::error::First release is only for a repository without release tags, and this one has $(printf '%s\n' "$tags" | wc -l) (e.g. ${tags%%$'\n'*}). Run the workflow without it."
+            exit 1
+          fi
+          echo "No v* tag yet: this run releases 1.0.0." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Still the branch head
+        id: head
+        env:
+          COMMIT: ${{ inputs.commit }}
+        run: |
+          # GITHUB_SHA is the head of the branch when this run was started.
+          if [ -n "$COMMIT" ] && [ "$COMMIT" != "$GITHUB_SHA" ]; then
+            msg="$GITHUB_REF_NAME has moved on from $COMMIT to $GITHUB_SHA: nothing to release here, the CI run of the newer commit starts the release."
+            echo "::notice::$msg"
+            echo "$msg" >> "$GITHUB_STEP_SUMMARY"
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Require a green CI run for this commit
+        if: steps.head.outputs.release == 'true' && !inputs.dry_run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # A CI run (build.yml) counts when the jobs the release depends on passed: the tests on the three systems,
+          # code quality, the release scripts, coverage and the build. A documentation-only commit runs only the Linux
+          # jobs (build.yml's scope job), so skipped jobs count as passed as long as the Linux tests and code quality ran
+          # and passed. Its own `release` job (the one that started this run) is left out. Completed and in-progress
+          # runs are both listed.
+          ok=0
+          for id in $(gh api "repos/${{ github.repository }}/actions/workflows/build.yml/runs?head_sha=${{ github.sha }}" --jq '.workflow_runs[].id'); do
+            counts=$(gh api "repos/${{ github.repository }}/actions/runs/$id/jobs?per_page=100" \
+              --jq '[.jobs[] | select(.name | test("^(test \\(|code quality$|release scripts$|coverage$|build / )"))] | "\([.[] | select((.name == "test (linux)" or .name == "code quality") and .conclusion == "success")] | length) \([.[] | select(.conclusion != "success" and .conclusion != "skipped")] | length)"')
+            read -r basics bad <<< "$counts"
+            if [ "$basics" = "2" ] && [ "$bad" = "0" ]; then ok=1; break; fi
+          done
+          if [ "$ok" = "0" ]; then
+            echo "::error::No green CI run for ${{ github.sha }}: push it and let CI pass first."
+            exit 1
+          fi
+
+  version:
+    name: Next version${{ inputs.dry_run && ' (dry run)' || '' }}
+    needs: check
+    if: needs.check.outputs.release == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      # semantic-release checks that it may push (git push --dry-run), also in a dry run. Nothing is pushed here.
+      contents: write
+    outputs:
+      # Empty when nothing would be released.
+      version: ${{ steps.next.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The whole history and all tags: semantic-release reads the commits since the last v* tag.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: lts/*
+
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - name: Install semantic-release
+        # --ignore-scripts: no install scripts (and no local git hooks) in a job with a write token.
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: semantic-release --dry-run
+        id: next
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          # "true" lists eng/first-release.mjs (release.config.mjs); the release job sets it the same way.
+          ERIKTERM_FIRST_RELEASE: ${{ inputs.first_release }}
+        # eng/release-assets.mjs (verifyRelease) writes version=<next version> to GITHUB_OUTPUT.
+        run: npx --no -- semantic-release --dry-run
+
+      - name: Summary
+        env:
+          VERSION: ${{ steps.next.outputs.version }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          if [ -z "$VERSION" ]; then
+            echo "Nothing to release: no feat, fix, perf, revert or breaking-change commit since the last tag (or see the log)." >> "$GITHUB_STEP_SUMMARY"
+          elif [ "$DRY_RUN" = "true" ]; then
+            echo "Dry run: the next release would be **$VERSION**; the semantic-release log shows its notes." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Releasing **$VERSION**: building the binaries." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  build:
+    name: build
+    needs: version
+    if: needs.version.outputs.version != '' && !inputs.dry_run
+    uses: ./.github/workflows/build-binaries.yml
+    with:
+      version: ${{ needs.version.outputs.version }}
+
+  release:
+    name: semantic-release
+    needs: [version, build]
+    if: needs.version.outputs.version != '' && !inputs.dry_run
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    # Restrict this environment to the main branch (Settings > Environments); it holds RELEASE_APP_PRIVATE_KEY.
+    environment: release
+    permissions:
+      contents: write        # GitHub release and its assets; without the App also the tag
+      issues: write          # comments on released issues, the "release is failing" issue
+      pull-requests: write   # comments on released pull requests
+      id-token: write        # build provenance and SBOM attestations (Sigstore)
+      attestations: write    # build provenance and SBOM attestations of the downloads
+    outputs:
+      # Empty when nothing was released: the packages job then doesn't run.
+      tag: ${{ steps.tag.outputs.tag }}
+      version: ${{ steps.tag.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          # semantic-release pushes the tag with its own credentials (below).
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: lts/*
+
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - name: Install semantic-release
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: erikterm-*
+          path: dist
+          merge-multiple: true
+
+      - name: SHA256SUMS
+        run: |
+          node eng/release-assets.mjs checksums dist
+          cat dist/SHA256SUMS
+          { echo '```text'; cat dist/SHA256SUMS; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: GitHub App key present
+        # RELEASE_APP_ID set without the key would otherwise fall through to a less clear error: stop with a clear
+        # message instead.
+        if: vars.RELEASE_APP_ID != ''
+        env:
+          HAS_KEY: ${{ secrets.RELEASE_APP_PRIVATE_KEY != '' }}
+        run: |
+          if [ "$HAS_KEY" != "true" ]; then
+            echo "::error::Variable RELEASE_APP_ID is set but the secret RELEASE_APP_PRIVATE_KEY is missing from the release environment. Add it, or delete the variable to release without the CHANGELOG.md commit."
+            exit 1
+          fi
+
+      - name: GitHub App token
+        # Optional: with repository variable RELEASE_APP_ID and environment secret RELEASE_APP_PRIVATE_KEY of the
+        # release GitHub App, CHANGELOG.md is committed through the GitHub API with this token
+        # (eng/release-commit.mjs): GitHub signs it ("Verified", author <app>[bot]). The token is limited to this
+        # repository and Contents: write (the commit, the tag and its git note).
+        # Without the variable there is no release commit at all (never an unverified push to main): the tag goes on
+        # the released commit, the notes only on the GitHub release.
+        # client-id (v3; app-id is deprecated) accepts the numeric App ID as well as the Client ID.
+        id: app-token
+        if: vars.RELEASE_APP_ID != ''
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          permission-contents: write
+
+      - name: semantic-release
+        env:
+          # The GitHub release, its assets, the comments on released issues and PRs and the "release is failing" issue:
+          # always the job's GITHUB_TOKEN (permissions above), so the App needs no Issues / Pull requests permission.
+          GITHUB_TOKEN: ${{ github.token }}
+          RELEASE_APP_TOKEN: ${{ steps.app-token.outputs.token }}
+          # The version the binaries in dist/ were built with (eng/release-assets.mjs checks it).
+          ERIKTERM_RELEASE_VERSION: ${{ needs.version.outputs.version }}
+          # The same as in the version job, so both work out the same version.
+          ERIKTERM_FIRST_RELEASE: ${{ inputs.first_release }}
+        run: |
+          if [ -n "$RELEASE_APP_TOKEN" ]; then
+            # The CHANGELOG.md commit through the GitHub API as the App (release.config.mjs), and semantic-release's
+            # own git pushes (the tag v<version> and its git note) with the App token too: GIT_CREDENTIALS comes before
+            # GITHUB_TOKEN in semantic-release's lookup, so a ruleset that only the App may bypass also covers tags.
+            export ERIKTERM_RELEASE_COMMIT=api
+            export GIT_CREDENTIALS="x-access-token:$RELEASE_APP_TOKEN"
+          else
+            unset RELEASE_APP_TOKEN
+          fi
+          npx --no -- semantic-release
+
+      - name: Release tag
+        id: tag
+        if: ${{ !cancelled() }}
+        run: |
+          tag=$(git tag --points-at HEAD --list 'v*' | head -n 1)
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+
+      # Signed SLSA build provenance for every release asset (the downloads, their SBOMs and SHA256SUMS) and an SBOM
+      # attestation per download, stored in the repository's attestations: `gh attestation verify <file> --repo
+      # eriklieben/erikterm` (docs/releasing.md, "Verifying a download"). Bound to the file digests, so it doesn't
+      # matter that they run after the upload. Artifact attestations need a public repository (or GitHub Enterprise
+      # Cloud): skipped while the repository is private.
+      - name: Attest build provenance
+        if: ${{ !cancelled() && steps.tag.outputs.tag != '' && !github.event.repository.private }}
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            dist/erikterm-*
+            dist/SHA256SUMS
+      - name: Attest the SBOM (linux-x64)
+        if: ${{ !cancelled() && steps.tag.outputs.tag != '' && !github.event.repository.private }}
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: dist/erikterm-linux-x64.tar.gz
+          sbom-path: dist/erikterm-linux-x64.tar.gz.spdx.json
+      - name: Attest the SBOM (osx-arm64)
+        if: ${{ !cancelled() && steps.tag.outputs.tag != '' && !github.event.repository.private }}
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: dist/erikterm-osx-arm64.tar.gz
+          sbom-path: dist/erikterm-osx-arm64.tar.gz.spdx.json
+      - name: Attest the SBOM (win-x64 zip)
+        if: ${{ !cancelled() && steps.tag.outputs.tag != '' && !github.event.repository.private }}
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: dist/erikterm-win-x64.zip
+          sbom-path: dist/erikterm-win-x64.zip.spdx.json
+      - name: Attest the SBOM (win-x64 installer)
+        if: ${{ !cancelled() && steps.tag.outputs.tag != '' && !github.event.repository.private }}
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: dist/erikterm-win-x64-setup.exe
+          sbom-path: dist/erikterm-win-x64-setup.exe.spdx.json
+
+      - name: Summary
+        if: ${{ !cancelled() }}
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          if [ -n "$TAG" ]; then
+            echo "Released **$TAG**: https://github.com/${{ github.repository }}/releases/tag/$TAG" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Nothing released (main moved on, or see the log)." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  packages:
+    name: packages
+    needs: release
+    if: ${{ !cancelled() && needs.release.outputs.tag != '' }}
+    # A called workflow gets at most what its caller grants: packages.yml's job reads the release and its attestations.
+    permissions:
+      contents: read
+      attestations: read
+    uses: ./.github/workflows/packages.yml
+    with:
+      version: ${{ needs.release.outputs.version }}
+    secrets: inherit

@@ -1,0 +1,15 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ErikTerm.Config/ErikTerm.Config.csproj" />
+    <Project Path="src/ErikTerm.Core/ErikTerm.Core.csproj" />
+    <Project Path="src/ErikTerm.Pty/ErikTerm.Pty.csproj" />
+    <Project Path="src/ErikTerm.Ui/ErikTerm.Ui.csproj" />
+    <Project Path="src/ErikTerm.App/ErikTerm.App.csproj" />
+  </Folder>
+  <Folder Name="/bench/">
+    <Project Path="bench/ErikTerm.Bench/ErikTerm.Bench.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ErikTerm.Tests/ErikTerm.Tests.csproj" />
+  </Folder>
+</Solution>

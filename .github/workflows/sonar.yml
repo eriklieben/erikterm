@@ -1,0 +1,110 @@
+name: SonarQube Cloud
+
+# Analyses main after the build workflow (build.yml) passed for it, and imports that run's coverage: the Cobertura
+# reports of its three test jobs (artifacts coverage-linux, coverage-macos, coverage-windows). So nothing is tested
+# twice, and code for one system counts as covered where it runs, as in build.yml's coverage job. The analysis itself
+# is one Linux build of src/ErikTerm.App (and the libraries it references) that the scanner observes.
+# docs/development/code-analysis.md.
+#
+# Inert until the secret SONAR_TOKEN exists: without it the job stops after its first step, with a notice. The
+# organization and project key default to eriklieben / eriklieben_erikterm; the repository variables
+# SONAR_ORGANIZATION and SONAR_PROJECT_KEY override them.
+#
+# workflow_run: this file only takes effect from the default branch, and the run gets the secrets even though the
+# build it follows may have come from anywhere. That's why it only follows pushes to main of this repository (no pull
+# requests, no forks): the code it checks out and builds is already on main.
+on:
+  workflow_run:
+    workflows: [build]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sonar
+  cancel-in-progress: false
+
+jobs:
+  sonar:
+    name: SonarQube Cloud
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read # download the coverage artifacts of the build run
+    env:
+      DOTNET_NOLOGO: '1'
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+    steps:
+      - name: Check for the token
+        id: gate
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          if [ -n "$SONAR_TOKEN" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::SonarQube Cloud analysis skipped: the repository has no SONAR_TOKEN secret (docs/development/code-analysis.md)."
+          fi
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: steps.gate.outputs.enabled == 'true'
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0 # blame information for new code; build/BuildInfo.targets stamps the commit
+          persist-credentials: false
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        if: steps.gate.outputs.enabled == 'true'
+        with:
+          global-json-file: global.json
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        if: steps.gate.outputs.enabled == 'true'
+        with:
+          pattern: coverage-*
+          path: coverage
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+      - name: Coverage paths
+        if: steps.gate.outputs.enabled == 'true'
+        run: python3 scripts/sonar-coverage.py --root "$GITHUB_WORKSPACE" coverage/*/coverage.xml
+
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: steps.gate.outputs.enabled == 'true'
+        with:
+          path: ~/.sonar/cache
+          key: ${{ runner.os }}-sonar
+          restore-keys: ${{ runner.os }}-sonar
+
+      - name: Install the scanner (.config/dotnet-tools.json)
+        if: steps.gate.outputs.enabled == 'true'
+        run: dotnet tool restore
+
+      - name: Begin analysis
+        # The settings are in build/SonarQube.Analysis.xml. The scanner downloads a JRE itself.
+        if: steps.gate.outputs.enabled == 'true'
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_ORGANIZATION: ${{ vars.SONAR_ORGANIZATION || 'eriklieben' }}
+          SONAR_PROJECT_KEY: ${{ vars.SONAR_PROJECT_KEY || 'eriklieben_erikterm' }}
+        run: |
+          dotnet dotnet-sonarscanner begin /k:"$SONAR_PROJECT_KEY" /o:"$SONAR_ORGANIZATION" \
+            /s:"$GITHUB_WORKSPACE/build/SonarQube.Analysis.xml" /d:sonar.token="$SONAR_TOKEN"
+
+      - name: Build
+        # Without -p:Quality=true: the SDK analyzers are build.yml's quality job, and they aren't imported here.
+        if: steps.gate.outputs.enabled == 'true'
+        run: dotnet build src/ErikTerm.App -c Release --no-incremental
+
+      - name: End analysis (upload)
+        if: steps.gate.outputs.enabled == 'true'
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: dotnet dotnet-sonarscanner end /d:sonar.token="$SONAR_TOKEN"

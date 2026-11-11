@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16">
+  <!-- erikterm icon, hand-tuned for 16 px: a 2 px staircase chevron, a 1 px caret and a crisp 1 px rim (it keeps the
+       tile visible on dark panels). © 2026 Erik Lieben. Same license as erikterm. -->
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#363a4f"/>
+      <stop offset="1" stop-color="#1e2030"/>
+    </linearGradient>
+  </defs>
+  <rect x="1" y="1" width="14" height="14" rx="3.5" fill="url(#tile)"/>
+  <rect x="1.5" y="1.5" width="13" height="13" rx="3" fill="none" stroke="#b7bdf8" stroke-opacity=".45"/>
+  <path d="M4 4h2v1h1v1h1v1h1v2h-1v1h-1v1h-1v1h-2v-1h1v-1h1v-1h1v-2h-1v-1h-1v-1h-1z" fill="#b7bdf8"/>
+  <rect x="10" y="4" width="1" height="8" fill="#8aadf4"/>
+</svg>

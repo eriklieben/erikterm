@@ -1,0 +1,23 @@
+#!/bin/sh
+# Toggle the erikterm drop-down: start it the first time (the window rule in
+# erikterm-dropdown.lua puts it on the hidden special workspace "dropdown"),
+# afterwards only toggle that workspace (Hyprland slides it in/out).
+#
+# With the Lua config (Hyprland 0.55+), `hyprctl dispatch` evaluates its
+# argument as Lua, so dispatchers are hl.dsp.* calls; the legacy
+# `hyprctl dispatch exec ...` form fails there.
+set -eu
+CLASS=erikterm-dropdown
+WORKSPACE=dropdown
+
+running() { hyprctl clients -j | grep -q "\"class\": \"$CLASS\""; }
+
+if ! running; then
+    hyprctl dispatch "hl.dsp.exec_cmd(\"erikterm --class $CLASS\")" >/dev/null
+    # Wait for the window to map so the first toggle shows it.
+    for _ in $(seq 50); do
+        running && break
+        sleep 0.05
+    done
+fi
+hyprctl dispatch "hl.dsp.workspace.toggle_special(\"$WORKSPACE\")" >/dev/null

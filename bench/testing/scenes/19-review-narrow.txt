@@ -1,0 +1,7 @@
+# Scene: the same review in a narrow window: the file list stacked above the compare (reference-shots.sh).
+# cwd: reviewrepo.worktrees/fix-cart-total
+# set: default_prog=["{bin}", "review"]
+# set: initial_cols=80
+# set: initial_rows=34
+sleep:2500
+shot:{out}/review-narrow.bmp

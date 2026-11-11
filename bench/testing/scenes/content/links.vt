@@ -1,0 +1,7 @@
+\e[H\e[2J\e[1;38;5;111m erikterm reference: links\e[0m
+
+  OSC 8 hyperlink:  \e]8;;https://github.com/erikterm/erikterm\e\\erikterm on GitHub\e]8;;\e\\
+  Plain URL:        https://example.com/docs/testing?platform=windows#screenshots
+  Mail / ssh:       mailto:someone@example.com   ssh://git@example.com/repo.git
+  File + line:      README.md:46   src/ErikTerm.App/Program.cs(12,5): error CS0103
+

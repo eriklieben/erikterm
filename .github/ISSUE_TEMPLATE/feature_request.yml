@@ -1,0 +1,44 @@
+name: Feature request
+description: Suggest an idea or an improvement for erikterm.
+labels: [enhancement, needs-triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the idea. erikterm is built for its maintainer, who decides what goes in, so a request may be
+        declined when it doesn't fit, even when it is a good idea. Please don't start on a pull request before it has
+        been agreed on here. See [What goes into erikterm](https://github.com/eriklieben/erikterm/blob/main/CONTRIBUTING.md#what-goes-into-erikterm).
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Describe the situation and what is hard or impossible today.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like to happen?
+      description: The behavior, key or setting you have in mind. Examples from other terminals (kitty, wezterm, Ghostty, Windows Terminal) are welcome.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      multiple: true
+      options:
+        - Rendering, fonts and images
+        - Panes, tabs and windows
+        - Keys, vim mode and search
+        - Shell integration and links
+        - Coding agents
+        - Git, GitHub and review
+        - Scripting (erikterm cli, tmux emulation)
+        - Settings
+        - Platform support (Linux, Windows, macOS)
+        - Other

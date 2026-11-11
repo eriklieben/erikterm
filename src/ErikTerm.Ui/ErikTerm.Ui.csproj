@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- UI logic with no rendering/SDL dependency, so it can be unit-tested: layout tree, fuzzy matching, animation,
+       vim mode (motions, text objects and the ex command line work on ErikTerm.Core's Terminal). -->
+  <PropertyGroup>
+    <RootNamespace>ErikTerm.Ui</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../ErikTerm.Core/ErikTerm.Core.csproj" />
+  </ItemGroup>
+</Project>

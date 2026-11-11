@@ -1,0 +1,4 @@
+\e[H\e[2J\e[1;38;5;111m erikterm reference: OSC 52 clipboard prompt\e[0m
+
+  This pane asked to set the clipboard (OSC 52). With osc52 = "ask" the bar asks first.
+\e]52;c;SGVsbG8gZnJvbSB0aGUgcmVmZXJlbmNlIHNjZW5l\a

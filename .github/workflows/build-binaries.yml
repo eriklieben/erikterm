@@ -1,0 +1,193 @@
+name: build binaries
+
+# The downloads, one per platform: erikterm-linux-x64.tar.gz, erikterm-osx-arm64.tar.gz, erikterm-win-x64.zip and the
+# per-user installer erikterm-win-x64-setup.exe, each with its SBOM <asset>.spdx.json (eng/sbom.mjs). Native AOT can't
+# cross-compile, so every platform builds on its own runner. One artifact per platform: erikterm-<rid>.
+#
+# A reusable workflow, so CI and releases build the same way:
+# - build.yml (every push and pull request): no version, a development build (0.1.0, the default in
+#   build/BuildInfo.targets; the installer says 0.0.0-dev);
+# - release.yml: the version semantic-release works out, e.g. 1.2.1, built into the binaries (erikterm
+#   --version, About), the installer and the SBOMs.
+#
+# Actions are pinned to a commit SHA (the version in the comment).
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: The release version (e.g. 1.2.1); empty for a development build
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: '1'
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+
+jobs:
+  build:
+    name: build (${{ matrix.rid }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            rid: linux-x64
+          - os: windows-2025
+            rid: win-x64
+          - os: macos-15
+            rid: osx-arm64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # build/BuildInfo.targets stamps the commit
+          persist-credentials: false
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: '10.0.x'
+      # eng/sbom.mjs (no dependencies)
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: lts/*
+
+      # 1.2.1 builds as VersionPrefix 1.2.1, 1.3.0-rc.1 as VersionPrefix 1.3.0 + VersionSuffix rc.1 (MSBuild reads both
+      # from the environment).
+      - name: Version
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if [ -z "$VERSION" ]; then
+            echo "ERIKTERM_VERSION=0.0.0-dev" >> "$GITHUB_ENV"
+            echo "Development build (no release version)."
+            exit 0
+          fi
+          if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
+            echo "::error::Not a version: $VERSION"
+            exit 1
+          fi
+          echo "ERIKTERM_VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "VersionPrefix=${VERSION%%-*}" >> "$GITHUB_ENV"
+          case "$VERSION" in *-*) echo "VersionSuffix=${VERSION#*-}" >> "$GITHUB_ENV" ;; esac
+          echo "Building erikterm $VERSION."
+
+      # ---- Windows: SDL3, FreeType and HarfBuzz DLLs from vcpkg (cached), shipped next to erikterm.exe ----
+      # The same packages and cache key as build.yml's test-windows job, so whichever job saves the cache saves all.
+      - name: Cache vcpkg packages
+        if: runner.os == 'Windows'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}\vcpkg-cache
+          key: vcpkg-x64-windows-sdl3-freetype-harfbuzz-v1
+      - name: Native libraries (vcpkg)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          VCPKG_DEFAULT_BINARY_CACHE: ${{ runner.temp }}\vcpkg-cache
+        run: |
+          New-Item -ItemType Directory -Force $env:VCPKG_DEFAULT_BINARY_CACHE | Out-Null
+          & "$env:VCPKG_INSTALLATION_ROOT\vcpkg.exe" install sdl3 freetype harfbuzz --triplet x64-windows --clean-after-build
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          New-Item -ItemType Directory -Force deps\win-x64 | Out-Null
+          Copy-Item "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\bin\*.dll" deps\win-x64\
+          Get-ChildItem deps\win-x64
+      - name: Publish (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: scripts\publish-windows.ps1 -Runtime ${{ matrix.rid }} -Output out\erikterm
+
+      # ---- Linux / macOS: the binary only; SDL3, FreeType and HarfBuzz come from the system ----
+      - name: Publish
+        if: runner.os != 'Windows'
+        run: dotnet publish src/ErikTerm.App -c Release -r ${{ matrix.rid }} -o out/erikterm
+      # The pty spawn helper is the Native AOT binary itself (ErikTerm.Pty/UnixPty.Mac.cs): check it execs a program.
+      - name: Smoke test (macOS spawn helper)
+        if: runner.os == 'macOS'
+        run: |
+          out=$(out/erikterm/erikterm --erikterm-pty-exec "" /bin/echo echo "spawn helper ok")
+          echo "$out"
+          test "$out" = "spawn helper ok"
+      # The version the binary reports is the one it was built for.
+      - name: Check the version
+        if: runner.os == 'Linux' && inputs.version != ''
+        run: |
+          out/erikterm/erikterm --version | tee version.txt
+          grep -F -- "$ERIKTERM_VERSION" version.txt
+      - name: Add docs
+        shell: bash
+        run: |
+          cp README.md erikterm.example.toml LICENSE THIRD-PARTY-NOTICES.md out/erikterm/
+          # The user guide, so the README's links to it work offline (the demo media stay online only).
+          mkdir -p out/erikterm/docs
+          cp -r docs/README.md docs/faq.md docs/guide out/erikterm/docs/
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            # The license of every DLL in the zip, as vcpkg records them.
+            mkdir -p out/erikterm/licenses
+            for f in "$VCPKG_INSTALLATION_ROOT"/installed/x64-windows/share/*/copyright; do
+              cp "$f" "out/erikterm/licenses/$(basename "$(dirname "$f")").txt"
+            done
+          else
+            # What a package installs next to the binary: launcher entry, icons, shell and editor integration, terminfo.
+            mkdir -p out/erikterm/share/icons
+            cp contrib/linux/erikterm.desktop out/erikterm/share/
+            cp assets/icon/erikterm.svg assets/icon/erikterm-symbolic.svg out/erikterm/share/icons/
+            cp -r assets/icon/png out/erikterm/share/icons/png
+            cp -r contrib/shell contrib/nvim contrib/claude contrib/terminfo out/erikterm/share/
+          fi
+          case "${{ matrix.rid }}" in
+            linux-*) printf '%s\n' "Needs SDL3, FreeType and HarfBuzz from your distribution (Arch: pacman -S sdl3 freetype2 harfbuzz)." > out/erikterm/INSTALL.txt ;;
+            osx-*)   printf '%s\n' "Needs SDL3, FreeType and HarfBuzz from Homebrew:" "  brew install sdl3 freetype harfbuzz" "Optional: brew install fontconfig (font lookup through fontconfig instead of erikterm's own scan of the font folders)." "Unsigned build: the first time, run  xattr -dr com.apple.quarantine erikterm  in this folder." "Settings: ~/.config/erikterm/erikterm.toml (see README.md, macOS)." > out/erikterm/INSTALL.txt ;;
+            win-*)   printf '%s\n' "SDL3, FreeType and HarfBuzz DLLs and Microsoft's console host (conpty.dll, OpenConsole.exe) are included. Unsigned build: SmartScreen may ask once." > out/erikterm/INSTALL.txt ;;
+          esac
+          # Debug symbols stay out of the download (Windows .pdb, Linux .dbg, macOS .dSYM folder).
+          rm -rf out/erikterm/*.pdb out/erikterm/*.dbg out/erikterm/*.dSYM
+          ls -la out/erikterm
+      # Zipped by hand so the executable bit survives the artifact download on Linux/macOS.
+      - name: Archive
+        shell: bash
+        run: |
+          cd out
+          if [ "${{ runner.os }}" = "Windows" ]; then 7z a -tzip ../erikterm-${{ matrix.rid }}.zip erikterm >/dev/null
+          else tar czf ../erikterm-${{ matrix.rid }}.tar.gz erikterm; fi
+      # A per-user installer: no administrator rights needed (packaging/windows/erikterm.iss).
+      - name: Windows installer
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          choco install innosetup --no-progress -y
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          # For the installer's SBOM: its setup and uninstall program come from this Inno Setup.
+          "INNO_SETUP_VERSION=$((Get-Item $iscc).VersionInfo.ProductVersion)" >> $env:GITHUB_ENV
+          & $iscc "/DAppVersion=$env:ERIKTERM_VERSION" "/DSourceDir=$PWD\out\erikterm" "/DOutputDir=$PWD" packaging\windows\erikterm.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      # SPDX 2.3 SBOM per download (eng/sbom.mjs): its files with hashes, the .NET runtime Native AOT compiled in, the
+      # bundled DLLs (Windows) or the system libraries it needs (Linux, macOS). Here, on the runner that built it,
+      # because that's where project.assets.json for this runtime and the vcpkg tree are.
+      - name: SBOM
+        shell: bash
+        run: |
+          args=(--contents out/erikterm --version "$ERIKTERM_VERSION" --rid "${{ matrix.rid }}"
+            --assets-file src/ErikTerm.App/obj/project.assets.json --sdk "$(dotnet --version)")
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            args+=(--vcpkg "$VCPKG_INSTALLATION_ROOT/installed" --triplet x64-windows
+              --conpty-script scripts/publish-windows.ps1 --installer-version "$INNO_SETUP_VERSION")
+            assets=(erikterm-win-x64.zip erikterm-win-x64-setup.exe)
+          else
+            assets=("erikterm-${{ matrix.rid }}.tar.gz")
+          fi
+          for asset in "${assets[@]}"; do
+            node eng/sbom.mjs --asset "$asset" "${args[@]}"
+          done
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: erikterm-${{ matrix.rid }}
+          path: erikterm-${{ matrix.rid }}*.*
+          if-no-files-found: error

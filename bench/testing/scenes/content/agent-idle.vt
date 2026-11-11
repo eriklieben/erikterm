@@ -1,0 +1,3 @@
+\e[H\e[2J
+ > Claude Code at its prompt (simulated: OSC 7501 state=idle)
+\e]7501;state=idle:app=claude-code\e\\

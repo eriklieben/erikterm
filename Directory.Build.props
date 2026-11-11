@@ -1,0 +1,25 @@
+<Project>
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <Deterministic>true</Deterministic>
+    <!-- Libraries are written to be trimming/AOT safe; analyzers enforce it. -->
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+
+  <!-- dotnet build -p:Quality=true: the SDK's analyzers, only the rules in build/quality.globalconfig. -->
+  <PropertyGroup Condition="'$(Quality)' == 'true'">
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisMode>None</AnalysisMode>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(Quality)' == 'true'">
+    <GlobalAnalyzerConfigFiles Include="$(MSBuildThisFileDirectory)build/quality.globalconfig" />
+    <AdditionalFiles Include="$(MSBuildThisFileDirectory)build/CodeMetricsConfig.txt" />
+  </ItemGroup>
+
+</Project>

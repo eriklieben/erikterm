@@ -1,0 +1,4 @@
+\e[H\e[2J\e[1;38;5;111m erikterm reference: notification bar\e[0m
+
+  This pane sent OSC 777 notify while the window counted as unfocused (script step "unfocus").
+\e]777;notify;Build finished;All 1405 tests passed\a

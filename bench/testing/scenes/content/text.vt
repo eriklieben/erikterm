@@ -1,0 +1,20 @@
+\e[H\e[2J\e[1;38;5;111m erikterm reference: text rendering\e[0m\e[2 q
+
+ \e[38;5;245mLigatures \e[0m  -> => != === !== <= >= <=> :: |> <| /* */ ++ -- && || ..= 0xFF www
+ \e[38;5;245mStyles    \e[0m  \e[1mbold\e[0m \e[2mdim\e[0m \e[3mitalic\e[0m \e[1;3mbold italic\e[0m \e[4munderline\e[0m \e[4:3;58:2::255:85:85mundercurl\e[0m \e[9mstrike\e[0m \e[7minverse\e[0m \e[5mblink\e[0m
+ \e[38;5;245mColors    \e[0m  \e[31mred\e[0m \e[32mgreen\e[0m \e[33myellow\e[0m \e[34mblue\e[0m \e[35mmagenta\e[0m \e[36mcyan\e[0m \e[1;31mbold red\e[0m \e[38;2;255;140;0mtruecolor\e[0m \e[48;5;238m 256 bg \e[0m
+ \e[38;5;245mEmoji     \e[0m  😀 👍🏽 👨‍👩‍👧 🇳🇱 ❤️ 1️⃣ #️⃣ ✅ 🚀 🦀 ⚡ ☕
+ \e[38;5;245mCJK       \e[0m  日本語のテキスト 한국어 中文字符 ｶﾀｶﾅ |wide|
+ \e[38;5;245mCombining \e[0m  é ñ ü (precomposed)  é ñ ü (combining)  Z̤͂ a̧ ǫ̃
+ \e[38;5;245mNerd Font \e[0m             󰌛 󰈙 
+ \e[38;5;245mPowerline \e[0m  \e[48;5;111;38;5;235m main \e[0;38;5;111;48;5;238m\e[38;5;252m ~/src/erikterm \e[0;38;5;238m\e[0m  \e[38;5;150m\e[48;5;150;38;5;235m ok \e[0;38;5;150m\e[0m  
+
+  ┌──────┬──────┐  ╔══════╦═════╗  ╭────────╮  ┏━━━━━━┳━━━━━┓   ░░▒▒▓▓██  ▀▀▄▄▌▐  ▁▂▃▄▅▆▇█
+  │ thin │ box  │  ║ dbl  ║ box ║  │ round  │  ┃ heavy┃ box ┃   ⠁⠃⠇⡇⣇⣧⣷⣿  braille
+  ├──────┼──────┤  ╠══════╬═════╣  ╰────────╯  ┣━━━━━━╋━━━━━┫   ◢◣◤◥ ◆◇○● ■□▪▫
+  └──────┴──────┘  ╚══════╩═════╝  ╶──╴╷╵ ┄┈┆  ┗━━━━━━┻━━━━━┛   ✓✗ →←↑↓ ⇒ ∀∃∈ ≠≤≥ λ π Σ
+
+ \e[38;5;245mThe quick brown fox jumps over the lazy dog. 0123456789 Il1| O0 {}[]() <> @#$%&*\e[0m
+ \e[38;5;245mWrapped: a long line follows that is wider than the window and has to continue on the next row without a break at all, like any other terminal\e[0m
+
+ \e[32m$\e[0m 

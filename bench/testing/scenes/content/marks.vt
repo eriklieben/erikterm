@@ -1,0 +1,145 @@
+\e[H\e[2J
+\e]133;A\e\\\e[32m$ \e[0m\e]133;B\e\\make test
+\e]133;C;cmdline_url=make%20test\e\\
+  output 0 of make test
+  output 1 of make test
+  output 2 of make test
+  output 3 of make test
+  output 4 of make test
+  output 5 of make test
+  output 6 of make test
+  output 7 of make test
+  output 8 of make test
+\e]133;D;0\e\\
+\e]133;A\e\\\e[32m$ \e[0m\e]133;B\e\\git status
+\e]133;C;cmdline_url=git%20status\e\\
+  output 0 of git status
+  output 1 of git status
+  output 2 of git status
+  output 3 of git status
+  output 4 of git status
+  output 5 of git status
+  output 6 of git status
+  output 7 of git status
+  output 8 of git status
+\e]133;D;0\e\\
+\e]133;A\e\\\e[32m$ \e[0m\e]133;B\e\\cargo build
+\e]133;C;cmdline_url=cargo%20build\e\\
+  output 0 of cargo build
+  output 1 of cargo build
+  output 2 of cargo build
+  output 3 of cargo build
+  output 4 of cargo build
+  error: something failed
+  output 6 of cargo build
+  output 7 of cargo build
+  output 8 of cargo build
+\e]133;D;101\e\\
+\e]133;A\e\\\e[32m$ \e[0m\e]133;B\e\\ls -la
+\e]133;C;cmdline_url=ls%20-la\e\\
+  output 0 of ls -la
+  output 1 of ls -la
+  output 2 of ls -la
+  output 3 of ls -la
+  output 4 of ls -la
+  output 5 of ls -la
+  output 6 of ls -la
+  output 7 of ls -la
+  output 8 of ls -la
+\e]133;D;0\e\\
+\e]133;A\e\\\e[32m$ \e[0m\e]133;B\e\\npm run lint
+\e]133;C;cmdline_url=npm%20run%20lint\e\\
+  output 0 of npm run lint
+  output 1 of npm run lint
+  output 2 of npm run lint
+  output 3 of npm run lint
+  output 4 of npm run lint
+  error: something failed
+  output 6 of npm run lint
+  output 7 of npm run lint
+  output 8 of npm run lint
+\e]133;D;1\e\\
+\e]133;A\e\\\e[32m$ \e[0m\e]133;B\e\\dotnet test
+\e]133;C;cmdline_url=dotnet%20test\e\\
+  output 0 of dotnet test
+  output 1 of dotnet test
+  output 2 of dotnet test
+  output 3 of dotnet test
+  output 4 of dotnet test
+  output 5 of dotnet test
+  output 6 of dotnet test
+  output 7 of dotnet test
+  output 8 of dotnet test
+\e]133;D;0\e\\
+\e]133;A\e\\\e[32m$ \e[0m\e]133;B\e\\kubectl get pods
+\e]133;C;cmdline_url=kubectl%20get%20pods\e\\
+  output 0 of kubectl get pods
+  output 1 of kubectl get pods
+  output 2 of kubectl get pods
+  output 3 of kubectl get pods
+  output 4 of kubectl get pods
+  output 5 of kubectl get pods
+  output 6 of kubectl get pods
+  output 7 of kubectl get pods
+  output 8 of kubectl get pods
+\e]133;D;0\e\\
+\e]133;A\e\\\e[32m$ \e[0m\e]133;B\e\\make deploy
+\e]133;C;cmdline_url=make%20deploy\e\\
+  output 0 of make deploy
+  output 1 of make deploy
+  output 2 of make deploy
+  output 3 of make deploy
+  output 4 of make deploy
+  error: something failed
+  output 6 of make deploy
+  output 7 of make deploy
+  output 8 of make deploy
+\e]133;D;2\e\\
+\e]133;A\e\\\e[32m$ \e[0m\e]133;B\e\\du -sh .
+\e]133;C;cmdline_url=du%20-sh%20.\e\\
+  output 0 of du -sh .
+  output 1 of du -sh .
+  output 2 of du -sh .
+  output 3 of du -sh .
+  output 4 of du -sh .
+  output 5 of du -sh .
+  output 6 of du -sh .
+  output 7 of du -sh .
+  output 8 of du -sh .
+\e]133;D;0\e\\
+\e]133;A\e\\\e[32m$ \e[0m\e]133;B\e\\./run-benchmarks
+\e]133;C;cmdline_url=./run-benchmarks\e\\
+  output 0 of ./run-benchmarks
+  output 1 of ./run-benchmarks
+  output 2 of ./run-benchmarks
+  output 3 of ./run-benchmarks
+  output 4 of ./run-benchmarks
+  output 5 of ./run-benchmarks
+  output 6 of ./run-benchmarks
+  output 7 of ./run-benchmarks
+  output 8 of ./run-benchmarks
+\e]133;D;0\e\\
+\e]133;A\e\\\e[32m$ \e[0m\e]133;B\e\\git log
+\e]133;C;cmdline_url=git%20log\e\\
+  output 0 of git log
+  output 1 of git log
+  output 2 of git log
+  output 3 of git log
+  output 4 of git log
+  output 5 of git log
+  output 6 of git log
+  output 7 of git log
+  output 8 of git log
+\e]133;D;0\e\\
+\e]133;A\e\\\e[32m$ \e[0m\e]133;B\e\\make
+\e]133;C;cmdline_url=make\e\\
+  output 0 of make
+  output 1 of make
+  output 2 of make
+  output 3 of make
+  output 4 of make
+  output 5 of make
+  output 6 of make
+  output 7 of make
+  output 8 of make
+\e]133;D;0\e\\

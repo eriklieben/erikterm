@@ -1,0 +1,10 @@
+# Scene: a plain window (padding, background, cursor and window size from scene.toml), then the About
+# overlay (version, renderer, display, fonts: these lines are expected to differ per platform).
+sleep:1500
+feedfile:plain.vt
+sleep:500
+shot:{out}/window.bmp
+action:ShowAbout
+sleep:700
+shot:{out}/about.bmp
+key:escape

@@ -1,0 +1,17 @@
+# Scene: the worktree switcher, the finish dialog and cleanup, on a temp repository with worktrees (reference-shots.sh).
+# cwd: wtrepo
+sleep:1500
+action:ShowWorktrees
+sleep:2500
+shot:{out}/worktrees-switcher.bmp
+key:down
+key:down
+sleep:300
+key:f
+sleep:2000
+shot:{out}/finish-worktree.bmp
+key:escape
+sleep:500
+action:CleanUpWorktrees
+sleep:3000
+shot:{out}/worktrees-cleanup.bmp

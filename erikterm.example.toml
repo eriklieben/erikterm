@@ -1,0 +1,215 @@
+# erikterm configuration — copy to ~/.config/erikterm/erikterm.toml
+#
+# Setting names follow wezterm, so a wezterm.lua translates line by line:
+#   config.font_size = 11      ->   font_size = 11
+#   config.colors = { ... }    ->   [colors] ...
+#
+# The file is watched: saving it re-applies settings in every open window
+# (Ctrl+Shift+R forces a reload). Mistakes are reported on stderr and the
+# rest of the file still applies.
+
+# --- Font --------------------------------------------------------------------
+font = "JetBrains Mono"              # family name, as `fc-list` shows it
+font_fallback = []                   # tried in order before the automatic fallbacks
+font_size = 12                       # points
+line_height = 1.0                    # multiplier of the font's natural line height
+# OpenType features for HarfBuzz shaping (ligatures such as -> != ===).
+# [] or ["calt=0", "liga=0"] turns ligatures off; "ss01", "zero" etc. enable stylistic sets.
+harfbuzz_features = ["calt=1", "liga=1", "clig=1"]
+
+# --- Colors ------------------------------------------------------------------
+# Built in: "erik", "Catppuccin Macchiato", "Catppuccin Mocha", "Tokyo Night"
+# (wezterm's "... (Gogh)" / "(base16)" suffixes are accepted.)
+# More: wezterm-format scheme files in ~/.config/erikterm/colors/*.toml (Windows:
+# %APPDATA%\erikterm\colors) or ~/.config/wezterm/colors/*.toml, selected by their
+# [metadata] name (else the file name). They are watched like this file. Palette ›
+# Browse Themes… previews them all and can download the iTerm2-Color-Schemes catalogue.
+color_scheme = "erik"
+bold_brightens_ansi_colors = true
+minimum_contrast = 1.0               # text vs. its cell background: 1 = off, 4.5 = WCAG AA, 7 = AAA (colors move toward
+                                     # white/black just enough; box drawing, blocks and powerline glyphs are left alone)
+
+# Overrides on top of color_scheme; every key is optional.
+# [colors]
+# foreground   = "#d4d7de"
+# background   = "#16181d"
+# cursor_bg    = "#f5c26b"
+# cursor_fg    = "#16181d"
+# selection_bg = "#3a4150"
+# selection_fg = "#ffffff"   # selected text (default: keeps its own colors)
+# cursor_border = "#f5c26b"  # the hollow cursor of unfocused panes (default: cursor_bg)
+# split        = "#3a4150"   # pane divider
+# accent       = "#61afef"   # highlights in the palette, menus, focused divider
+# ansi    = ["#23262e", "#e06c75", "#98c379", "#e5c07b", "#61afef", "#c678dd", "#56b6c2", "#c8ccd4"]
+# brights = ["#5c6370", "#ef7b85", "#a9d48a", "#f0cf8f", "#7cc0f5", "#d391ea", "#6ccad6", "#ffffff"]
+
+# --- Window ------------------------------------------------------------------
+window_background_opacity = 1.0      # 0.0 (clear) .. 1.0 (opaque); blur comes from the compositor,
+                                     # except on Windows, where window_blur asks for it
+window_blur = "auto"                 # Windows only: what DWM paints behind the see-through pixels.
+                                     # "auto" = acrylic while the window is see-through, nothing when
+                                     # it is opaque; also "none", "acrylic" (live blur) and "mica"
+text_background_opacity = 1.0        # opacity of cells that have their own background color
+window_decorations = "RESIZE"        # "NONE" for a borderless window. On Windows and macOS a borderless
+                                     # window draws its own chrome: the tab bar slides in at the top edge,
+                                     # its empty part drags the window and the edges resize it. On Linux
+                                     # "NONE" only drops the compositor's frame (the tab bar stays put).
+window_controls = "auto"             # borderless Windows/macOS only: minimize/maximize/close buttons in the
+                                     # top-right corner, revealed with the tab bar at the top edge.
+                                     # "auto" = on, except on macOS; also "on" / "off"
+chrome_reveal = "grow"               # borderless Windows/macOS only: how the window makes room for that bar.
+                                     # "grow" moves the window up and makes it taller, so the text stays put;
+                                     # "push" keeps the window still and slides the text down with the bar
+window_padding = { left = 6, right = 6, top = 6, bottom = 6 }   # pixels (or a single number)
+initial_cols = 120
+initial_rows = 32
+
+# --- Cursor ------------------------------------------------------------------
+# SteadyBlock, BlinkingBlock, SteadyUnderline, BlinkingUnderline, SteadyBar, BlinkingBar
+# Blinking styles fade in and out; programs can switch with DECSCUSR (e.g. vim's guicursor).
+default_cursor_style = "SteadyBlock"
+cursor_blink_rate = 800              # ms between visible and invisible; 0 = never blink
+# cursor_blink_style = "phase"      # "fade" (default): on/off with eased edges · "phase": a continuous, breathing pulse
+# cursor_thickness = "1.5px"        # bar width / underline height: points (1.5 or "1.5px", scaled with the display) or "0.1cell" / "10%"; default follows the font
+# cursor_height = 1.19               # bar height in multiples of the font size, whatever the line_height; "cell" fills the line
+cursor_animation = true              # the cursor glides on short moves; typing moves it at once
+smooth_scrolling = true              # scrolling eases between lines; trackpads scroll by pixels
+
+# --- Accessibility -----------------------------------------------------------
+# "auto" follows the system's settings; "on" / "off" here win over them. They
+# override the settings above while they're on; the values in this file stay.
+reduce_motion = "auto"               # on: no animations, gliding cursor, smooth scrolling or cursor blink
+high_contrast = "auto"               # on: minimum_contrast of at least 7 and stronger chrome; with a Windows
+                                     # contrast theme the panes take its text, background and selection colours
+text_scale = "auto"                  # the font sizes follow the system's text size (Windows "Make text bigger",
+                                     # GNOME "Large Text"); "off" keeps them as set. Display scaling applies anyway
+
+# --- Panes & UI --------------------------------------------------------------
+inactive_pane_hsb = { saturation = 0.9, brightness = 0.8 }   # how unfocused panes are dimmed
+visual_bell = true
+animation_duration_ms = 160          # 0 turns UI animations off
+enable_tab_bar = true
+hide_tab_bar_if_only_one_tab = true  # with one tab nothing changes
+ctrl_tab_order = "recent"            # Ctrl+Tab: "recent" (the list, most recently used first, hold and release) or "position" (next tab in the bar)
+tab_switcher_double_ctrl = true      # tap Ctrl twice on its own: the tab list, which stays up (again closes it)
+command_palette_font_size = 12
+command_palette_rows = 12
+# command_palette_bg_color = "#1e2030"   # default: a shade darker than the background
+# command_palette_fg_color = "#cad3f5"
+pane_select_font_size = 36
+# pane_select_bg_color = "#b7bdf8"       # default: the scheme's accent
+# pane_select_fg_color = "#1e2030"
+
+# --- Program -----------------------------------------------------------------
+scrollback_lines = 10000             # applies live on reload (shrinking keeps the newest lines)
+exit_behavior = "Close"              # when a pane's program exits: "Close", "Hold" (keep it, with Restart / Close),
+                                     # "CloseOnCleanExit" (hold unless the exit status is 0); README: Panes, menus & keys
+# default_prog = ["zsh", "-l"]       # default: $SHELL
+# default_cwd = "~"                  # default: the directory erikterm was started from
+# set_environment_variables = { EDITOR = "nvim", CLAUDE_CODE_FORCE_TERMINAL_IMAGES = "1" }  # the latter: images in Claude Code (README)
+term = "auto"                        # TERM: "auto" = xterm-erikterm when its terminfo is installed (scripts/install-terminfo.sh:
+                                     # undercurl, underline colors, true color for Neovim/tmux), else xterm-256color; or any name
+osc52 = "ask"                        # programs (tmux, nvim over ssh) setting the clipboard: "ask" (a bar in the pane), "allow", "deny"
+paste_sanitize = true                # strip ESC sequences / control characters from pastes outside bracketed paste (inside: always)
+allow_kitty_file_transmission = false # kitty images sent as a file path / temp file / shared memory (t=f/t=t/t=s); inline data always works
+tmux_emulation = true                # panes get $TMUX and a `tmux` that opens erikterm panes (Claude Code agent teams); README
+tmux_agent_panes = "pills"           # Claude Code teammates: "pills" (kept running hidden, pills below the lead pane; click opens) or "split"
+
+# --- Coding agents (README: Coding agents) -------------------------------------
+agent_status = true                  # detect Claude Code, Codex, … and show waiting / working / done on tabs and panes
+agent_notifications = true           # false: agents never notify the desktop (they still show in the notification bar)
+agent_urgency = true                 # flash the window in the taskbar when an agent waits and the window is unfocused
+
+# --- Notifications (README: Notifications) ---------------------------------------
+# os_notifications = "ask"           # desktop notifications: "on", "off", or "ask" (unset: the answer you gave the
+#                                    # warning bar, kept in ~/.local/state/erikterm/preferences.json; "on"/"off" here win)
+notification_bar = true              # the in-window bar: latest unread notification, "N unread", Jump (false: toasts)
+notification_bar_position = "top"    # "top" (under the tab bar) or "bottom"
+notification_bar_scope = "tab"       # "tab": the open tab's notifications ("+N in other tabs"; the panel lists all); "all": every window's
+notification_bar_timeout_ms = 10000  # hide non-urgent items from the bar after this (0 = never); "waiting" stays
+shell_integration = "auto"           # "auto": the zsh, bash, fish or PowerShell erikterm starts itself reports commands and its directory (OSC 133 / OSC 7) with no dotfile edits; "off": never
+notify_command_duration = 10         # seconds: a shell command (OSC 133) that ran this long and finishes out of sight
+                                     # is announced ("✓ make finished in 1m 12s"); 0 = off
+
+# --- Developer tools -----------------------------------------------------------
+git_status = true                    # branch, ↑ahead ↓behind and change counts on tabs/panes (git status in the background)
+github_status = true                 # the branch's PR + CI checks via `gh` (when installed and logged in)
+git_worktree_dir = "../{repo}.worktrees/{name}"   # New Agent Worktree (Ctrl+Shift+G): where worktrees go; relative to the main worktree's root
+worktree_open_in = "tab"                          # New Agent Worktree: "tab" or "split" (next to the focused pane); Alt+Enter the other one
+git_conflict_check = true                         # a warning on a tab when merge-tree predicts a conflict with the default branch (rate-limited, only when HEAD or the target moved)
+# git_worktree_setup = "pnpm install"             # run in a new worktree before the agent, visibly in the pane; a failure skips the agent
+# (per repository, as a table: [git_worktree_setup] then  my-app = "pnpm install"  and  "*" = "make deps"  for any other)
+editor_open = "nvim"                 # Ctrl+click on path:line → "nvim" (a running Neovim in the tab, else a split), "split", "system", "none"
+drop_files = true                    # dropping files on a pane pastes their shell-quoted paths
+remember_commands = true             # recent commands (OSC 133) and directories (OSC 7) in the palette, kept in the state directory;
+                                     # a command typed with a leading space never is. false: nothing recorded, shown or written
+
+# --- Windows & session -------------------------------------------------------
+# One erikterm process can have several windows (Ctrl+Shift+N, tearing a tab off). Launching erikterm again opens a
+# window in the running instance (if it has the same config file, --set overrides and --class); --new-process opts out once.
+single_instance = true
+# Every window's tabs, splits, directories, size and font zoom are saved to $XDG_STATE_HOME/erikterm/session.json
+# (~/.local/state; Windows %LOCALAPPDATA%\erikterm) and rebuilt on the next start (not with -e or --no-restore).
+restore_session = true
+restore_programs = ["nvim", "btop", "htop", "less", "man"]   # foreground programs re-run on restore
+restore_scrollback_lines = 0         # > 0: also save/replay the last N lines of each pane
+
+# --- Closing (README: Panes, menus & keys) --------------------------------------
+window_close_confirmation = "AlwaysPrompt"   # ask before closing a pane/tab/window that runs a program or a coding agent; "NeverPrompt"
+skip_close_confirmation_for_processes_named = ["bash", "sh", "zsh", "fish", "tmux", "nu", "cmd.exe", "pwsh.exe", "powershell.exe"]
+
+# --- Keys --------------------------------------------------------------------
+# Chords: CTRL, SHIFT, ALT, SUPER joined with + (or |). Actions use wezterm's names:
+#   ActivateCommandPalette, ShowContextMenu, SplitHorizontal, SplitVertical, CloseCurrentPane,
+#   TogglePaneZoomState, PaneSelect, ActivatePaneDirection(Left|Right|Up|Down),
+#   AdjustPaneSize(Left|Right|Up|Down[, cells]), CopyTo(Clipboard|PrimarySelection),
+#   PasteFrom(Clipboard|PrimarySelection), ReloadConfiguration, Increase/Decrease/ResetFontSize,
+#   ClearScrollback, ScrollByPage(-1|1), ScrollToTop, ScrollToBottom, SpawnWindow,
+#   MoveTabToNewWindow, MoveTabToWindow(window id), SetTabColor(red|yellow|green|cyan|blue|magenta|#rrggbb|none),
+#   RestartPane (run the pane's command again; asks first while something runs),
+#   ToggleFullScreen, ToggleTransparency, SendString("..."), QuickSelect, ScrollToPrompt(-1|1),
+#   SendAgentNewline (Shift+Enter: ESC CR to Claude Code while the kitty keyboard protocol is off, else the key as usual),
+#   SelectCommandOutput, CopyCommandOutput, ActivateCopyMode (vim mode, Ctrl+Shift+X; also VimMode),
+#   SwapPane(Next|Previous), RotatePanes(Clockwise|CounterClockwise), EqualizePanes, MovePaneToNewTab,
+#   MovePaneToEdge(Left|Right|Up|Down), PaneLayout(even-horizontal|even-vertical|main-vertical|main-horizontal|tiled),
+#   ToggleBroadcastInput (or (Selected): the panes you pick), SendSnippet(name), SendToAgent, BrowseThemes,
+#   NewAgentWorktree (Ctrl+Shift+G: a git worktree, a tab and a coding agent in one go),
+#   ShowWorktrees (Ctrl+Shift+H: every worktree of this repository, Enter jumps there), FinishWorktree, CleanUpWorktrees,
+#   None (disables a default).
+# disable_default_key_bindings = false
+# macOS: which Option key is Alt/Meta ("left", "right", "both", "none"); the other types é, ø, …
+# macos_option_as_alt = "left"
+#
+# [keys]
+# "CTRL+h" = "ActivatePaneDirection(Left)"
+# "ALT+h"  = "AdjustPaneSize(Left, 3)"
+# "SHIFT+enter" = "None"                   # Shift+Enter always as the program's plain key (no ESC CR for Claude Code)
+# "CTRL+SHIFT+x" = "None"                  # vim mode's default key: move it elsewhere, e.g.
+# "ALT+v" = "ActivateCopyMode"
+# "CTRL+SHIFT+ALT+r" = "RotatePanes(Clockwise)"
+# "CTRL+SHIFT+ALT+t" = "PaneLayout(tiled)"
+# "CTRL+ALT+g" = "SendSnippet(gs)"
+
+# --- Snippets ----------------------------------------------------------------
+# Palette: "Snippet › name"; inserted as a paste (sanitized, bracketed). {{cwd}} = the pane's directory, {{selection}} =
+# the selected text (as they are, no quoting). Shift+Enter in the palette also presses Enter.
+# [snippets]
+# gs = "git status"
+# deploy = { text = "make deploy DIR={{cwd}}", description = "Deploy from here" }
+#
+# (or, instead of [snippets], an array of tables: [[snippets]] with name, text and optionally description)
+
+# --- New Agent Worktree: agents (README: Coding agents) --------------------------
+# Built in: claude, copilot, codex (offered when found on PATH). `args` fills the overlay's Arguments field, where you
+# can see and change them; nothing is added out of sight. Flags are per agent: Codex has --yolo, Claude Code doesn't.
+# [worktree_agents.claude]
+# args = ["--model", "sonnet"]
+#
+# prompt_args: how the agent takes a first prompt; {prompt} is replaced, and [] means it can't take one.
+# [worktree_agents.aider]
+# name = "Aider"
+# command = "aider"
+# prompt_args = ["--message", "{prompt}"]
+#
+# [worktree_agents.codex]
+# command = ""                             # an empty command removes an agent from the picker

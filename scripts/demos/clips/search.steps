@@ -1,0 +1,44 @@
+# search: Ctrl+Shift+F through a web host's long request log in the scrollback, then Ctrl+Shift+S across every pane
+# and tab.
+sleep:1500
+run:dotnet run --project src/Tidewatch -- serve
+sleep:1800
+cskey:\
+sleep:500
+run:dotnet test
+sleep:2800
+cskey:t
+sleep:400
+run:nvim src/Tidewatch/Forecast.cs
+sleep:900
+cskey:1
+sleep:300
+action:ActivatePaneDirection(Left)
+sleep:800
+record:on
+sleep:700
+cskey:f
+sleep:500
+typeslow:timeout
+sleep:1300
+key:enter
+sleep:1300
+key:enter
+sleep:1300
+key:escape
+sleep:700
+cskey:s
+sleep:500
+typeslow:extremes
+sleep:1500
+key:down
+sleep:450
+key:down
+sleep:450
+key:down
+sleep:450
+key:down
+sleep:800
+key:enter
+sleep:2000
+end

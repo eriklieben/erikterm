@@ -1,0 +1,116 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Test-only packages are allowed; the shipped binaries (src/, bench/) take no packages. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>ErikTerm.Tests</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <PublishAot>false</PublishAot>
+    <IsAotCompatible>false</IsAotCompatible>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- Linked app sources: fields the app assigns (renderer caches, selections) can look unassigned here. -->
+    <NoWarn>$(NoWarn);CS0649</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- TUnit on Microsoft.Testing.Platform: the project is its own runner (dotnet run / dotnet test, see global.json). -->
+    <PackageReference Include="TUnit" Version="1.76.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- CollectionOrdering (ordered IsEquivalentTo) and OS ([RunOn] / [ExcludeOn]). -->
+    <Using Include="TUnit.Assertions.Enums" />
+    <Using Include="TUnit.Core.Enums" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/ErikTerm.Core/ErikTerm.Core.csproj" />
+    <ProjectReference Include="../../src/ErikTerm.Config/ErikTerm.Config.csproj" />
+    <ProjectReference Include="../../src/ErikTerm.Pty/ErikTerm.Pty.csproj" />
+    <ProjectReference Include="../../src/ErikTerm.Ui/ErikTerm.Ui.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Dependency-free logic from the app (an AOT exe with native deps), compiled in directly. -->
+    <Compile Include="../../src/ErikTerm.App/Rendering/WindowsFontNames.cs" Link="App/WindowsFontNames.cs" />
+    <Compile Include="../../src/ErikTerm.App/Native/NativeLibraries.cs" Link="App/NativeLibraries.cs" />
+    <Compile Include="../../src/ErikTerm.App/Native/WindowsFiles.cs" Link="App/WindowsFiles.cs" />
+    <Compile Include="../../src/ErikTerm.App/Host/ProcessConfig.cs" Link="App/Host/ProcessConfig.cs" />
+    <Compile Include="../../src/ErikTerm.App/EntryCommand.cs" Link="App/EntryCommand.cs" />
+    <Compile Include="../../src/ErikTerm.App/Rendering/BoxDrawing.cs" Link="App/BoxDrawing.cs" />
+    <Compile Include="../../src/ErikTerm.App/Rendering/Underlines.cs" Link="App/Underlines.cs" />
+    <Compile Include="../../src/ErikTerm.App/Rendering/FontFeatures.cs" Link="App/FontFeatures.cs" />
+    <Compile Include="../../src/ErikTerm.App/Native/Sdl.cs" Link="App/Sdl.cs" />
+    <Compile Include="../../src/ErikTerm.App/KeyEncoder.cs" Link="App/KeyEncoder.cs" />
+    <Compile Include="../../src/ErikTerm.App/MacKeys.cs" Link="App/MacKeys.cs" />
+    <Compile Include="../../src/ErikTerm.App/Session/*.cs" LinkBase="App/Session" />
+    <Compile Include="../../src/ErikTerm.App/Ipc/*.cs" Link="App/Ipc/%(Filename)%(Extension)" />
+    <Compile Include="../../src/ErikTerm.App/Cli/*.cs" Link="App/Cli/%(Filename)%(Extension)" />
+    <Compile Include="../../src/ErikTerm.App/Compare/*.cs" Link="App/Compare/%(Filename)%(Extension)" />
+    <Compile Include="../../src/ErikTerm.App/SettingsPage/*.cs" Link="App/SettingsPage/%(Filename)%(Extension)" />
+    <Compile Include="../../src/ErikTerm.App/Tmux/*.cs" Link="App/Tmux/%(Filename)%(Extension)" />
+    <Compile Include="../../src/ErikTerm.App/Rendering/FontStyle.cs" Link="App/FontStyle.cs" />
+    <Compile Include="../../src/ErikTerm.App/Rendering/VariableInstances.cs" Link="App/VariableInstances.cs" />
+    <Compile Include="../../src/ErikTerm.App/Native/FreeType.cs" Link="App/FreeType.cs" />
+    <Compile Include="../../src/ErikTerm.App/Rendering/RowCache.cs" Link="App/RowCache.cs" />
+    <Compile Include="../../src/ErikTerm.App/Rendering/ShapedRunCache.cs" Link="App/ShapedRunCache.cs" />
+    <Compile Include="../../src/ErikTerm.App/Panes/Selection.cs" Link="App/Selection.cs" />
+    <Compile Include="../../src/ErikTerm.App/Panes/PaneLinks.cs" Link="App/PaneLinks.cs" />
+    <Compile Include="../../src/ErikTerm.App/Integrations/*.cs" Link="App/Integrations/%(Filename)%(Extension)" />
+    <Compile Include="../../src/ErikTerm.App/Security/*.cs" Link="App/Security/%(Filename)%(Extension)" />
+    <Compile Include="../../src/ErikTerm.App/Notifications/*.cs" Link="App/Notifications/%(Filename)%(Extension)" />
+    <Compile Include="../../src/ErikTerm.App/Vim/*.cs" Link="App/Vim/%(Filename)%(Extension)" />
+    <Compile Include="../../src/ErikTerm.App/Worktrees/*.cs" Link="App/Worktrees/%(Filename)%(Extension)" />
+    <Compile Include="../../src/ErikTerm.App/Containers/*.cs" Link="App/Containers/%(Filename)%(Extension)" />
+    <Compile Include="../../src/ErikTerm.App/Agents/*.cs" Link="App/Agents/%(Filename)%(Extension)" />
+    <Compile Include="../../src/ErikTerm.App/Search/*.cs" Link="App/Search/%(Filename)%(Extension)" />
+    <Compile Include="../../src/ErikTerm.App/Ui/PaneSearchOverlay.cs" Link="App/PaneSearchOverlay.cs" />
+    <Compile Include="../../src/ErikTerm.App/Tabs/*.cs" Link="App/Tabs/%(Filename)%(Extension)" />
+    <Compile Include="../../src/ErikTerm.App/Teammates/*.cs" Link="App/Teammates/%(Filename)%(Extension)" />
+    <Compile Include="../../src/ErikTerm.App/Ui/TabSwitcherOverlay.cs" Link="App/TabSwitcherOverlay.cs" />
+    <Compile Include="../../src/ErikTerm.App/Ui/ContainerIcon.cs" Link="App/ContainerIcon.cs" />
+    <Compile Include="../../src/ErikTerm.App/Ui/ProgressBar.cs" Link="App/ProgressBar.cs" />
+    <Compile Include="../../src/ErikTerm.App/Ui/AgentsOverlay.cs" Link="App/AgentsOverlay.cs" />
+    <Compile Include="../../src/ErikTerm.App/Ui/CommandPalette.cs" Link="App/CommandPalette.cs" />
+    <Compile Include="../../src/ErikTerm.App/Panes/TerminalScreenText.cs" Link="App/TerminalScreenText.cs" />
+    <Compile Include="../../src/ErikTerm.App/Ui/WorktreesOverlay.cs" Link="App/WorktreesOverlay.cs" />
+    <Compile Include="../../src/ErikTerm.App/Ui/FinishWorktreeOverlay.cs" Link="App/FinishWorktreeOverlay.cs" />
+    <Compile Include="../../src/ErikTerm.App/Ui/AgentWorktreeOverlay.cs" Link="App/AgentWorktreeOverlay.cs" />
+    <Compile Include="../../src/ErikTerm.App/Ui/RepoBadge.cs" Link="App/RepoBadge.cs" />
+    <Compile Include="../../src/ErikTerm.App/Ui/VimOverlay.cs" Link="App/VimOverlay.cs" />
+    <Compile Include="../../src/ErikTerm.App/Ui/VimHelpOverlay.cs" Link="App/VimHelpOverlay.cs" />
+    <Compile Include="../../src/ErikTerm.App/Panes/WindowPanes.cs" Link="App/WindowPanes.cs" />
+    <Compile Include="../../src/ErikTerm.App/Ui/InfoBar.cs" Link="App/InfoBar.cs" />
+    <Compile Include="../../src/ErikTerm.App/Ui/AgentBadge.cs" Link="App/AgentBadge.cs" />
+    <Compile Include="../../src/ErikTerm.App/Panes/AgentPane.cs" Link="App/AgentPane.cs" />
+    <Compile Include="../../src/ErikTerm.App/Ui/NotificationsPanel.cs" Link="App/NotificationsPanel.cs" />
+    <Compile Include="../../src/ErikTerm.App/Ui/Theme.cs" Link="App/Theme.cs" />
+    <Compile Include="../../src/ErikTerm.App/Ui/Widgets.cs" Link="App/Widgets.cs" />
+    <Compile Include="../../src/ErikTerm.App/Ui/Toasts.cs" Link="App/Toasts.cs" />
+    <Compile Include="../../src/ErikTerm.App/Rendering/DrawList.cs" Link="App/DrawList.cs" />
+    <Compile Include="../../src/ErikTerm.App/Rendering/GlyphAtlas.cs" Link="App/GlyphAtlas.cs" />
+    <Compile Include="../../src/ErikTerm.App/KeyNames.cs" Link="App/KeyNames.cs" />
+    <Compile Include="../../src/ErikTerm.App/Panes/SmoothScroll.cs" Link="App/SmoothScroll.cs" />
+    <Compile Include="../../src/ErikTerm.App/Panes/PaneCwd.cs" Link="App/PaneCwd.cs" />
+    <Compile Include="../../src/ErikTerm.App/Panes/Teammate.cs" Link="App/Teammate.cs" />
+    <Compile Include="../../src/ErikTerm.App/Panes/CloseConfirmation.cs" Link="App/CloseConfirmation.cs" />
+    <Compile Include="../../src/ErikTerm.App/Panes/ExitHold.cs" Link="App/ExitHold.cs" />
+    <Compile Include="../../src/ErikTerm.App/Rendering/Colors.cs" Link="App/Colors.cs" />
+    <Compile Include="../../src/ErikTerm.App/Rendering/Contrast.cs" Link="App/Contrast.cs" />
+    <Compile Include="../../src/ErikTerm.App/SystemPreferences/PreferenceParsing.cs" Link="App/PreferenceParsing.cs" />
+    <Compile Include="../../src/ErikTerm.App/SchemeDirectoryWatch.cs" Link="App/SchemeDirectoryWatch.cs" />
+    <Compile Include="../../src/ErikTerm.App/Panes/ReflowInvalidation.cs" Link="App/ReflowInvalidation.cs" />
+    <Compile Include="../../src/ErikTerm.App/Ui/AboutInfo.cs" Link="App/AboutInfo.cs" />
+    <Compile Include="../../src/ErikTerm.App/Ui/AboutLicenses.cs" Link="App/AboutLicenses.cs" />
+    <Compile Include="../../src/ErikTerm.App/Native/WindowIcon.cs" Link="App/WindowIcon.cs" />
+    <Compile Include="../../src/ErikTerm.App/CrashLog.cs" Link="App/CrashLog.cs" />
+    <Compile Include="../../src/ErikTerm.App/Native/HarfBuzz.cs" Link="App/HarfBuzz.cs" />
+    <Compile Include="../../src/ErikTerm.App/Rendering/FontSet.cs" Link="App/FontSet.cs" />
+    <Compile Include="../../src/ErikTerm.App/Rendering/FontSet.Variable.cs" Link="App/FontSet.Variable.cs" />
+    <Compile Include="../../src/ErikTerm.App/Rendering/FontLocator.cs" Link="App/FontLocator.cs" />
+    <Compile Include="../../src/ErikTerm.App/Rendering/WindowsFontLocator.cs" Link="App/WindowsFontLocator.cs" />
+    <Compile Include="../../src/ErikTerm.App/Rendering/FallbackResolver.cs" Link="App/FallbackResolver.cs" />
+    <Compile Include="../../src/ErikTerm.App/Rendering/FontFiles.cs" Link="App/FontFiles.cs" />
+    <Compile Include="../../src/ErikTerm.App/Rendering/MacFontLocator.cs" Link="App/MacFontLocator.cs" />
+  </ItemGroup>
+  <!-- The app's embedded window icon, so WindowIconTests decodes the same resource. -->
+  <Import Project="../../build/AppIcon.props" />
+  <!-- contrib/shell, embedded like in the app (ShellIntegrationInjectionTests extracts and runs it). -->
+  <Import Project="../../build/ShellIntegration.props" />
+</Project>

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <!-- erikterm icon, hand-tuned for 32 px: tile, rim and caret on whole pixels. © 2026 Erik Lieben. Same license as erikterm. -->
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#363a4f"/>
+      <stop offset="1" stop-color="#1e2030"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="28" height="28" rx="7" fill="url(#tile)"/>
+  <rect x="2.5" y="2.5" width="27" height="27" rx="6.5" fill="none" stroke="#b7bdf8" stroke-opacity=".45"/>
+  <path d="M10 10.5 L16 16 L10 21.5" fill="none" stroke="#b7bdf8" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="20" y="9" width="2" height="14" rx="1" fill="#8aadf4"/>
+</svg>
