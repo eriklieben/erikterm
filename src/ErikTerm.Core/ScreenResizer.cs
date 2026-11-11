@@ -128,7 +128,7 @@ internal sealed class ScreenResizer(Scrollback scrollback, CellArrayPool cellPoo
         dst.Clear();
 
         int cy = Math.Clamp(cursor.Y, 0, main.Length - 1);
-        int cursorSource = CollectReflowRows(main, cols, cy);
+        int cursorSource = CollectReflowRows(src, main, cols, cy);
         long oldFirst = _scrollback.Dropped;
         var pass = new ReflowPass
         {
@@ -175,10 +175,9 @@ internal sealed class ScreenResizer(Scrollback scrollback, CellArrayPool cellPoo
 
     private static bool FitsOnOneRow(Row row, int cols) => row.Cells.Length <= cols || RowContent.ContentLength(row) <= cols;
 
-    /// <summary>Lists the scrollback and the used part of the screen in <see cref="_reflowSrc"/>; returns the cursor row's index in it.</summary>
-    private int CollectReflowRows(Row[] main, int cols, int cy)
+    /// <summary>Lists the scrollback and the used part of the screen in <paramref name="src"/>; returns the cursor row's index in it.</summary>
+    private int CollectReflowRows(List<Row> src, Row[] main, int cols, int cy)
     {
-        var src = _reflowSrc;
         _scrollback.CopyTo(src, _images.HasInlineImages ? 0 : cols); // inline images are found by looking at the cells
         int scrollbackRows = src.Count;
         int lastUsed = cy;

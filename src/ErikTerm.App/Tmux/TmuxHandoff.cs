@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using ErikTerm.Pty;
 
 namespace ErikTerm.App.Tmux;
 
@@ -166,28 +167,22 @@ internal sealed unsafe partial class RealTmux(string? path, string? tmuxTmpDir) 
         Console.Out.Flush();
         if (!OperatingSystem.IsWindows())
         {
-            var allocations = new List<nint>();
+            var strings = new NativeUtf8Strings();
             byte** argv = (byte**)NativeMemory.AllocZeroed((nuint)(args.Count + 2), (nuint)sizeof(nint));
             byte** envp = (byte**)NativeMemory.AllocZeroed((nuint)(env.Count + 1), (nuint)sizeof(nint));
             try
             {
-                byte* Utf8(string s)
-                {
-                    nint p = Marshal.StringToCoTaskMemUTF8(s);
-                    allocations.Add(p);
-                    return (byte*)p;
-                }
-                argv[0] = Utf8("tmux");
-                for (int i = 0; i < args.Count; i++) argv[i + 1] = Utf8(args[i]);
+                argv[0] = strings.Add("tmux");
+                for (int i = 0; i < args.Count; i++) argv[i + 1] = strings.Add(args[i]);
                 int k = 0;
-                foreach (var (key, value) in env) envp[k++] = Utf8($"{key}={value}");
-                if (OperatingSystem.IsMacOS()) mac_execve(Utf8(Path), argv, envp);
-                else execve(Utf8(Path), argv, envp);
+                foreach (var (key, value) in env) envp[k++] = strings.Add($"{key}={value}");
+                if (OperatingSystem.IsMacOS()) mac_execve(strings.Add(Path), argv, envp);
+                else execve(strings.Add(Path), argv, envp);
                 // Only reached on failure: fall back to running it as a child.
             }
             finally
             {
-                foreach (nint p in allocations) Marshal.FreeCoTaskMem(p);
+                strings.Dispose();
                 NativeMemory.Free(argv);
                 NativeMemory.Free(envp);
             }

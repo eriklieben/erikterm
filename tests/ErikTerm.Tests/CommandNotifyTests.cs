@@ -174,11 +174,11 @@ public class CommandNotifyTests
     public async Task ControlCharactersInTheCommandLineAreRemoved()
     {
         // Act: a command line comes from the terminal's output, so it's cleaned like any notification text.
-        var (title, _) = CommandNotice.Text("echo \e[31mhi‮", 0, 12_000);
+        var (title, _) = CommandNotice.Text("echo \e[31mhi\u202e", 0, 12_000);
 
         // Assert
         await Assert.That(title).DoesNotContain("\e");
-        await Assert.That(title).DoesNotContain("‮");
+        await Assert.That(title).DoesNotContain("\u202e");
     }
 
     // ---- Settings -----------------------------------------------------------------------------

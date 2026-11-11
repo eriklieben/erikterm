@@ -97,26 +97,43 @@ internal sealed unsafe class GridText
     /// Color (emoji) glyphs are drawn with <paramref name="colorTint"/> (white = untinted; gray dims them).
     /// </summary>
     public void EndRow(DrawList dl, float ox, float py, float alpha, uint colorTint = 0xFFFFFF) =>
-        Emit(dl, ox, py, alpha, colorTint, 0, int.MaxValue, NoColor);
+        Emit(dl, ox, py, 0, int.MaxValue, new Paint(NoColor, colorTint, alpha));
+
+    /// <summary>
+    /// A row as it is shaped: its first <see cref="N"/> cells, under the harfbuzz_features <see cref="Features"/>, the
+    /// cursor (always a run of its own) at <see cref="CursorCol"/> (-1: not on this row).
+    /// </summary>
+    public readonly record struct RowShape(IReadOnlyList<string> Features, Row Row, int N, int CursorCol);
+
+    /// <summary>
+    /// The one color <see cref="DrawCells"/> draws in: <see cref="Rgb"/> at <see cref="Alpha"/>; color (emoji) glyphs
+    /// with <see cref="ColorTint"/> when given, else tinted <see cref="Rgb"/> too.
+    /// </summary>
+    public readonly record struct CellInk(uint Rgb, float Alpha, uint ColorTint = NoColor);
 
     /// <summary>
     /// Draws the glyphs of cells [<paramref name="firstCol"/>, <paramref name="lastCol"/>] of a row in one color
-    /// (text under a block cursor, selected text with selection_fg), shaped exactly as the row is, clusters included.
-    /// Color (emoji) glyphs are drawn with <paramref name="colorTint"/> when given, else tinted <paramref name="rgb"/> too.
+    /// (text under a block cursor, selected text with selection_fg), shaped exactly as the row is, clusters included;
+    /// (<paramref name="ox"/>, <paramref name="py"/>) is the row's top-left corner.
     /// </summary>
-    public void DrawCells(DrawList dl, IReadOnlyList<string> features, Row row, int n, int cursorCol, int firstCol, int lastCol,
-        float ox, float py, uint rgb, float alpha, uint colorTint = NoColor)
+    public void DrawCells(DrawList dl, in RowShape shape, int firstCol, int lastCol, float ox, float py, in CellInk ink)
     {
-        BeginRow(dl, features, row, n, cursorCol);
+        int n = shape.N;
+        BeginRow(dl, shape.Features, shape.Row, n, shape.CursorCol);
         for (int x = Math.Max(0, firstCol); x <= Math.Min(lastCol, n - 1); x++)
         {
             var f = _cells[x].Flags;
             if (_cells[x].Rune > 0x20 && (f & (CellAttributes.WideTrail | CellAttributes.Hidden)) == 0) _colors[x] = 0;
         }
-        Emit(dl, ox, py, alpha, colorTint == NoColor ? rgb & 0xFFFFFF : colorTint & 0xFFFFFF, firstCol, lastCol, rgb & 0xFFFFFF);
+        uint rgb = ink.Rgb, colorTint = ink.ColorTint;
+        Emit(dl, ox, py, firstCol, lastCol,
+            new Paint(rgb & 0xFFFFFF, colorTint == NoColor ? rgb & 0xFFFFFF : colorTint & 0xFFFFFF, ink.Alpha));
     }
 
-    private void Emit(DrawList dl, float ox, float py, float alpha, uint colorTint, int firstCol, int lastCol, uint overrideFg)
+    /// <summary>How <see cref="Emit"/> colors glyphs: <see cref="OverrideFg"/> for all (NoColor: each cell's own), color glyphs <see cref="ColorTint"/>.</summary>
+    private readonly record struct Paint(uint OverrideFg, uint ColorTint, float Alpha);
+
+    private void Emit(DrawList dl, float ox, float py, int firstCol, int lastCol, in Paint paint)
     {
         var entry = Lookup(dl.Fonts);
         // Not kept for later: a row's cells can be on the pinned heap, where one live array holds on to all the memory below it.
@@ -124,7 +141,10 @@ internal sealed unsafe class GridText
         _cells = [];
         var fonts = dl.Fonts;
         var atlas = dl.Atlas;
-        int cw = fonts.CellWidth, baseline = fonts.Baseline;
+        int cw = fonts.CellWidth;
+        float baselineY = py + fonts.Baseline;
+        uint overrideFg = paint.OverrideFg;
+        float alpha = paint.Alpha;
         var items = entry.Items;
         for (int i = 0; i < entry.Count; i++)
         {
@@ -135,22 +155,23 @@ internal sealed unsafe class GridText
             if (overrideFg != NoColor) fg = overrideFg;
             float cx = ox + it.Col * cw;
             if (it.Kind == KindBox) EmitBox(dl, atlas, (int)it.Glyph, cx, py, fg, alpha);
-            else EmitGlyph(dl, atlas, in it, cx, py, baseline, fg, colorTint, alpha);
+            else EmitGlyph(dl, atlas, in it, cx, baselineY, fg, in paint);
         }
     }
 
     private static void EmitBox(DrawList dl, GlyphAtlas atlas, int codepoint, float cx, float py, uint fg, float alpha)
     {
         var b = atlas.GetBox(codepoint);
-        if (!b.Empty) dl.Quad(cx, py, cx + b.Width, py + b.Height, b.U0, b.V0, b.U1, b.V1, fg, alpha);
+        if (!b.Empty) dl.Quad(cx, py, cx + b.Width, py + b.Height, in b.Uv, fg, alpha);
     }
 
-    private static void EmitGlyph(DrawList dl, GlyphAtlas atlas, in ShapedGlyph it, float cx, float py, int baseline, uint fg, uint colorTint, float alpha)
+    /// <summary>A shaped glyph in the cell at <paramref name="cx"/>, its pen on the row's baseline <paramref name="baselineY"/>.</summary>
+    private static void EmitGlyph(DrawList dl, GlyphAtlas atlas, in ShapedGlyph it, float cx, float baselineY, uint fg, in Paint paint)
     {
         var g = atlas.GetGlyph(it.Face, it.Glyph, it.Cells);
         if (g.Empty) return;
-        float gx = cx + MathF.Round(it.Dx) + g.Left, gy = py + baseline - MathF.Round(it.Dy) - g.Top;
-        dl.Quad(gx, gy, gx + g.Width, gy + g.Height, g.U0, g.V0, g.U1, g.V1, g.Color ? colorTint : fg, alpha);
+        float gx = cx + MathF.Round(it.Dx) + g.Left, gy = baselineY - MathF.Round(it.Dy) - g.Top;
+        dl.Quad(gx, gy, gx + g.Width, gy + g.Height, in g.Uv, g.Color ? paint.ColorTint : fg, paint.Alpha);
     }
 
     // ---- Configuration ------------------------------------------------------------------------
@@ -253,7 +274,7 @@ internal sealed unsafe class GridText
                 x++;
                 continue;
             }
-            x = ShapeRunFrom(fonts, entry, row, x, n, in c, isCluster);
+            x = ShapeRunFrom(fonts, entry, row, x, in c, isCluster);
         }
     }
 
@@ -265,7 +286,7 @@ internal sealed unsafe class GridText
     /// glyphs, and the cursor cell always on its own. Without shaping, a cluster is a run of its own (it still gets
     /// shaped). Returns the cell after the run.
     /// </summary>
-    private int ShapeRunFrom(FontSet fonts, Entry entry, Row row, int x, int n, in Cell c, bool isCluster)
+    private int ShapeRunFrom(FontSet fonts, Entry entry, Row row, int x, in Cell c, bool isCluster)
     {
         var attrs = c.Flags & RunAttributes;
         uint fg = c.Fg;
@@ -274,16 +295,18 @@ internal sealed unsafe class GridText
         bool alone = x == _cursor || (isCluster && !_shape);
         bool hasCluster = isCluster;
         x++;
-        if (!alone) x = ExtendRun(fonts, row, x, n, face, attrs, fg, ref len, ref hasCluster);
+        if (!alone) x = ExtendRun(fonts, x, face, attrs, fg, ref len, ref hasCluster);
         ShapeRun(fonts, entry, face, len, hasCluster);
         return x;
     }
 
     private const CellAttributes RunAttributes = CellAttributes.Bold | CellAttributes.Italic | CellAttributes.Inverse;
 
-    /// <summary>Adds the cells that continue a run to the run text; returns the first cell that doesn't.</summary>
-    private int ExtendRun(FontSet fonts, Row row, int x, int n, int face, CellAttributes attrs, uint fg, ref int len, ref bool hasCluster)
+    /// <summary>Adds the cells of the current row that continue a run to the run text; returns the first cell that doesn't.</summary>
+    private int ExtendRun(FontSet fonts, int x, int face, CellAttributes attrs, uint fg, ref int len, ref bool hasCluster)
     {
+        var row = _row!;
+        int n = _n;
         var cells = _cells;
         while (x < n)
         {

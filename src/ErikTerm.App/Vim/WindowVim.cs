@@ -21,6 +21,9 @@ namespace ErikTerm.App.Vim;
 internal sealed class WindowVim<TPane>(IVimWindow<TPane> window, IVimProcess process, IVimSearch<TPane> search, Lock gate)
     where TPane : class, IVimPane
 {
+    private const string CopyModeAction = "ActivateCopyMode";
+    private const string LayoutCategory = "Layout";
+
     private readonly VimOverlay<TPane> _overlay = new();
     private readonly VimHelpOverlay _help = new();
     private readonly List<Action> _deferred = [];
@@ -114,7 +117,7 @@ internal sealed class WindowVim<TPane>(IVimWindow<TPane> window, IVimProcess pro
     {
         switch (action.Name)
         {
-            case "ActivateCopyMode" or "VimMode": Leave(pane, toLive: false); break;
+            case CopyModeAction or "VimMode": Leave(pane, toLive: false); break;
             case "Search": OpenSearchPrompt(); break;
             case "PasteFrom" when vim.Prompt != VimPromptKind.None:
                 string text = action.Arg == "PrimarySelection" ? window.Primary() : window.Clipboard();
@@ -405,7 +408,7 @@ internal sealed class WindowVim<TPane>(IVimWindow<TPane> window, IVimProcess pro
     {
         switch (name)
         {
-            case "ActivateCopyMode" or "VimMode": Toggle(window.Focused); break;
+            case CopyModeAction or "VimMode": Toggle(window.Focused); break;
             case "SwapPane": SwapPanes(firstArg.Equals("Previous", StringComparison.OrdinalIgnoreCase) ? -1 : 1); break;
             case "RotatePanes": RotatePanes(!firstArg.Equals("CounterClockwise", StringComparison.OrdinalIgnoreCase)); break;
             case "EqualizePanes": EqualizePanes(); break;
@@ -873,7 +876,7 @@ internal sealed class WindowVim<TPane>(IVimWindow<TPane> window, IVimProcess pro
     public void AddCommands(Action<string, string, int, string, Func<bool>?> add)
     {
         bool multi() => window.ShownPaneCount > 1;
-        add("Edit", window.Focused.Vim is null ? "Vim Mode (Copy Mode)" : "Leave Vim Mode", Icons.Keyboard, "ActivateCopyMode", null);
+        add("Edit", window.Focused.Vim is null ? "Vim Mode (Copy Mode)" : "Leave Vim Mode", Icons.Keyboard, CopyModeAction, null);
         add("Pane", "Swap with Next Pane", Icons.Layout, "SwapPane", multi);
         add("Pane", "Swap with Previous Pane", Icons.Layout, "SwapPane(Previous)", multi);
         add("Pane", "Rotate Panes Clockwise", Icons.Refresh, "RotatePanes(Clockwise)", multi);
@@ -884,11 +887,11 @@ internal sealed class WindowVim<TPane>(IVimWindow<TPane> window, IVimProcess pro
         add("Pane", "Move Pane to the Right Edge", Icons.ArrowRight, "MovePaneToEdge(Right)", multi);
         add("Pane", "Move Pane to the Top", Icons.ArrowUp, "MovePaneToEdge(Up)", multi);
         add("Pane", "Move Pane to the Bottom", Icons.ArrowDown, "MovePaneToEdge(Down)", multi);
-        add("Layout", "Even Horizontal (side by side)", Icons.SplitRight, "PaneLayout(even-horizontal)", multi);
-        add("Layout", "Even Vertical (stacked)", Icons.SplitDown, "PaneLayout(even-vertical)", multi);
-        add("Layout", "Main Vertical (one big pane left)", Icons.Layout, "PaneLayout(main-vertical)", multi);
-        add("Layout", "Main Horizontal (one big pane on top)", Icons.Layout, "PaneLayout(main-horizontal)", multi);
-        add("Layout", "Tiled (grid)", Icons.Layout, "PaneLayout(tiled)", multi);
+        add(LayoutCategory, "Even Horizontal (side by side)", Icons.SplitRight, "PaneLayout(even-horizontal)", multi);
+        add(LayoutCategory, "Even Vertical (stacked)", Icons.SplitDown, "PaneLayout(even-vertical)", multi);
+        add(LayoutCategory, "Main Vertical (one big pane left)", Icons.Layout, "PaneLayout(main-vertical)", multi);
+        add(LayoutCategory, "Main Horizontal (one big pane on top)", Icons.Layout, "PaneLayout(main-horizontal)", multi);
+        add(LayoutCategory, "Tiled (grid)", Icons.Layout, "PaneLayout(tiled)", multi);
     }
 
     // ==== The host ===============================================================================
@@ -946,7 +949,7 @@ internal sealed class WindowVim<TPane>(IVimWindow<TPane> window, IVimProcess pro
 
         public void Help() => w._deferred.Add(() =>
         {
-            w._help.EnterKey = window.ShortcutText("ActivateCopyMode") ?? "ActivateCopyMode";
+            w._help.EnterKey = window.ShortcutText(CopyModeAction) ?? CopyModeAction;
             w._help.Open(window.Theme, Now);
         });
     }

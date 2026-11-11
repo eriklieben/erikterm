@@ -65,13 +65,7 @@ internal sealed unsafe partial class UnixPty : IPtyBackend
     private static int SpawnChild(string program, IReadOnlyList<string> argv, IReadOnlyDictionary<string, string> env,
         string slavePath, string? cwd)
     {
-        var allocations = new List<nint>();
-        nint Utf8(string s)
-        {
-            nint p = Marshal.StringToCoTaskMemUTF8(s);
-            allocations.Add(p);
-            return p;
-        }
+        var strings = new NativeUtf8Strings();
 
         byte* actions = (byte*)NativeMemory.AllocZeroed(FileActionsSize);
         byte* attr = (byte*)NativeMemory.AllocZeroed(SpawnAttrSize);
@@ -80,15 +74,15 @@ internal sealed unsafe partial class UnixPty : IPtyBackend
         byte** envPtr = (byte**)NativeMemory.AllocZeroed((nuint)(env.Count + 1), (nuint)sizeof(nint));
         try
         {
-            for (int i = 0; i < argv.Count; i++) argvPtr[i] = (byte*)Utf8(argv[i]);
+            for (int i = 0; i < argv.Count; i++) argvPtr[i] = strings.Add(argv[i]);
             int k = 0;
-            foreach (var (key, value) in env) envPtr[k++] = (byte*)Utf8($"{key}={value}");
+            foreach (var (key, value) in env) envPtr[k++] = strings.Add($"{key}={value}");
 
             Check(posix_spawn_file_actions_init(actions), "posix_spawn_file_actions_init");
-            Check(posix_spawn_file_actions_addopen(actions, 0, (byte*)Utf8(slavePath), O_RDWR, 0), "addopen");
+            Check(posix_spawn_file_actions_addopen(actions, 0, strings.Add(slavePath), O_RDWR, 0), "addopen");
             Check(posix_spawn_file_actions_adddup2(actions, 0, 1), "adddup2");
             Check(posix_spawn_file_actions_adddup2(actions, 0, 2), "adddup2");
-            if (cwd is not null) Check(posix_spawn_file_actions_addchdir_np(actions, (byte*)Utf8(cwd)), "addchdir");
+            if (cwd is not null) Check(posix_spawn_file_actions_addchdir_np(actions, strings.Add(cwd)), "addchdir");
 
             Check(posix_spawnattr_init(attr), "posix_spawnattr_init");
             // The .NET runtime blocks/handles signals; give the shell a clean slate.
@@ -99,7 +93,7 @@ internal sealed unsafe partial class UnixPty : IPtyBackend
             Check(posix_spawnattr_setflags(attr, (short)(POSIX_SPAWN_SETSID | POSIX_SPAWN_SETSIGMASK | POSIX_SPAWN_SETSIGDEF)), "setflags");
 
             int pid;
-            int rc = posix_spawnp(&pid, (byte*)Utf8(program), actions, attr, argvPtr, envPtr);
+            int rc = posix_spawnp(&pid, strings.Add(program), actions, attr, argvPtr, envPtr);
             if (rc != 0) throw new IOException($"posix_spawnp('{program}') failed: errno {rc}");
             return pid;
         }
@@ -112,7 +106,7 @@ internal sealed unsafe partial class UnixPty : IPtyBackend
             NativeMemory.Free(sigs);
             NativeMemory.Free(argvPtr);
             NativeMemory.Free(envPtr);
-            foreach (var p in allocations) Marshal.FreeCoTaskMem(p);
+            strings.Dispose();
         }
     }
 

@@ -371,7 +371,7 @@ public class HyprlandWordingTests
     public async Task ControlCharactersAndBidiMarksAreRemovedFromTheName()
     {
         // Arrange
-        var workspace = new HyprlandWorkspace(5, "de\u001b[31mv‮\n");
+        var workspace = new HyprlandWorkspace(5, "de\u001b[31mv\u202e\n");
 
         // Act
         string? text = HyprlandWorkspaces.Describe(workspace);

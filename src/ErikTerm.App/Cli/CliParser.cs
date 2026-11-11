@@ -29,6 +29,16 @@ internal sealed class CliInvocation
 /// </summary>
 internal static class CliParser
 {
+    private const string PaneIdOption = "pane-id";
+    private const string TabIdOption = "tab-id";
+    private const string WindowIdOption = "window-id";
+    private const string FormatOption = "format";
+    private const string StateOption = "state";
+    private const string RightOption = "right";
+    private const string HorizontalOption = "horizontal";
+    private const string PreviousOption = "previous";
+    private const string SplitOption = "split";
+
     public const string Usage = """
         usage: erikterm cli [--socket PATH] <subcommand> [options]
                erikterm cli --version                 print the version and commit
@@ -96,12 +106,12 @@ internal static class CliParser
         """;
 
     private static readonly HashSet<string> ValueFlags =
-        ["socket", "pane-id", "percent", "cwd", "start-line", "end-line", "amount", "tab-index", "tab-relative", "tab-id", "format", "window-id",
-         "state", "message", "kind", "passthrough", "with", "branch", "base", "agent", "prompt", "agent-args", "timeout"];
+        ["socket", PaneIdOption, "percent", "cwd", "start-line", "end-line", "amount", "tab-index", "tab-relative", TabIdOption, FormatOption, WindowIdOption,
+         StateOption, "message", "kind", "passthrough", "with", "branch", "base", "agent", "prompt", "agent-args", "timeout"];
 
     private static readonly HashSet<string> BoolFlags =
-        ["left", "right", "top", "bottom", "horizontal", "no-paste", "escapes", "zoom", "unzoom", "toggle", "help", "new-window", "hook-input",
-         "previous", "counter-clockwise", "tab", "split", "background"];
+        ["left", RightOption, "top", "bottom", HorizontalOption, "no-paste", "escapes", "zoom", "unzoom", "toggle", "help", "new-window", "hook-input",
+         PreviousOption, "counter-clockwise", "tab", SplitOption, "background"];
 
     /// <summary>What a subcommand adds to the request once its arguments have passed <see cref="CheckAgainstSpec"/>.</summary>
     private delegate void FillRequest(CommandLine line, IpcRequest request);
@@ -134,32 +144,32 @@ internal static class CliParser
     /// <summary>Flags each subcommand accepts (besides --socket and --help), its positional count, whether it takes "-- PROG" and what it adds to the request.</summary>
     private static readonly Dictionary<string, CommandSpec> Commands = new()
     {
-        ["list"] = new(["format"], 0, 0, false, FillFormat),
-        ["split-pane"] = new(["pane-id", "left", "right", "top", "bottom", "horizontal", "percent", "cwd"], 0, 0, true, FillSplit),
-        ["spawn"] = new(["pane-id", "cwd", "window-id", "new-window"], 0, 0, true, FillSpawn),
-        ["activate-window"] = new(["window-id"], 0, 0, false, FillActivateWindow),
-        ["send-text"] = new(["pane-id", "no-paste"], 0, 1, false, FillSendText),
-        ["get-text"] = new(["pane-id", "start-line", "end-line", "escapes"], 0, 0, false, FillGetText),
-        ["activate-pane"] = new(["pane-id"], 0, 0, false, null),
-        ["activate-pane-direction"] = new(["pane-id"], 1, 1, false, FillDirection),
-        ["get-pane-direction"] = new(["pane-id"], 1, 1, false, FillDirection),
-        ["adjust-pane-size"] = new(["pane-id", "amount"], 1, 1, false, FillAdjustSize),
-        ["zoom-pane"] = new(["pane-id", "zoom", "unzoom", "toggle"], 0, 0, false, FillZoom),
-        ["kill-pane"] = new(["pane-id"], 0, 0, false, null),
-        ["activate-tab"] = new(["pane-id", "tab-index", "tab-relative", "tab-id"], 0, 0, false, FillActivateTab),
-        ["set-tab-title"] = new(["pane-id", "tab-id"], 1, 1, false, FillTitle),
-        ["set-tab-color"] = new(["pane-id", "tab-id"], 1, 1, false, FillTabColor),
-        ["set-window-title"] = new(["pane-id"], 1, 1, false, FillTitle),
+        ["list"] = new([FormatOption], 0, 0, false, FillFormat),
+        ["split-pane"] = new([PaneIdOption, "left", RightOption, "top", "bottom", HorizontalOption, "percent", "cwd"], 0, 0, true, FillSplit),
+        ["spawn"] = new([PaneIdOption, "cwd", WindowIdOption, "new-window"], 0, 0, true, FillSpawn),
+        ["activate-window"] = new([WindowIdOption], 0, 0, false, FillActivateWindow),
+        ["send-text"] = new([PaneIdOption, "no-paste"], 0, 1, false, FillSendText),
+        ["get-text"] = new([PaneIdOption, "start-line", "end-line", "escapes"], 0, 0, false, FillGetText),
+        ["activate-pane"] = new([PaneIdOption], 0, 0, false, null),
+        ["activate-pane-direction"] = new([PaneIdOption], 1, 1, false, FillDirection),
+        ["get-pane-direction"] = new([PaneIdOption], 1, 1, false, FillDirection),
+        ["adjust-pane-size"] = new([PaneIdOption, "amount"], 1, 1, false, FillAdjustSize),
+        ["zoom-pane"] = new([PaneIdOption, "zoom", "unzoom", "toggle"], 0, 0, false, FillZoom),
+        ["kill-pane"] = new([PaneIdOption], 0, 0, false, null),
+        ["activate-tab"] = new([PaneIdOption, "tab-index", "tab-relative", TabIdOption], 0, 0, false, FillActivateTab),
+        ["set-tab-title"] = new([PaneIdOption, TabIdOption], 1, 1, false, FillTitle),
+        ["set-tab-color"] = new([PaneIdOption, TabIdOption], 1, 1, false, FillTabColor),
+        ["set-window-title"] = new([PaneIdOption], 1, 1, false, FillTitle),
         ["reload-config"] = new([], 0, 0, false, null),
-        ["agents"] = new(["format"], 0, 0, false, FillFormat),
-        ["set-agent-status"] = new(["pane-id", "state", "message", "kind", "hook-input"], 0, 1, false, FillAgentStatus),
-        ["statusline"] = new(["pane-id", "passthrough"], 0, 0, false, FillStatusline),
-        ["swap-pane"] = new(["pane-id", "with", "previous"], 0, 0, false, FillSwap),
-        ["rotate-panes"] = new(["pane-id", "tab-id", "counter-clockwise"], 0, 0, false, FillRotate),
-        ["select-layout"] = new(["pane-id", "tab-id"], 1, 1, false, FillLayout),
-        ["move-pane-to-new-tab"] = new(["pane-id"], 0, 0, false, null),
-        ["new-worktree"] = new(["pane-id", "window-id", "cwd", "branch", "base", "agent", "prompt", "agent-args", "tab", "split", "background"], 0, 0, false, FillNewWorktree),
-        ["wait-for-state"] = new(["pane-id", "state", "timeout"], 0, 1, false, FillWaitForState),
+        ["agents"] = new([FormatOption], 0, 0, false, FillFormat),
+        ["set-agent-status"] = new([PaneIdOption, StateOption, "message", "kind", "hook-input"], 0, 1, false, FillAgentStatus),
+        ["statusline"] = new([PaneIdOption, "passthrough"], 0, 0, false, FillStatusline),
+        ["swap-pane"] = new([PaneIdOption, "with", PreviousOption], 0, 0, false, FillSwap),
+        ["rotate-panes"] = new([PaneIdOption, TabIdOption, "counter-clockwise"], 0, 0, false, FillRotate),
+        ["select-layout"] = new([PaneIdOption, TabIdOption], 1, 1, false, FillLayout),
+        ["move-pane-to-new-tab"] = new([PaneIdOption], 0, 0, false, null),
+        ["new-worktree"] = new([PaneIdOption, WindowIdOption, "cwd", "branch", "base", "agent", "prompt", "agent-args", "tab", SplitOption, "background"], 0, 0, false, FillNewWorktree),
+        ["wait-for-state"] = new([PaneIdOption, StateOption, "timeout"], 0, 1, false, FillWaitForState),
     };
 
     /// <summary>select-layout's names (tmux's, plus even: the current splits with equal shares).</summary>
@@ -178,7 +188,7 @@ internal static class CliParser
             throw new CliUsageException($"unknown subcommand '{sub}' (one of: {string.Join(", ", Commands.Keys)})");
         CheckAgainstSpec(sub, spec, line);
 
-        var r = new IpcRequest { Command = sub, PaneId = line.Int("pane-id"), TabId = line.Int("tab-id"), WindowId = line.Int("window-id") };
+        var r = new IpcRequest { Command = sub, PaneId = line.Int(PaneIdOption), TabId = line.Int(TabIdOption), WindowId = line.Int(WindowIdOption) };
         spec.Fill?.Invoke(line, r);
         return new CliInvocation
         {
@@ -254,13 +264,13 @@ internal static class CliParser
 
     private static void FillFormat(CommandLine line, IpcRequest _)
     {
-        line.Format = line.Value("format") ?? "table";
+        line.Format = line.Value(FormatOption) ?? "table";
         if (line.Format is not ("table" or "json")) throw new CliUsageException($"--format: expected table or json, got '{line.Format}'");
     }
 
     private static void FillAgentStatus(CommandLine line, IpcRequest r)
     {
-        string? state = line.Value("state") ?? (line.Positionals.Count == 1 ? line.Positionals[0] : null);
+        string? state = line.Value(StateOption) ?? (line.Positionals.Count == 1 ? line.Positionals[0] : null);
         if (state is null) throw new CliUsageException("'set-agent-status' needs --state waiting|working|done|idle|clear");
         if (ErikTerm.Ui.AgentStatus.AgentStateText.Parse(state) is null)
             throw new CliUsageException($"--state: expected waiting, working, done, idle or clear, got '{state}'");
@@ -273,13 +283,13 @@ internal static class CliParser
 
     private static void FillSplit(CommandLine line, IpcRequest r)
     {
-        string[] sides = ["left", "right", "top", "bottom", "horizontal"];
+        string[] sides = ["left", RightOption, "top", "bottom", HorizontalOption];
         var given = sides.Where(line.Has).ToList();
         if (given.Count > 1) throw new CliUsageException("give only one of --left, --right, --top, --bottom");
         r.Direction = given.FirstOrDefault() switch
         {
             "left" => "Left",
-            "right" or "horizontal" => "Right",
+            RightOption or HorizontalOption => "Right",
             "top" => "Up",
             _ => "Down",
         };
@@ -354,8 +364,8 @@ internal static class CliParser
     private static void FillSwap(CommandLine line, IpcRequest r)
     {
         r.OtherPaneId = line.Int("with");
-        if (r.OtherPaneId is not null && line.Has("previous")) throw new CliUsageException("give only one of --with, --previous");
-        r.Direction = line.Has("previous") ? "Previous" : "Next";
+        if (r.OtherPaneId is not null && line.Has(PreviousOption)) throw new CliUsageException("give only one of --with, --previous");
+        r.Direction = line.Has(PreviousOption) ? "Previous" : "Next";
     }
 
     private static void FillRotate(CommandLine line, IpcRequest r) =>
@@ -369,9 +379,9 @@ internal static class CliParser
 
     private static void FillNewWorktree(CommandLine line, IpcRequest r)
     {
-        if (line.Has("tab") && line.Has("split")) throw new CliUsageException("give only one of --tab, --split");
+        if (line.Has("tab") && line.Has(SplitOption)) throw new CliUsageException("give only one of --tab, --split");
         if (line.Has("tab")) r.Placement = "tab";
-        if (line.Has("split")) r.Placement = "split";
+        if (line.Has(SplitOption)) r.Placement = "split";
         r.Agent = line.Value("agent");
         r.Prompt = line.Value("prompt");
         r.AgentArguments = line.Value("agent-args");
@@ -379,7 +389,7 @@ internal static class CliParser
         r.Branch = line.Value("branch");
         r.Base = line.Value("base");
         r.NoFocus = line.Has("background");
-        r.Cwd = CwdFlag(line.Flags) ?? (line.Has("pane-id") ? null : CallerDirectory());
+        r.Cwd = CwdFlag(line.Flags) ?? (line.Has(PaneIdOption) ? null : CallerDirectory());
     }
 
     /// <summary>Where the command was run; null when that directory is gone (the target pane's is used instead).</summary>
@@ -391,7 +401,7 @@ internal static class CliParser
 
     private static void FillWaitForState(CommandLine line, IpcRequest r)
     {
-        string? text = line.Value("state") ?? (line.Positionals.Count == 1 ? line.Positionals[0] : null);
+        string? text = line.Value(StateOption) ?? (line.Positionals.Count == 1 ? line.Positionals[0] : null);
         if (text is null) throw new CliUsageException($"'wait-for-state' needs --state ({WaitStates.Expected})");
         var states = WaitStates.Parse(text) ?? throw new CliUsageException($"--state: expected {WaitStates.Expected}, got '{text}'");
         r.State = string.Join(',', states);

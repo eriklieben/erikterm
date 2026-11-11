@@ -71,14 +71,14 @@ internal sealed class WindowProgress(IWindowHost window, Lock gate, TabList<Tab>
     {
         if (!PaneBarsShown) return;
         uint? color = tabs.Active is { } tab ? tabColors.ColorOf(tab) : null; // Tabs/WindowTabColors.cs
-        bool animate = AnimateProgress;
+        float sweep = ProgressBar.Sweep(now, AnimateProgress);
         float h = MathF.Max(1, MathF.Round(theme.S(2)));
         foreach (var pane in window.VisiblePanes())
         {
             if (!pane.Progress.IsActive) continue;
             var r = pane.Rect.Value(now);
             float alpha = pane.Appear.Value(now);
-            ProgressBar.Draw(dl, theme, new RectF(r.X, MathF.Round(r.Y), r.W, h), pane.Progress, alpha, now, animate, color);
+            ProgressBar.Draw(dl, theme, new RectF(r.X, MathF.Round(r.Y), r.W, h), pane.Progress, alpha, sweep, color);
         }
     }
 }

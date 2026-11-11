@@ -396,10 +396,10 @@ internal sealed class CommandPalette
         cx += px * 1.9f;
         cx += dl.Text(cmd.Category, cx, rb, px * 0.92f, th.Muted, alpha);
         cx += dl.Text(" › ", cx, rb, px * 0.92f, th.Muted, alpha * 0.7f);
-        float shortcutW = cmd.Shortcut.Length > 0 ? EstimateKeycapsWidth(dl, th, cmd.Shortcut) + th.S(12) : 0;
+        float shortcutW = cmd.Shortcut.Length > 0 ? Widgets.KeycapsWidth(dl, th, cmd.Shortcut) + th.S(12) : 0;
         string title = dl.Ellipsize(cmd.Title, px, list.Right - pad - shortcutW - cx);
         float titleW = dl.Text(title, cx, rb, px, selected ? th.PanelFg : Colors.Mix(th.PanelFg, th.Muted, 0.25f), alpha,
-            highlight: res.Positions, highlightRgb: th.Accent);
+            new TextHighlight(FontStyle.Regular, res.Positions, th.Accent));
         if (cmd.Detail is { Length: > 0 } detail && ReferenceEquals(title, cmd.Title))
         {
             float dx = cx + titleW + px * 0.8f, room = list.Right - pad - shortcutW - dx;
@@ -416,31 +416,13 @@ internal sealed class CommandPalette
         float v = f.Alpha, footerH = f.FooterH;
         float fy = panel.Bottom - footerH;
         dl.Rect(new RectF(panel.X + th.S(1), fy, panel.W - th.S(2), MathF.Max(1, th.S(1))), th.Border, v);
-        float fx = panel.X + f.Pad;
         float fb = Widgets.Baseline(dl, f.Px * 0.82f, fy, footerH);
-        if (!prompt) fx = Hint(dl, th, fx, fy, footerH, fb, NavigateKeys, "navigate", v);
-        if (_options.Hints is { } hints) foreach (var (keys, label) in hints) fx = Hint(dl, th, fx, fy, footerH, fb, keys, label, v);
-        else fx = Hint(dl, th, fx, fy, footerH, fb, RunKeys, "run", v);
-        Hint(dl, th, fx, fy, footerH, fb, CloseKeys, "close", v);
+        var footer = new FooterHints(dl, th, panel.X + f.Pad, fy + footerH / 2, fb, v, th.S(18));
+        if (!prompt) footer.Add(NavigateKeys, "navigate");
+        if (_options.Hints is { } hints) foreach (var (keys, label) in hints) footer.Add(keys, label);
+        else footer.Add(RunKeys, "run");
+        footer.Add(CloseKeys, "close");
     }
 
     private static readonly string[] NavigateKeys = ["↑", "↓"], RunKeys = ["↵"], CloseKeys = ["esc"];
-
-    private static float Hint(DrawList dl, Theme th, float x, float top, float h, float baseline, string[] keys, string label, float a)
-    {
-        float w = EstimateKeycapsWidth(dl, th, keys);
-        Widgets.Keycaps(dl, th, keys, x + w, top + h / 2, a);
-        x += w + th.S(6);
-        x += dl.Text(label, x, baseline, th.UiPx * 0.82f, th.Muted, a);
-        return x + th.S(18);
-    }
-
-    private static float EstimateKeycapsWidth(DrawList dl, Theme th, string[] keys)
-    {
-        float px = th.UiPx * 0.78f;
-        var m = dl.MetricsFor(px);
-        float h = MathF.Round(m.Height + th.S(6)), total = 0;
-        foreach (var k in keys) total += MathF.Max(h, dl.Measure(k, px) + 2 * th.S(5)) + th.S(3);
-        return total - th.S(3);
-    }
 }

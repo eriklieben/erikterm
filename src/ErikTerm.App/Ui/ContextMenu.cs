@@ -131,7 +131,7 @@ internal sealed class ContextMenu
 
         float px = th.UiPx * 0.95f;
         float rowH = MathF.Round(px * 2.0f), sepH = th.S(9), pad = th.S(6);
-        float iconW = px * 1.9f;
+        float iconW = IconColumn(px);
 
         float width = MenuWidth(dl, th, px, pad, iconW);
         float height = pad * 2;
@@ -154,7 +154,7 @@ internal sealed class ContextMenu
         for (int i = 0; i < _items.Count; i++)
         {
             if (_items[i].IsSeparator) DrawSeparator(dl, th, _rows[i], v);
-            else DrawItem(dl, th, _items[i], _rows[i], i == _hover, px, iconW, v);
+            else DrawItem(dl, th, _items[i], _rows[i], i == _hover, px, v);
         }
     }
 
@@ -192,16 +192,19 @@ internal sealed class ContextMenu
         dl.RoundRect(hr with { Y = hy }, th.S(6), th.Accent, 0.20f * v);
     }
 
+    /// <summary>The width of the icon column before the labels.</summary>
+    private static float IconColumn(float px) => px * 1.9f;
+
     private static void DrawSeparator(DrawList dl, Theme th, RectF r, float v) =>
         dl.Rect(new RectF(r.X + th.S(6), MathF.Round(r.Y + r.H / 2), r.W - th.S(12), MathF.Max(1, th.S(1))), th.Border, v);
 
-    private static void DrawItem(DrawList dl, Theme th, Item item, RectF r, bool hot, float px, float iconW, float v)
+    private static void DrawItem(DrawList dl, Theme th, Item item, RectF r, bool hot, float px, float v)
     {
         float a = v * (item.Enabled ? 1 : 0.4f);
         float baseline = Widgets.Baseline(dl, px, r.Y, r.H);
         float tx = r.X + th.S(10);
         if (item.Icon != 0) dl.Glyph(item.Icon, tx, baseline, px * 1.05f, hot ? th.Accent : th.Muted, a);
-        tx += iconW;
+        tx += IconColumn(px);
         dl.Text(item.Label, tx, baseline, px, th.PanelFg, a);
         if (item.Shortcut is not null)
         {

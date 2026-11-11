@@ -12,9 +12,11 @@ namespace ErikTerm.App.Windowing;
 /// the drop target marker for a tab dragged over from another window, the dragged tab's ghost popup, and the
 /// "Move Tab to …" entries in the tab context menu and the palette.
 /// </summary>
+#pragma warning disable S107 // TermWindow's wiring: each part takes the peers it calls, so its dependencies stay visible; a bundle of them would only hide that
 internal sealed class TabTearOff(
     IWindowHost window, Lock gate, TabList<Tab> tabs, TabBar bar, TabBarController tabBar, WindowTabColors<Tab> tabColors,
     KeyInputRouter keyInput, WindowSearch search, CloseConfirmFlow closeConfirm, ContextMenu menu, PaneSelect paneSelect)
+#pragma warning restore S107
 {
     private bool _panesMoved;
 

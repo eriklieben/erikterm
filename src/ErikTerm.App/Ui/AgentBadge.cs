@@ -25,10 +25,14 @@ internal static class AgentBadge
     /// <summary>0.45–1: a soft breathing alpha for working dots.</summary>
     public static float Pulse(long now) => 0.725f + 0.275f * MathF.Sin(now % PulseMs / (float)PulseMs * MathF.Tau);
 
-    /// <summary>A status dot centred at (cx, cy). Working pulses; waiting gets a faint halo ring; idle is an empty outline, no color.</summary>
-    public static void Dot(DrawList dl, Theme th, AgentState s, float cx, float cy, float d, float alpha, long now)
+    /// <summary>Where a status dot goes: centred at (<see cref="CenterX"/>, <see cref="CenterY"/>), <see cref="Size"/> across.</summary>
+    public readonly record struct DotSpot(float CenterX, float CenterY, float Size);
+
+    /// <summary>A status dot at <paramref name="at"/>. Working pulses; waiting gets a faint halo ring; idle is an empty outline, no color.</summary>
+    public static void Dot(DrawList dl, Theme th, AgentState s, in DotSpot at, float alpha, long now)
     {
         if (s == AgentState.None || alpha <= 0.002f) return;
+        float cx = at.CenterX, cy = at.CenterY, d = at.Size;
         uint c = Color(th, s);
         if (s == AgentState.Idle)
         {
@@ -96,7 +100,7 @@ internal static class AgentBadge
         dl.Panel(r, h / 2, Colors.Mix(th.PanelBg, c, 0.10f), 0.90f * v, Colors.Mix(th.PanelBg, c, s == AgentState.Waiting ? 0.65f : 0.35f), v);
         dl.PushClip(r);
         float x = r.X + th.S(10);
-        Dot(dl, th, s, x + dot / 2, r.Y + h / 2, dot, v, now);
+        Dot(dl, th, s, new DotSpot(x + dot / 2, r.Y + h / 2, dot), v, now);
         x += dot + th.S(7);
         float b = MathF.Round(r.Y + (h - m.Height) / 2 + m.Ascender - (fill is null ? 0 : th.S(1.5f)));
         x += dl.Text(a.PillText, x, b, px, th.PanelFg, v);

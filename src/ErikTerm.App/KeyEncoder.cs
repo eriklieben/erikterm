@@ -111,14 +111,21 @@ internal static class KeyEncoder
         // Lock modifiers are only reported in "all keys" mode, to keep legacy-looking keys usable.
         int locks = all ? KittyLockModifiers(mod) : 0;
 
+        var report = new KittyReport(all, kind, mods, locks);
         if (Functional(key, (mod & KMOD_NUM) != 0) is { } functional)
-            return KittyFunctional(functional, key, mod, applicationCursor, all, kind, mods, locks);
+            return KittyFunctional(functional, key, mod, applicationCursor, in report);
 
         if (IsModifierOrLockKey(key))
             return all ? Csi(ModifierKeyCode(key), mods | locks, kind, 'u') : null;
 
-        return KittyTextKey(key, flags, kind, alternates, text, all, mods, locks);
+        return KittyTextKey(key, flags, alternates, text, in report);
     }
+
+    /// <summary>
+    /// How a key event is reported: <see cref="All"/> keys as escape codes (flag 8) or only the ambiguous ones, the event
+    /// <see cref="Kind"/>, and the kitty modifier bits and the lock modifiers reported with them.
+    /// </summary>
+    private readonly record struct KittyReport(bool All, KeyEventKind Kind, int Mods, int Locks);
 
     private static int KittyModifiers(ushort mod)
     {
@@ -139,8 +146,11 @@ internal static class KeyEncoder
     }
 
     private static string? KittyFunctional((int Code, char Final, string? LegacyText) functional, uint key, ushort mod, bool applicationCursor,
-        bool all, KeyEventKind kind, int mods, int locks)
+        in KittyReport report)
     {
+        bool all = report.All;
+        var kind = report.Kind;
+        int mods = report.Mods, locks = report.Locks;
         if (!all)
         {
             // Enter, Tab and Backspace keep their legacy bytes without modifiers, and have no release events.
@@ -154,9 +164,11 @@ internal static class KeyEncoder
     }
 
     /// <summary>Text keys: SDL keycodes are the unshifted character of the key in the current layout.</summary>
-    private static string? KittyTextKey(uint key, KittyKeyboardModes flags, KeyEventKind kind, KeyAlternates alternates, string? text,
-        bool all, int mods, int locks)
+    private static string? KittyTextKey(uint key, KittyKeyboardModes flags, KeyAlternates alternates, string? text, in KittyReport report)
     {
+        bool all = report.All;
+        var kind = report.Kind;
+        int mods = report.Mods, locks = report.Locks;
         int textCode = TextKeyCode(key);
         if (textCode < 0) return null;
         if (!all && (mods & (ModAlt | ModCtrl | ModSuper)) == 0) return null; // plain/shifted text: sent as text

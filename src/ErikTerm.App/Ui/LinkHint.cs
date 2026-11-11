@@ -35,14 +35,18 @@ internal sealed class LinkHint
 
     public bool IsAnimating(long now) => _visible.IsAnimating(now) || _armedFade.IsAnimating(now);
 
-    public void Show(Pane pane, int icon, string text, string action, bool armed, bool atTop, Theme th, long now, uint? iconColor = null)
+    /// <summary>What the pill says: an icon (in <see cref="IconColor"/>; null: muted, the accent once armed), the text, and how to act on it.</summary>
+    public readonly record struct Message(int Icon, string Text, string Action, uint? IconColor = null);
+
+    public void Show(Pane pane, in Message message, bool armed, bool atTop, Theme th, long now)
     {
-        _iconColor = iconColor;
+        _iconColor = message.IconColor;
         _animMs = th.AnimationMs;
         _pane = pane;
-        _icon = icon;
-        _text = text;
-        _action = action;
+        _icon = message.Icon;
+        _text = message.Text;
+        _action = message.Action;
+
         _atTop = atTop;
         _visible.Set(1, now, _animMs * 1.2f);
         _armedFade.Set(armed ? 1 : 0, now, _animMs * 0.8f);

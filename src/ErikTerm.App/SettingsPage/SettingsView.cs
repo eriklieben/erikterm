@@ -61,7 +61,7 @@ internal sealed class SettingsView
     private void DrawHeader(Frame f)
     {
         f.Fill(0, 0, f.Width, 1, _theme.Text, _theme.Crust);
-        int x = f.Text(1, 0, f.Width - 2, "Settings", _theme.Text, _theme.Crust, CellAttr.Bold);
+        int x = f.Text(1, 0, f.Width - 2, "Settings", _theme.Text, _theme.Crust, CellAttrs.Bold);
         x = f.Text(x + 2, 0, f.Width - x - 2, _file.DisplayPath, _theme.Subtext, _theme.Crust);
         string right = _file.Error is not null ? "syntax error in the file" : ChangedCount();
         int width = Width(right);
@@ -108,7 +108,7 @@ internal sealed class SettingsView
         if (on) fg = _theme.OnAccent;
         else if (any) fg = _theme.Subtext;
         f.Fill(1, y, NavWidth - 2, 1, fg, bg);
-        f.Text(2, y, NavWidth - 5, group, fg, bg, on ? CellAttr.Bold : CellAttr.None);
+        f.Text(2, y, NavWidth - 5, group, fg, bg, on ? CellAttrs.Bold : CellAttrs.None);
         if (SettingsCatalog.All.Any(s => s.Group == group && _file.IsSet(s))) f.Text(NavWidth - 3, y, 1, "•", on ? _theme.OnAccent : _theme.Peach, bg);
         if (any) f.AddHit(1, y, NavWidth - 2, 1, ActionGroup, g);
     }
@@ -167,7 +167,7 @@ internal sealed class SettingsView
         switch (line.Kind)
         {
             case LineKind.Group:
-                f.Text(x + 2, y, width - 4, line.Text.ToUpperInvariant(), _theme.Blue, bg, CellAttr.Bold);
+                f.Text(x + 2, y, width - 4, line.Text.ToUpperInvariant(), _theme.Blue, bg, CellAttrs.Bold);
                 break;
             case LineKind.Label:
                 DrawLabel(f, x, y, width, line.Entry, bg);
@@ -187,7 +187,7 @@ internal sealed class SettingsView
         int valueWidth = Math.Min(Width(value), Math.Max(8, width / 2));
         int valueX = x + width - 2 - valueWidth;
         if (_file.IsSet(info)) f.Text(x + 2, y, 1, "•", _theme.Peach, bg);
-        int cx = f.Text(x + 4, y, valueX - x - 6, info.Label, _theme.Text, bg, CellAttr.Bold);
+        int cx = f.Text(x + 4, y, valueX - x - 6, info.Label, _theme.Text, bg, CellAttrs.Bold);
         cx = f.Text(cx + 2, y, Math.Max(0, valueX - cx - 4), info.Key, _theme.Mauve, bg);
         if (info.Platforms is not null)
             f.Text(cx + 2, y, Math.Max(0, valueX - cx - 4), info.PlatformNote, info.AppliesHere ? _theme.Overlay : _theme.Peach, bg);

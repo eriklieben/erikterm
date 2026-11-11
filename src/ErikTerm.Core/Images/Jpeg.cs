@@ -703,7 +703,7 @@ public static class Jpeg
                     break;
                 }
 #pragma warning disable S127 // a JPEG zero run moves the coefficient index by a coded amount
-                k = RefineZeroRun(blk, k, last, r, p1, m1, ref b, ref n);
+                k = RefineZeroRun(blk, k, last, r, p1, ref b, ref n);
 #pragma warning restore S127
                 if (value != 0) blk[ZigZag[k]] = (short)value;
             }
@@ -747,16 +747,16 @@ public static class Jpeg
 
         /// <summary>
         /// Advances over <paramref name="r"/> zero-history coefficients, refining the nonzero ones passed on the way;
-        /// returns the position reached.
+        /// returns the position reached. <paramref name="p1"/> is the refinement bit (1 &lt;&lt; Al).
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private int RefineZeroRun(Span<short> blk, int k, int last, int r, int p1, int m1, ref ulong b, ref int n)
+        private int RefineZeroRun(Span<short> blk, int k, int last, int r, int p1, ref ulong b, ref int n)
         {
             do
             {
                 int z = ZigZag[k];
                 int coef = blk[z];
-                if (coef != 0) RefineNonzero(blk, z, coef, p1, m1, ref b, ref n);
+                if (coef != 0) RefineNonzero(blk, z, coef, p1, ref b, ref n);
                 else if (--r < 0) break;
                 k++;
             } while (k <= last);
@@ -766,25 +766,28 @@ public static class Jpeg
         /// <summary>An EOB run covers the rest of the band: only correction bits for the coefficients that are nonzero.</summary>
         private void RefineAcToEnd(Span<short> blk, int k)
         {
-            int p1 = 1 << al, m1 = -1 << al;
+            int p1 = 1 << al;
             ulong b = buf;
             int n = cnt;
             for (; k <= se; k++)
             {
                 int z = ZigZag[k];
                 int coef = blk[z];
-                if (coef != 0) RefineNonzero(blk, z, coef, p1, m1, ref b, ref n);
+                if (coef != 0) RefineNonzero(blk, z, coef, p1, ref b, ref n);
             }
             buf = b;
             cnt = n;
         }
 
-        /// <summary>Reads the correction bit of a nonzero coefficient and applies it if it hasn't been yet.</summary>
+        /// <summary>
+        /// Reads the correction bit of a nonzero coefficient and applies it if it hasn't been yet: the magnitude grows by
+        /// <paramref name="p1"/> (1 &lt;&lt; Al; -1 &lt;&lt; Al is its negation).
+        /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private void RefineNonzero(Span<short> blk, int z, int coef, int p1, int m1, ref ulong b, ref int n)
+        private void RefineNonzero(Span<short> blk, int z, int coef, int p1, ref ulong b, ref int n)
         {
             if (n < 1) { buf = b; cnt = n; Fill(); b = buf; n = cnt; }
-            if ((long)b < 0 && (coef & p1) == 0) blk[z] = (short)(coef + (coef >= 0 ? p1 : m1));
+            if ((long)b < 0 && (coef & p1) == 0) blk[z] = (short)(coef + (coef >= 0 ? p1 : -p1));
             b <<= 1;
             n--;
         }
@@ -919,12 +922,17 @@ public static class Jpeg
                 WriteGrayRow(o, r0, m0, w);
                 return;
             }
-            var r1 = PlaneRow(planes, strides, 1, y);
-            var r2 = PlaneRow(planes, strides, 2, y);
-            int[] m1 = xmaps[1], m2 = xmaps[2];
-            if (planes.Length == 3 && isRgb) WriteRgbRow(o, r0, r1, r2, m0, m1, m2, w);
-            else if (planes.Length == 3) WriteYCbCrRow(o, r0, r1, r2, m0, m1, m2, w);
-            else WriteCmykRow(o, r0, r1, r2, PlaneRow(planes, strides, 3, y), m0, m1, m2, xmaps[3], w);
+            var rows = new PlaneRows(r0, PlaneRow(planes, strides, 1, y), PlaneRow(planes, strides, 2, y),
+                planes.Length > 3 ? PlaneRow(planes, strides, 3, y) : default);
+            if (planes.Length == 3 && isRgb) WriteRgbRow(o, rows, xmaps, w);
+            else if (planes.Length == 3) WriteYCbCrRow(o, rows, xmaps, w);
+            else WriteCmykRow(o, rows, xmaps, w);
+        }
+
+        /// <summary>One output row's source row in each component plane (<see cref="R3"/> only for CMYK).</summary>
+        private readonly ref struct PlaneRows(ReadOnlySpan<byte> r0, ReadOnlySpan<byte> r1, ReadOnlySpan<byte> r2, ReadOnlySpan<byte> r3)
+        {
+            public readonly ReadOnlySpan<byte> R0 = r0, R1 = r1, R2 = r2, R3 = r3;
         }
 
         private static void WriteGrayRow(Span<byte> o, ReadOnlySpan<byte> r0, int[] m0, int w)
@@ -936,8 +944,10 @@ public static class Jpeg
             }
         }
 
-        private static void WriteRgbRow(Span<byte> o, ReadOnlySpan<byte> r0, ReadOnlySpan<byte> r1, ReadOnlySpan<byte> r2, int[] m0, int[] m1, int[] m2, int w)
+        private static void WriteRgbRow(Span<byte> o, in PlaneRows rows, int[][] xmaps, int w)
         {
+            ReadOnlySpan<byte> r0 = rows.R0, r1 = rows.R1, r2 = rows.R2;
+            int[] m0 = xmaps[0], m1 = xmaps[1], m2 = xmaps[2];
             for (int x = 0; x < w; x++)
             {
                 o[4 * x] = r0[m0[x]]; o[4 * x + 1] = r1[m1[x]]; o[4 * x + 2] = r2[m2[x]]; o[4 * x + 3] = 255;
@@ -945,11 +955,11 @@ public static class Jpeg
         }
 
 #pragma warning disable S6640 // per-pixel color conversion through pointers, without a bounds check per sample
-        private static unsafe void WriteYCbCrRow(Span<byte> o, ReadOnlySpan<byte> r0, ReadOnlySpan<byte> r1, ReadOnlySpan<byte> r2, int[] m0, int[] m1, int[] m2, int w)
+        private static unsafe void WriteYCbCrRow(Span<byte> o, in PlaneRows rows, int[][] xmaps, int w)
 #pragma warning restore S6640
         {
-            fixed (byte* op = o, p0 = r0, p1 = r1, p2 = r2)
-            fixed (int* x0 = m0, x1 = m1, x2 = m2, crR = CrR, cbB = CbB, crG = CrG, cbG = CbG)
+            fixed (byte* op = o, p0 = rows.R0, p1 = rows.R1, p2 = rows.R2)
+            fixed (int* x0 = xmaps[0], x1 = xmaps[1], x2 = xmaps[2], crR = CrR, cbB = CbB, crG = CrG, cbG = CbG)
             fixed (byte* limitTable = Limit)
             {
                 byte* limit = limitTable + LimitOffset;
@@ -963,8 +973,10 @@ public static class Jpeg
             }
         }
 
-        private void WriteCmykRow(Span<byte> o, ReadOnlySpan<byte> r0, ReadOnlySpan<byte> r1, ReadOnlySpan<byte> r2, ReadOnlySpan<byte> r3, int[] m0, int[] m1, int[] m2, int[] m3, int w)
+        private void WriteCmykRow(Span<byte> o, in PlaneRows rows, int[][] xmaps, int w)
         {
+            ReadOnlySpan<byte> r0 = rows.R0, r1 = rows.R1, r2 = rows.R2, r3 = rows.R3;
+            int[] m0 = xmaps[0], m1 = xmaps[1], m2 = xmaps[2], m3 = xmaps[3];
             bool ycck = adobe && adobeTransform == 2;
             for (int x = 0; x < w; x++)
             {
@@ -1092,9 +1104,9 @@ public static class Jpeg
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#pragma warning disable S6640 // writes the IDCT output through a pointer with a stride
+#pragma warning disable S6640, S107 // writes the IDCT output through a pointer with a stride; takes the eight inputs of libjpeg's 1-D IDCT, inlined and kept in registers
         private static unsafe void Butterfly(int i0, int i1, int i2, int i3, int i4, int i5, int i6, int i7, int shift, int* dst, int step)
-#pragma warning restore S6640
+#pragma warning restore S6640, S107
         {
             int round = 1 << (shift - 1);
             // Even part.
@@ -1135,11 +1147,7 @@ public static class Jpeg
         return t;
     }
 
-    private static byte Clamp(int v)
-    {
-        if ((uint)v <= 255) return (byte)v;
-        return v < 0 ? (byte)0 : (byte)255;
-    }
+    private static byte Clamp(int v) => (byte)Math.Clamp(v, 0, 255);
 
     // YCbCr -> RGB in 16.16 fixed point, as libjpeg's jdcolor.c.
     private static readonly int[] CrR = ColorTable(1.40200, true), CbB = ColorTable(1.77200, true);

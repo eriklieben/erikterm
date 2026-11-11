@@ -216,7 +216,7 @@ internal sealed class QuickSelect
             var glyph = dl.Atlas.Get(c.Rune, c.Style);
             if (glyph.Empty) continue;
             float gx = g.Ox + c.Col * g.CellW + glyph.Left, gy = g.Oy + (c.Line - g.ViewTop) * g.CellH + dl.Fonts.Baseline - glyph.Top;
-            dl.Quad(gx, gy, gx + glyph.Width, gy + glyph.Height, glyph.U0, glyph.V0, glyph.U1, glyph.V1, th.Foreground, a);
+            dl.Quad(gx, gy, gx + glyph.Width, gy + glyph.Height, in glyph.Uv, th.Foreground, a);
         }
     }
 

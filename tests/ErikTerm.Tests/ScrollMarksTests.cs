@@ -229,8 +229,8 @@ public class ScrollMarksTests
         var ticks = marks.Ticks(t.FirstLine, total, 200, NoMatches, 0, []).ToArray();
 
         // Assert
-        await Assert.That((ScrollMarkKind)ticks[ScrollMarks.Bucket(marks.LineAt(0), t.FirstLine, total, 200)]).IsEqualTo(ScrollMarkKind.Prompt);
-        await Assert.That((ScrollMarkKind)ticks[ScrollMarks.Bucket(marks.LineAt(1), t.FirstLine, total, 200)]).IsEqualTo(ScrollMarkKind.Failed);
+        await Assert.That((ScrollMarkKinds)ticks[ScrollMarks.Bucket(marks.LineAt(0), t.FirstLine, total, 200)]).IsEqualTo(ScrollMarkKinds.Prompt);
+        await Assert.That((ScrollMarkKinds)ticks[ScrollMarks.Bucket(marks.LineAt(1), t.FirstLine, total, 200)]).IsEqualTo(ScrollMarkKinds.Failed);
     }
 
     [Test]
@@ -244,8 +244,8 @@ public class ScrollMarksTests
         var ticks = marks.Ticks(1000, 100, 100, search, 1, []).ToArray();
 
         // Assert
-        await Assert.That(ticks[20]).IsEqualTo((byte)ScrollMarkKind.Search);
-        await Assert.That(ticks[90]).IsEqualTo((byte)ScrollMarkKind.Search);
+        await Assert.That(ticks[20]).IsEqualTo((byte)ScrollMarkKinds.Search);
+        await Assert.That(ticks[90]).IsEqualTo((byte)ScrollMarkKinds.Search);
         await Assert.That(ticks.Count(b => b != 0)).IsEqualTo(2);
     }
 
@@ -261,7 +261,7 @@ public class ScrollMarksTests
 
         // Assert
         await Assert.That(ticks[10]).IsEqualTo((byte)0);
-        await Assert.That(ticks[30]).IsEqualTo((byte)ScrollMarkKind.Search);
+        await Assert.That(ticks[30]).IsEqualTo((byte)ScrollMarkKinds.Search);
         await Assert.That(ticks[80]).IsEqualTo((byte)0);
     }
 
@@ -275,7 +275,7 @@ public class ScrollMarksTests
         var ticks = marks.Ticks(0, 100, 100, NoMatches, 0, [42]).ToArray();
 
         // Assert
-        await Assert.That(ticks[42]).IsEqualTo((byte)ScrollMarkKind.Mark);
+        await Assert.That(ticks[42]).IsEqualTo((byte)ScrollMarkKinds.Mark);
     }
 
     [Test]
@@ -290,7 +290,7 @@ public class ScrollMarksTests
 
         // Assert
         await Assert.That(ticks[10]).IsEqualTo((byte)0);
-        await Assert.That(ticks[70]).IsEqualTo((byte)ScrollMarkKind.Search);
+        await Assert.That(ticks[70]).IsEqualTo((byte)ScrollMarkKinds.Search);
     }
 
     [Test]
@@ -307,12 +307,44 @@ public class ScrollMarksTests
         int row = ScrollMarks.Bucket(marks.LineAt(1), t.FirstLine, total, 200);
 
         // Act
-        bool found = marks.Find(row + 3, 4, t.FirstLine, total, NoMatches, [], out long line, out var kind);
+        bool found = marks.Find(row + 3, 4, t.FirstLine, total, NoMatches, [], out var hit);
 
         // Assert
         await Assert.That(found).IsTrue();
-        await Assert.That(line).IsEqualTo(marks.LineAt(1));
-        await Assert.That(kind).IsEqualTo(ScrollMarkKind.Failed);
+        await Assert.That(hit.Line).IsEqualTo(marks.LineAt(1));
+        await Assert.That(hit.Kind).IsEqualTo(ScrollMarkKinds.Failed);
+    }
+
+    [Test]
+    public async Task AClickJustAboveATickFindsTheTickBelowIt()
+    {
+        // Arrange
+        var marks = new ScrollMarks();
+        var search = new List<SearchMatch> { new(20, 0, 20, 1) };
+        marks.Ticks(0, 100, 100, search, 1, []);
+
+        // Act
+        bool found = marks.Find(17, 4, 0, 100, search, [], out var hit);
+
+        // Assert
+        await Assert.That(found).IsTrue();
+        await Assert.That(hit).IsEqualTo(new ScrollMarkHit(20, ScrollMarkKinds.Search));
+    }
+
+    [Test]
+    public async Task AClickHalfwayBetweenTwoTicksFindsTheOneAbove()
+    {
+        // Arrange
+        var marks = new ScrollMarks();
+        var search = new List<SearchMatch> { new(10, 0, 10, 1), new(20, 0, 20, 1) };
+        marks.Ticks(0, 100, 100, search, 2, []);
+
+        // Act
+        bool found = marks.Find(15, 5, 0, 100, search, [], out var hit);
+
+        // Assert
+        await Assert.That(found).IsTrue();
+        await Assert.That(hit.Line).IsEqualTo(10);
     }
 
     [Test]
@@ -324,7 +356,7 @@ public class ScrollMarksTests
         marks.Ticks(0, 100, 100, search, 1, []);
 
         // Act
-        bool found = marks.Find(60, 4, 0, 100, search, [], out _, out _);
+        bool found = marks.Find(60, 4, 0, 100, search, [], out _);
 
         // Assert
         await Assert.That(found).IsFalse();
@@ -343,10 +375,10 @@ public class ScrollMarksTests
         marks.Ticks(t.FirstLine, total, 200, search, 1, []);
 
         // Act
-        marks.Find(ScrollMarks.Bucket(line, t.FirstLine, total, 200), 0, t.FirstLine, total, search, [], out _, out var kind);
+        marks.Find(ScrollMarks.Bucket(line, t.FirstLine, total, 200), 0, t.FirstLine, total, search, [], out var hit);
 
         // Assert
-        await Assert.That(kind).IsEqualTo(ScrollMarkKind.Failed);
+        await Assert.That(hit.Kind).IsEqualTo(ScrollMarkKinds.Failed);
     }
 
     [Test]

@@ -108,11 +108,13 @@ internal sealed unsafe class DrawList
 
     // ---- Primitives ---------------------------------------------------------------------------
 
-    public void Quad(float x0, float y0, float x1, float y1, float u0, float v0, float u1, float v1, uint rgb, float a)
+    /// <summary>A quad from (x0, y0) to (x1, y1) showing the texture between <paramref name="uv"/>'s corners, tinted <paramref name="rgb"/>.</summary>
+    public void Quad(float x0, float y0, float x1, float y1, in QuadUv uv, uint rgb, float a)
     {
         if (a <= 0.002f) return;
         int i = _quads * 4;
         if (i + 4 > _vertices.Length) Array.Resize(ref _vertices, _vertices.Length * 2);
+        float u0 = uv.U0, v0 = uv.V0, u1 = uv.U1, v1 = uv.V1;
         float r = ((rgb >> 16) & 0xFF) / 255f, g = ((rgb >> 8) & 0xFF) / 255f, b = (rgb & 0xFF) / 255f;
         ref var v = ref _vertices[i];
         v = new Sdl.Vertex { X = x0, Y = y0, R = r, G = g, B = b, A = a, U = u0, V = v0 };
@@ -173,10 +175,10 @@ internal sealed unsafe class DrawList
     }
 
     public void Rect(RectF r, uint rgb, float a = 1) =>
-        Quad(r.X, r.Y, r.Right, r.Bottom, GlyphAtlas.SolidU, GlyphAtlas.SolidV, GlyphAtlas.SolidU, GlyphAtlas.SolidV, rgb, a);
+        Quad(r.X, r.Y, r.Right, r.Bottom, in GlyphAtlas.SolidUv, rgb, a);
 
     public void Rect(float x0, float y0, float x1, float y1, uint rgb, float a = 1) =>
-        Quad(x0, y0, x1, y1, GlyphAtlas.SolidU, GlyphAtlas.SolidV, GlyphAtlas.SolidU, GlyphAtlas.SolidV, rgb, a);
+        Quad(x0, y0, x1, y1, in GlyphAtlas.SolidUv, rgb, a);
 
     /// <summary>Anti-aliased rounded rectangle.</summary>
     public void RoundRect(RectF r, float radius, uint rgb, float a = 1) => NineSlice(r, radius, 0, rgb, a);
@@ -256,24 +258,24 @@ internal sealed unsafe class DrawList
         for (int row = 0; row < 3; row++)
             for (int col = 0; col < 3; col++)
                 if (xs[col + 1] > xs[col] && ys[row + 1] > ys[row])
-                    Quad(xs[col], ys[row], xs[col + 1], ys[row + 1], us[col], vs[row], us[col + 1], vs[row + 1], rgb, a);
+                    Quad(xs[col], ys[row], xs[col + 1], ys[row + 1], new QuadUv(us[col], vs[row], us[col + 1], vs[row + 1]), rgb, a);
     }
 
     /// <summary>
-    /// Draws a quad of another texture (an image) with UVs <paramref name="u0"/>..<paramref name="v1"/>, tinted by
+    /// Draws a quad of another texture (an image) at <paramref name="at"/> with UVs <paramref name="uv"/>, tinted by
     /// <paramref name="tint"/>, in painter's order with everything else and inside the current clip. Consecutive
     /// quads of the same texture share a batch.
     /// </summary>
-    public void Image(nint texture, float x0, float y0, float x1, float y1, float u0, float v0, float u1, float v1,
-        uint tint, float a, int scaleMode)
+    public void Image(nint texture, in QuadCorners at, in QuadUv uv, uint tint, float a, int scaleMode)
     {
+        float x0 = at.X0, y0 = at.Y0, x1 = at.X1, y1 = at.Y1;
         if (a <= 0.002f || texture == 0 || x1 <= x0 || y1 <= y0) return;
         // Continue the previous image batch when nothing else was drawn since (the empty atlas batch after it).
         if (_batches.Count >= 2 && _batches[^1].StartQuad == _quads && _batches[^1].Texture == 0
             && _batches[^2].Texture == texture && _batches[^2].ScaleMode == scaleMode && SameClip(_batches[^1], _batches[^2]))
             _batches.RemoveAt(_batches.Count - 1);
         else StartBatch(texture, scaleMode);
-        Quad(x0, y0, x1, y1, u0, v0, u1, v1, tint, a);
+        Quad(x0, y0, x1, y1, in uv, tint, a);
         StartBatch();
     }
 
@@ -289,18 +291,24 @@ internal sealed unsafe class DrawList
         if (!g.Empty)
         {
             float gx = MathF.Round(x) + g.Left, gy = MathF.Round(baseline) - g.Top;
-            Quad(gx, gy, gx + g.Width, gy + g.Height, g.U0, g.V0, g.U1, g.V1, g.Color ? 0xFFFFFFu : rgb, a); // color emoji: untinted
+            Quad(gx, gy, gx + g.Width, gy + g.Height, in g.Uv, g.Color ? 0xFFFFFFu : rgb, a); // color emoji: untinted
         }
         return g.Advance;
     }
 
+    /// <summary>Draws text with its pen at (x, baseline). Returns the width.</summary>
+    public float Text(string text, float x, float baseline, float px, uint rgb, float a, FontStyle style = FontStyle.Regular) =>
+        Text(text, x, baseline, px, rgb, a, new TextHighlight(style, null, 0));
+
     /// <summary>
-    /// Draws text with its pen at (x, baseline). Characters whose index is in <paramref name="highlight"/>
-    /// are drawn in <paramref name="highlightRgb"/> and bold. Returns the width.
+    /// Draws text in <see cref="TextHighlight.Style"/> with its pen at (x, baseline). Characters whose index is in
+    /// <see cref="TextHighlight.Positions"/> are drawn in <see cref="TextHighlight.Rgb"/> and bold. Returns the width.
     /// </summary>
-    public float Text(string text, float x, float baseline, float px, uint rgb, float a,
-        FontStyle style = FontStyle.Regular, List<int>? highlight = null, uint highlightRgb = 0)
+    public float Text(string text, float x, float baseline, float px, uint rgb, float a, in TextHighlight highlighted)
     {
+        var style = highlighted.Style;
+        var highlight = highlighted.Positions;
+        uint highlightRgb = highlighted.Rgb;
         float pen = x;
         int index = 0, h = 0;
         foreach (var rune in text.EnumerateRunes())
@@ -427,3 +435,15 @@ internal sealed unsafe class DrawList
         }
     }
 }
+
+/// <summary>Texture coordinates of a quad: (U0, V0) at its top-left corner, (U1, V1) at its bottom-right.</summary>
+internal readonly record struct QuadUv(float U0, float V0, float U1, float V1);
+
+/// <summary>A quad's screen corners: (X0, Y0) top-left, (X1, Y1) bottom-right, in pixels.</summary>
+internal readonly record struct QuadCorners(float X0, float Y0, float X1, float Y1);
+
+/// <summary>
+/// How <see cref="DrawList.Text(string, float, float, float, uint, float, in TextHighlight)"/> draws a string: in
+/// <see cref="Style"/>, with the characters at <see cref="Positions"/> (UTF-16 indices, ascending) bold in <see cref="Rgb"/>.
+/// </summary>
+internal readonly record struct TextHighlight(FontStyle Style, List<int>? Positions, uint Rgb);

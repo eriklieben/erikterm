@@ -3,6 +3,8 @@ namespace ErikTerm.Config;
 /// <summary>The built-in key bindings: <see cref="Table"/> everywhere, and <see cref="MacTable"/> on top of it on macOS.</summary>
 public static class DefaultKeys
 {
+    private const string IncreaseFontSize = "IncreaseFontSize";
+
     /// <summary>Built-in bindings (mostly wezterm's defaults). Config [keys] entries override by chord.</summary>
     public static readonly (string Chord, string Action)[] Table =
     [
@@ -12,8 +14,8 @@ public static class DefaultKeys
         ("SHIFT+insert", "PasteFrom(PrimarySelection)"),
         ("CTRL+SHIFT+r", "ReloadConfiguration"),
         ("CTRL+,", "OpenSettings"),
-        ("CTRL+=", "IncreaseFontSize"),
-        ("CTRL+SHIFT+=", "IncreaseFontSize"),
+        ("CTRL+=", IncreaseFontSize),
+        ("CTRL+SHIFT+=", IncreaseFontSize),
         ("CTRL+-", "DecreaseFontSize"),
         ("CTRL+0", "ResetFontSize"),
         ("SHIFT+pageup", "ScrollByPage(-1)"),
@@ -104,8 +106,8 @@ public static class DefaultKeys
         ("SUPER+SHIFT+f", "SearchAllPanes"),
         ("SUPER+r", "ReloadConfiguration"),
         ("SUPER+k", "ClearScrollback"),
-        ("SUPER+=", "IncreaseFontSize"),
-        ("SUPER+SHIFT+=", "IncreaseFontSize"),
+        ("SUPER+=", IncreaseFontSize),
+        ("SUPER+SHIFT+=", IncreaseFontSize),
         ("SUPER+-", "DecreaseFontSize"),
         ("SUPER+0", "ResetFontSize"),
         ("SUPER+d", "SplitHorizontal"),

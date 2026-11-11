@@ -24,6 +24,9 @@ internal static class ShellDecorations
     /// <summary>Where a pane's rows are on screen this frame.</summary>
     private readonly record struct View(RectF Rect, float Ox, float Oy, int Cw, int Ch, long ViewTop, int Rows, float Appear);
 
+    /// <summary>The gutter markers' column (X, W wide), the gutter hover's fade and the pane's focus emphasis.</summary>
+    private readonly record struct Gutter(float X, float W, float Fade, float Focus);
+
     /// <param name="scrollDy">Smooth-scrolling offset of the rows in pixels (see SmoothScroll).</param>
     public static void Draw(DrawList dl, Pane pane, RectF rect, Theme th, long now, float scrollDy = 0)
     {
@@ -44,8 +47,9 @@ internal static class ShellDecorations
         // Gutter markers (outside the pane clip: they sit in the padding to its left).
         if (t.IsAlternateScreen || !t.HasPromptMarks) return;
         var (gx, gw) = GutterBar(ox, th);
-        DrawPromptMarks(dl, t, links, th, in view, gx, gw, gutter, focus);
-        DrawCommandRail(dl, links, th, in view, gx, gw, gutter);
+        var bar = new Gutter(gx, gw, gutter, focus);
+        DrawPromptMarks(dl, t, links, th, in view, in bar);
+        DrawCommandRail(dl, links, th, in view, in bar);
     }
 
     /// <summary>Flash of the prompt ScrollToPrompt jumped to.</summary>
@@ -87,8 +91,9 @@ internal static class ShellDecorations
         }
     }
 
-    private static void DrawPromptMarks(DrawList dl, Terminal t, PaneLinks links, Theme th, in View v, float gx, float gw, float gutter, float focus)
+    private static void DrawPromptMarks(DrawList dl, Terminal t, PaneLinks links, Theme th, in View v, in Gutter bar)
     {
+        float gx = bar.X, gw = bar.W, gutter = bar.Fade, focus = bar.Focus;
         bool scrolledBack = t.ViewOffset > 0;
         float barH = MathF.Round(v.Ch * 0.72f);
         for (int y = 0; y < v.Rows; y++)
@@ -101,19 +106,21 @@ internal static class ShellDecorations
             if (row.CommandFailed)
                 dl.RoundRect(new RectF(gx, MathF.Round(py + (v.Ch - barH) / 2), gw, barH), gw / 2, th.Danger, 0.95f * focus * v.Appear);
             else if (scrolledBack || inBlock)
-                DrawPromptDot(dl, row.ExitCode == 0 ? th.Success : th.Accent, th, in v, gx, gw, py, focus);
+                DrawPromptDot(dl, row.ExitCode == 0 ? th.Success : th.Accent, th, in v, in bar, py);
         }
     }
 
-    private static void DrawPromptDot(DrawList dl, uint color, Theme th, in View v, float gx, float gw, float py, float focus)
+    private static void DrawPromptDot(DrawList dl, uint color, Theme th, in View v, in Gutter bar, float py)
     {
+        float gx = bar.X, gw = bar.W, focus = bar.Focus;
         float d = MathF.Max(3, MathF.Round(th.S(4)));
         dl.RoundRect(new RectF(MathF.Round(gx + gw / 2 - d / 2), MathF.Round(py + (v.Ch - d) / 2), d, d), d / 2, color, 0.75f * focus * v.Appear);
     }
 
     /// <summary>Gutter hover: an accent rail along the hovered command's output.</summary>
-    private static void DrawCommandRail(DrawList dl, PaneLinks links, Theme th, in View v, float gx, float gw, float gutter)
+    private static void DrawCommandRail(DrawList dl, PaneLinks links, Theme th, in View v, in Gutter bar)
     {
+        float gx = bar.X, gw = bar.W, gutter = bar.Fade;
         if (!GutterBlock(links, in v, gutter, out long first, out long last)) return;
         float top = v.Oy + (first - v.ViewTop) * v.Ch + th.S(2), bottom = v.Oy + (last - v.ViewTop + 1) * v.Ch - th.S(2);
         dl.RoundRect(new RectF(gx, top, gw, MathF.Max(gw, bottom - top)), gw / 2, th.Accent, 0.85f * gutter * v.Appear);

@@ -389,16 +389,17 @@ public sealed class MergeScreen : ITuiScreen
         if (_confirm is not null) DrawConfirm(frame);
     }
 
-    private int Button(Frame f, int x, int y, int maxX, string label, int action, int arg = 0, bool primary = false, bool active = false, uint? color = null)
+    private int Button(Frame f, int x, int y, int maxX, FrameButton button)
     {
-        int width = label.Length + 2;
+        int width = button.Label.Length + 2;
         if (x + width > maxX) return x;
-        uint accent = color ?? _theme.Lavender;
-        uint bg = primary || active ? accent : _theme.Surface0;
-        uint fg = primary || active ? _theme.OnAccent : _theme.Text;
+        uint accent = button.Color ?? _theme.Lavender;
+        bool filled = button.Primary || button.Active;
+        uint bg = filled ? accent : _theme.Surface0;
+        uint fg = filled ? _theme.OnAccent : _theme.Text;
         f.Fill(x, y, width, 1, fg, bg);
-        f.Text(x + 1, y, width - 1, label, fg, bg, primary ? CellAttr.Bold : CellAttr.None);
-        f.AddHit(x, y, width, 1, action, arg);
+        f.Text(x + 1, y, width - 1, button.Label, fg, bg, button.Primary ? CellAttrs.Bold : CellAttrs.None);
+        f.AddHit(x, y, width, 1, button.Action, button.Arg);
         return x + width + 1;
     }
 
@@ -442,7 +443,7 @@ public sealed class MergeScreen : ITuiScreen
         DrawPaneTitle(f, colsX, paneHeaderY, leftW, mf.OursLabel, "yours", _theme.Blue);
         DrawPaneTitle(f, rightX, paneHeaderY, rightW, mf.TheirsLabel, "theirs", _theme.Peach);
 
-        DrawRows(f, mf, colsX, rightX, rowsTop, leftW, rightW, rowsH);
+        DrawRows(f, mf, new FrameRun(colsX, rowsTop, leftW), new FrameRun(rightX, rowsTop, rightW), rowsH);
         DrawOverview(f, mf, stripX, rowsTop, rowsH);
         DrawVerticalLine(f, colsX + leftW, paneHeaderY, columnRows);
 
@@ -456,12 +457,12 @@ public sealed class MergeScreen : ITuiScreen
     {
         f.Fill(0, 0, f.Width, 1, _theme.Text, _theme.Mantle);
         int x = 1;
-        x = f.Text(x, 0, f.Width, "Merging ", _theme.Text, _theme.Mantle, CellAttr.Bold);
+        x = f.Text(x, 0, f.Width, "Merging ", _theme.Text, _theme.Mantle, CellAttrs.Bold);
         if (mf is not null)
         {
-            x = f.Text(x, 0, 24, mf.OursLabel, _theme.Blue, _theme.Mantle, CellAttr.Bold);
+            x = f.Text(x, 0, 24, mf.OursLabel, _theme.Blue, _theme.Mantle, CellAttrs.Bold);
             x = f.Text(x, 0, f.Width, " with ", _theme.Subtext, _theme.Mantle);
-            x = f.Text(x, 0, 24, mf.TheirsLabel, _theme.Peach, _theme.Mantle, CellAttr.Bold);
+            x = f.Text(x, 0, 24, mf.TheirsLabel, _theme.Peach, _theme.Mantle, CellAttrs.Bold);
         }
 
         string saveLabel = _session.Host.RepoMode ? "Save and stage" : "Save";
@@ -474,9 +475,9 @@ public sealed class MergeScreen : ITuiScreen
         f.Text(statusX, 0, Math.Max(0, bx - statusX - 1), status, statusColor, _theme.Mantle);
 
         bool ready = mf is not null && mf.UnresolvedCount == 0;
-        bx = Button(f, bx, 0, f.Width, "Previous conflict", ActPrev);
-        bx = Button(f, bx, 0, f.Width, "Next conflict", ActNext);
-        Button(f, bx, 0, f.Width, saveLabel, ActSave, primary: ready, color: _theme.Green);
+        bx = Button(f, bx, 0, f.Width, new("Previous conflict", ActPrev));
+        bx = Button(f, bx, 0, f.Width, new("Next conflict", ActNext));
+        Button(f, bx, 0, f.Width, new(saveLabel, ActSave, Primary: ready, Color: _theme.Green));
     }
 
     private void DrawFooter(Frame f, int y, params string[] items)
@@ -493,7 +494,7 @@ public sealed class MergeScreen : ITuiScreen
     private void DrawFileList(Frame f, int x, int y, int width, int height)
     {
         f.Fill(x, y, width, height, _theme.Text, _theme.Mantle);
-        f.Text(x + 1, y, width - 2, "CONFLICTED FILES", _theme.Subtext, _theme.Mantle, CellAttr.Bold);
+        f.Text(x + 1, y, width - 2, "CONFLICTED FILES", _theme.Subtext, _theme.Mantle, CellAttrs.Bold);
         int visible = height - 1;
         int count = _session.Entries.Count;
         if (_session.Current < _fileTop) _fileTop = _session.Current;
@@ -533,29 +534,29 @@ public sealed class MergeScreen : ITuiScreen
         int row = y + 1;
         if (mf.Kind == MergeFileKind.Binary)
         {
-            f.Text(x + 2, row++, width - 4, $"{mf.Path} is a binary file and can't be merged line by line.", _theme.Text, _theme.Base, CellAttr.Bold);
+            f.Text(x + 2, row++, width - 4, $"{mf.Path} is a binary file and can't be merged line by line.", _theme.Text, _theme.Base, CellAttrs.Bold);
             f.Text(x + 2, row++, width - 4, $"{mf.OursLabel}: {FormatSize(mf.OursBytes?.Length ?? 0)}    {mf.TheirsLabel}: {FormatSize(mf.TheirsBytes?.Length ?? 0)}", _theme.Subtext, _theme.Base);
             row++;
             int bx = x + 2;
-            bx = Button(f, bx, row, f.Width, $"Keep {mf.OursLabel}'s version", ActOurs, active: mf.FileChoice == FileChoice.Ours, color: _theme.Blue);
-            Button(f, bx, row, f.Width, $"Keep {mf.TheirsLabel}'s version", ActTheirs, active: mf.FileChoice == FileChoice.Theirs, color: _theme.Peach);
+            bx = Button(f, bx, row, f.Width, new($"Keep {mf.OursLabel}'s version", ActOurs, Active: mf.FileChoice == FileChoice.Ours, Color: _theme.Blue));
+            Button(f, bx, row, f.Width, new($"Keep {mf.TheirsLabel}'s version", ActTheirs, Active: mf.FileChoice == FileChoice.Theirs, Color: _theme.Peach));
             return;
         }
 
         string deleter = mf.DeletedSide == DeletedSide.Ours ? mf.OursLabel : mf.TheirsLabel;
         string changer = mf.DeletedSide == DeletedSide.Ours ? mf.TheirsLabel : mf.OursLabel;
-        f.Text(x + 2, row++, width - 4, $"{mf.Path} was deleted on {deleter} and changed on {changer}.", _theme.Text, _theme.Base, CellAttr.Bold);
+        f.Text(x + 2, row++, width - 4, $"{mf.Path} was deleted on {deleter} and changed on {changer}.", _theme.Text, _theme.Base, CellAttrs.Bold);
         f.Text(x + 2, row++, width - 4, $"Keep the version from {changer}, or delete the file.", _theme.Subtext, _theme.Base);
         row++;
         int b = x + 2;
-        b = Button(f, b, row, f.Width, "Keep the file", ActKeep, active: mf.FileChoice is FileChoice.Ours or FileChoice.Theirs, color: _theme.Green);
-        Button(f, b, row, f.Width, "Delete the file", ActDelete, active: mf.FileChoice == FileChoice.Delete, color: _theme.Red);
+        b = Button(f, b, row, f.Width, new("Keep the file", ActKeep, Active: mf.FileChoice is FileChoice.Ours or FileChoice.Theirs, Color: _theme.Green));
+        Button(f, b, row, f.Width, new("Delete the file", ActDelete, Active: mf.FileChoice == FileChoice.Delete, Color: _theme.Red));
         row += 2;
         DrawVerticalLine(f, x, row, 0);
         f.Text(x + 2, row++, width - 4, $"The version on {changer}:", _theme.Subtext, _theme.Base);
         foreach (string line in TextDocument.SplitLines(mf.SurvivingText()).Take(Math.Max(0, y + height - row)))
         {
-            DrawContentRow(f, x + 2, row, width - 4, 0, line, 0, _theme.Text, _theme.Base, 0, []);
+            DrawContentRow(f, new FrameRun(x + 2, row, width - 4), line, [], 0, new FrameLineStyle(_theme.Text, _theme.Base, 0), default);
             row++;
         }
     }
@@ -563,7 +564,7 @@ public sealed class MergeScreen : ITuiScreen
     private void DrawPaneTitle(Frame f, int x, int y, int width, string title, string sub, uint color)
     {
         f.Fill(x, y, width, 1, _theme.Text, _theme.Mantle);
-        int nx = f.Text(x + 1, y, Math.Max(0, width - 2), title, color, _theme.Mantle, CellAttr.Bold);
+        int nx = f.Text(x + 1, y, Math.Max(0, width - 2), title, color, _theme.Mantle, CellAttrs.Bold);
         f.Text(nx + 1, y, Math.Max(0, x + width - nx - 2), sub, _theme.Subtext, _theme.Mantle);
     }
 
@@ -572,7 +573,8 @@ public sealed class MergeScreen : ITuiScreen
         for (int r = y; r < y + height; r++) f.Put(x, r, "│", _theme.Surface1, _theme.Base);
     }
 
-    private void DrawRows(Frame f, MergeFile mf, int leftX, int rightX, int top, int leftW, int rightW, int rows)
+    /// <summary>The two columns' rows, from the first row of each, <paramref name="rows"/> of them.</summary>
+    private void DrawRows(Frame f, MergeFile mf, FrameRun left, FrameRun right, int rows)
     {
         int selected = SelectedChunk;
         for (int r = 0; r < rows; r++)
@@ -583,13 +585,13 @@ public sealed class MergeScreen : ITuiScreen
             var chunk = mf.Chunks[row.Chunk];
             var changes = mf.Changes(index);
             bool isSelected = row.Chunk == selected;
-            DrawColumnCell(f, leftX, top + r, leftW, row.Ours, row.OursNo, chunk, true, isSelected, changes.Left, row.Chunk);
-            DrawColumnCell(f, rightX, top + r, rightW, row.Theirs, row.TheirsNo, chunk, false, isSelected, changes.Right, row.Chunk);
+            DrawColumnCell(f, left.Down(r), row, chunk, true, isSelected, changes.Left);
+            DrawColumnCell(f, right.Down(r), row, chunk, false, isSelected, changes.Right);
             if (chunk.Kind == MergeChunkKind.Conflict)
             {
                 int conflictIndex = IndexOfConflict(mf, row.Chunk);
-                f.AddHit(leftX, top + r, leftW, 1, ActConflict, conflictIndex);
-                f.AddHit(rightX, top + r, rightW, 1, ActConflict, conflictIndex);
+                f.AddHit(left.X, left.Y + r, left.Width, 1, ActConflict, conflictIndex);
+                f.AddHit(right.X, right.Y + r, right.Width, 1, ActConflict, conflictIndex);
             }
         }
     }
@@ -600,9 +602,13 @@ public sealed class MergeScreen : ITuiScreen
         return 0;
     }
 
-    private void DrawColumnCell(Frame f, int x, int y, int width, string? text, int number, MergeChunk chunk, bool ours, bool selected, TextSpan[] spans, int chunkIndex)
+    /// <summary>One side of <paramref name="row"/> (of <paramref name="chunk"/>): <paramref name="ours"/> is the left column.</summary>
+    private void DrawColumnCell(Frame f, FrameRun at, MergeRow row, MergeChunk chunk, bool ours, bool selected, TextSpan[] spans)
     {
-        var (bg, spanBg, fg, dimmed) = ColumnColors(chunk, ours, chunkIndex);
+        var (x, y, width) = at;
+        string? text = ours ? row.Ours : row.Theirs;
+        int number = ours ? row.OursNo : row.TheirsNo;
+        var (bg, spanBg, fg, dimmed) = ColumnColors(chunk, ours, row.Chunk);
         bool marked = selected && chunk.Kind == MergeChunkKind.Conflict;
         uint markerColor = ours ? _theme.Blue : _theme.Peach;
         if (text is null)
@@ -613,8 +619,8 @@ public sealed class MergeScreen : ITuiScreen
             return;
         }
         uint gutterFg = marked ? markerColor : _theme.Overlay;
-        CellAttr attr = dimmed ? CellAttr.Dim : CellAttr.None;
-        DrawContentRow(f, x, y, width, GutterWidth, text, number, fg, bg, spanBg, spans, _hScroll, gutterFg, attr, marked ? "▌" : " ");
+        CellAttrs attr = dimmed ? CellAttrs.Dim : CellAttrs.None;
+        DrawContentRow(f, at, text, spans, _hScroll, new FrameLineStyle(fg, bg, spanBg, attr), new ContentGutter(GutterWidth, number, gutterFg, marked ? "▌" : " "));
     }
 
     private (uint Bg, uint SpanBg, uint Fg, bool Dimmed) ColumnColors(MergeChunk chunk, bool ours, int chunkIndex) => chunk.Kind switch
@@ -640,17 +646,24 @@ public sealed class MergeScreen : ITuiScreen
 
     private const int GutterWidth = 6;
 
+    /// <summary>
+    /// A content row's gutter: <see cref="Width"/> cells (0: none) with the line <see cref="Number"/> (0: blank) in
+    /// <see cref="Fg"/> (0: the overlay colour) after the <see cref="Marker"/>.
+    /// </summary>
+    private readonly record struct ContentGutter(int Width, int Number, uint Fg = 0, string Marker = " ");
+
     /// <summary>A content row: gutter with a number, then the line from <paramref name="hscroll"/>, spans in their color.</summary>
-    private void DrawContentRow(Frame f, int x, int y, int width, int gutter, string raw, int number, uint fg, uint bg, uint spanBg, TextSpan[] spans, int hscroll = 0, uint gutterFg = 0, CellAttr attr = CellAttr.None, string marker = " ")
+    private void DrawContentRow(Frame f, FrameRun at, string raw, TextSpan[] spans, int hscroll, in FrameLineStyle style, in ContentGutter gutter)
     {
-        f.Fill(x, y, width, 1, fg, bg);
-        if (gutter > 0)
+        var (x, y, width) = at;
+        f.Fill(x, y, width, 1, style.Fg, style.Bg);
+        if (gutter.Width > 0)
         {
-            f.Put(x, y, marker, gutterFg, bg);
-            string num = number > 0 ? number.ToString() : "";
-            f.Text(x + gutter - 1 - num.Length, y, num.Length, num, gutterFg == 0 ? _theme.Overlay : gutterFg, bg);
+            f.Put(x, y, gutter.Marker, gutter.Fg, style.Bg);
+            string num = gutter.Number > 0 ? gutter.Number.ToString() : "";
+            f.Text(x + gutter.Width - 1 - num.Length, y, num.Length, num, gutter.Fg == 0 ? _theme.Overlay : gutter.Fg, style.Bg);
         }
-        CompareRender.Line(f, x + gutter, y, width - gutter, TextDocument.Content(raw), hscroll, fg, bg, spans, spanBg, attr);
+        CompareRender.Line(f, new FrameRun(x + gutter.Width, y, width - gutter.Width), TextDocument.Content(raw), hscroll, spans, style);
     }
 
     private void DrawOverview(Frame f, MergeFile mf, int x, int y, int height)
@@ -682,7 +695,7 @@ public sealed class MergeScreen : ITuiScreen
     private void DrawOutputHeader(Frame f, MergeFile mf, int x, int y, int width)
     {
         f.Fill(x, y, width, 1, _theme.Text, _theme.Mantle);
-        int nx = f.Text(x + 1, y, width, "OUTPUT", _theme.Text, _theme.Mantle, CellAttr.Bold);
+        int nx = f.Text(x + 1, y, width, "OUTPUT", _theme.Text, _theme.Mantle, CellAttrs.Bold);
         string oursLabel = $"Take {Short(mf.OursLabel)}", theirsLabel = $"Take {Short(mf.TheirsLabel)}";
         const string BothLabel = "Take both", ResetLabel = "Reset";
         string label = $"Conflict {_conflict + 1}:";
@@ -693,11 +706,11 @@ public sealed class MergeScreen : ITuiScreen
         var d = mf.WholeEdited ? default : mf.DecisionOf(SelectedChunk);
         int bx = Math.Max(nx + 2, x + width - total);
         bx = f.Text(bx, y, label.Length + 1, label, _theme.Subtext, _theme.Mantle) + 1;
-        bx = Button(f, bx, y, x + width, oursLabel, ActOurs, active: d.Choice == ConflictChoice.Ours, color: _theme.Blue);
-        bx = Button(f, bx, y, x + width, theirsLabel, ActTheirs, active: d.Choice == ConflictChoice.Theirs, color: _theme.Peach);
-        bx = Button(f, bx, y, x + width, BothLabel, ActBoth, active: d.Choice == ConflictChoice.Both);
-        bx = Button(f, bx, y, x + width, ResetLabel, ActReset);
-        Button(f, bx, y, x + width, "Undo", ActUndo);
+        bx = Button(f, bx, y, x + width, new(oursLabel, ActOurs, Active: d.Choice == ConflictChoice.Ours, Color: _theme.Blue));
+        bx = Button(f, bx, y, x + width, new(theirsLabel, ActTheirs, Active: d.Choice == ConflictChoice.Theirs, Color: _theme.Peach));
+        bx = Button(f, bx, y, x + width, new(BothLabel, ActBoth, Active: d.Choice == ConflictChoice.Both));
+        bx = Button(f, bx, y, x + width, new(ResetLabel, ActReset));
+        Button(f, bx, y, x + width, new("Undo", ActUndo));
     }
 
     private static string Short(string label) => label.Length > 18 ? label[..17] + "…" : label;
@@ -715,10 +728,10 @@ public sealed class MergeScreen : ITuiScreen
             uint bg = OutputBackground(line.Origin);
             if (line.Origin == OutputOrigin.Unresolved)
             {
-                DrawUnresolvedOutput(f, mf, x, y + r, width, line, bg, line.Chunk == selected);
+                DrawUnresolvedOutput(f, mf, new FrameRun(x, y + r, width), line, bg, line.Chunk == selected);
                 continue;
             }
-            DrawContentRow(f, x, y + r, width, GutterWidth, line.Raw, number++, _theme.Text, bg, 0, [], _hScroll, _theme.Overlay);
+            DrawContentRow(f, new FrameRun(x, y + r, width), line.Raw, [], _hScroll, new FrameLineStyle(_theme.Text, bg, 0), new ContentGutter(GutterWidth, number++, _theme.Overlay));
             if (line.Chunk >= 0 && mf.Chunks[line.Chunk].Kind == MergeChunkKind.Conflict) f.AddHit(x, y + r, width, 1, ActConflict, IndexOfConflict(mf, line.Chunk));
         }
     }
@@ -733,11 +746,12 @@ public sealed class MergeScreen : ITuiScreen
         _ => _theme.Base,
     };
 
-    private void DrawUnresolvedOutput(Frame f, MergeFile mf, int x, int y, int width, OutputLine line, uint bg, bool selected)
+    private void DrawUnresolvedOutput(Frame f, MergeFile mf, FrameRun at, OutputLine line, uint bg, bool selected)
     {
+        var (x, y, width) = at;
         f.Fill(x, y, width, 1, _theme.Text, bg);
         f.Put(x, y, selected ? "▌" : " ", _theme.Red, bg);
-        f.Text(x + GutterWidth, y, Math.Max(0, width - GutterWidth), "  " + TextDocument.Content(line.Raw).ToString() + "  ", _theme.Red, _theme.ConflictHi, CellAttr.Bold);
+        f.Text(x + GutterWidth, y, Math.Max(0, width - GutterWidth), "  " + TextDocument.Content(line.Raw).ToString() + "  ", _theme.Red, _theme.ConflictHi, CellAttrs.Bold);
         f.AddHit(x, y, width, 1, ActConflict, IndexOfConflict(mf, line.Chunk));
     }
 
@@ -749,9 +763,9 @@ public sealed class MergeScreen : ITuiScreen
         string yes = c.YesLabel + " (y)", no = c.NoLabel + " (n)";
         int bw = ButtonsWidth(yes, no);
         int bx = Math.Max(1, f.Width - bw);
-        f.Text(1, y, Math.Max(0, bx - 2), c.Text, _theme.Text, _theme.ConflictBg, CellAttr.Bold);
-        bx = Button(f, bx, y, f.Width, yes, ActConfirmYes, primary: true, color: _theme.Red);
-        Button(f, bx, y, f.Width, no, ActConfirmNo);
+        f.Text(1, y, Math.Max(0, bx - 2), c.Text, _theme.Text, _theme.ConflictBg, CellAttrs.Bold);
+        bx = Button(f, bx, y, f.Width, new(yes, ActConfirmYes, Primary: true, Color: _theme.Red));
+        Button(f, bx, y, f.Width, new(no, ActConfirmNo));
     }
 
     // ---- Compact (stacked cards) ------------------------------------------------------------------
@@ -762,7 +776,7 @@ public sealed class MergeScreen : ITuiScreen
         f.Fill(0, 0, f.Width, 1, _theme.Text, _theme.Mantle);
         if (mf is null)
         {
-            f.Text(1, 0, f.Width - 2, _session.Entry?.Path ?? "", _theme.Text, _theme.Mantle, CellAttr.Bold);
+            f.Text(1, 0, f.Width - 2, _session.Entry?.Path ?? "", _theme.Text, _theme.Mantle, CellAttrs.Bold);
             DrawMessage(f, 0, 1, f.Width, f.Height - 2, _session.Entry?.Error ?? "Loading...");
             return;
         }
@@ -789,7 +803,7 @@ public sealed class MergeScreen : ITuiScreen
 
     private void DrawCompactTitle(Frame f, MergeFile mf)
     {
-        int nx = f.Text(1, 0, f.Width - 2, TrimLeft(mf.Path, Math.Max(10, f.Width / 2)), _theme.Text, _theme.Mantle, CellAttr.Bold);
+        int nx = f.Text(1, 0, f.Width - 2, TrimLeft(mf.Path, Math.Max(10, f.Width / 2)), _theme.Text, _theme.Mantle, CellAttrs.Bold);
         string counter;
         if (ConflictCount != 0) counter = $"conflict {_conflict + 1} of {ConflictCount}";
         else counter = mf.Kind == MergeFileKind.Text ? "no conflicts" : "choose a version";
@@ -816,9 +830,13 @@ public sealed class MergeScreen : ITuiScreen
                 _ => _theme.Overlay,
             };
             f.Fill(0, y, f.Width, 1, hfg, bg);
-            f.Text(2, y, f.Width - 3, row.Text, hfg, bg, CellAttr.Bold);
+            f.Text(2, y, f.Width - 3, row.Text, hfg, bg, CellAttrs.Bold);
         }
-        else DrawContentRow(f, 0, y, f.Width, GutterWidth, row.Text, row.Number, fg, bg, row.Style is CompactStyle.OursLine ? _theme.OursHi : _theme.TheirsHi, row.Spans, _hScroll);
+        else
+        {
+            uint spanBg = row.Style is CompactStyle.OursLine ? _theme.OursHi : _theme.TheirsHi;
+            DrawContentRow(f, new FrameRun(0, y, f.Width), row.Text, row.Spans, _hScroll, new FrameLineStyle(fg, bg, spanBg), new ContentGutter(GutterWidth, row.Number));
+        }
         if (row.ConflictIndex >= 0) f.AddHit(0, y, f.Width, 1, ActConflict, row.ConflictIndex);
     }
 
@@ -969,10 +987,12 @@ public static class CompareRender
     /// Draws a line's content with tab expansion, horizontal scroll and highlighted spans; the rest of the row stays as
     /// filled. Control characters show as a dot (<see cref="Frame.Text"/> does the same for names).
     /// </summary>
-    public static void Line(Frame f, int x, int y, int width, ReadOnlySpan<char> text, int hscroll, uint fg, uint bg, TextSpan[] spans, uint spanBg, CellAttr attr)
+    public static void Line(Frame f, FrameRun at, ReadOnlySpan<char> text, int hscroll, TextSpan[] spans, in FrameLineStyle style)
     {
+        var (x, y, width) = at;
         if (width <= 0) return;
-        var row = new LineRow(f, x, y, width, hscroll, fg, attr);
+        uint bg = style.Bg, spanBg = style.SpanBg;
+        var row = new LineRow(f, x, y, width, hscroll, style.Fg, style.Attr);
         int col = 0, spanIndex = 0, charIndex = 0;
         foreach (var rune in text.EnumerateRunes())
         {
@@ -997,7 +1017,7 @@ public static class CompareRender
     }
 
     /// <summary>The row a line is drawn on: columns count from the line's start, the first shown one is HScroll.</summary>
-    private readonly record struct LineRow(Frame F, int X, int Y, int Width, int HScroll, uint Fg, CellAttr Attr)
+    private readonly record struct LineRow(Frame F, int X, int Y, int Width, int HScroll, uint Fg, CellAttrs Attr)
     {
         public void DrawZeroWidth(System.Text.Rune rune, int col, uint bg)
         {

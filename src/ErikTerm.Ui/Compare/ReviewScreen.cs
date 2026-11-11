@@ -626,7 +626,7 @@ public sealed class ReviewScreen : ITuiScreen, IReviewCommentView
 
         if (_snapshot is not { State: ReviewState.Ok } s)
         {
-            f.Text(1, 0, f.Width - 2, "Review", _theme.Text, _theme.Mantle, CellAttr.Bold);
+            f.Text(1, 0, f.Width - 2, "Review", _theme.Text, _theme.Mantle, CellAttrs.Bold);
             return;
         }
 
@@ -635,9 +635,9 @@ public sealed class ReviewScreen : ITuiScreen, IReviewCommentView
         right = DrawConflictPill(f, right);
 
         int x = 1;
-        x = f.Text(x, 0, right - x, s.Base, _theme.Blue, _theme.Mantle, CellAttr.Bold);
+        x = f.Text(x, 0, right - x, s.Base, _theme.Blue, _theme.Mantle, CellAttrs.Bold);
         x = f.Text(x, 0, right - x, " ← ", _theme.Overlay, _theme.Mantle);
-        x = f.Text(x, 0, right - x, s.Branch, _theme.Peach, _theme.Mantle, CellAttr.Bold);
+        x = f.Text(x, 0, right - x, s.Branch, _theme.Peach, _theme.Mantle, CellAttrs.Bold);
         if (_commit is { } c)
         {
             x = f.Text(x, 0, right - x, "  commit ", _theme.Overlay, _theme.Mantle);
@@ -750,7 +750,7 @@ public sealed class ReviewScreen : ITuiScreen, IReviewCommentView
         if (_commit is not null) message = _loading ? "Reading the commit..." : "This commit changes no files.";
         int y = top + Math.Max(0, rows / 2 - 2);
         int x = Math.Max(1, (f.Width - message.Length) / 2);
-        f.Text(x, y, f.Width - x - 1, message, _theme.Text, _theme.Base, CellAttr.Bold);
+        f.Text(x, y, f.Width - x - 1, message, _theme.Text, _theme.Base, CellAttrs.Bold);
         const string Hint = "b  compare with another branch     r  refresh     q  close";
         int hx = Math.Max(1, (f.Width - Hint.Length) / 2);
         f.Text(hx, y + 2, f.Width - hx - 1, Hint, _theme.Subtext, _theme.Base);
@@ -767,7 +767,7 @@ public sealed class ReviewScreen : ITuiScreen, IReviewCommentView
     private void DrawListTitle(Frame f, int x, int y, int width, string title, bool focused)
     {
         f.Fill(x, y, width, 1, _theme.Subtext, _theme.Mantle);
-        f.Text(x + 1, y, width - 2, title, focused ? _theme.Lavender : _theme.Subtext, _theme.Mantle, CellAttr.Bold);
+        f.Text(x + 1, y, width - 2, title, focused ? _theme.Lavender : _theme.Subtext, _theme.Mantle, CellAttrs.Bold);
     }
 
     private void DrawFiles(Frame f, int x, int y, int width, int height)
@@ -793,7 +793,7 @@ public sealed class ReviewScreen : ITuiScreen, IReviewCommentView
             int ry = y + 1 + i;
             if (row.IsFolder)
             {
-                f.Text(x + 1, ry, width - 2, Tail(row.Text, width - 2), _theme.Subtext, _theme.Mantle, CellAttr.Bold);
+                f.Text(x + 1, ry, width - 2, Tail(row.Text, width - 2), _theme.Subtext, _theme.Mantle, CellAttrs.Bold);
                 continue;
             }
             DrawFileRow(f, x, ry, width, _list.Files[row.File], row.Text, row.File == _selected);
@@ -810,7 +810,7 @@ public sealed class ReviewScreen : ITuiScreen, IReviewCommentView
         f.Fill(x, y, width, 1, _theme.Text, bg);
         if (selected) f.Put(x, y, "▌", _focusList ? _theme.Lavender : _theme.Surface1, bg);
         if (file.Uncommitted) f.Put(x + 1, y, "•", _theme.Peach, bg);
-        f.Put(x + 2, y, file.Letter, ChangeColor(file.Change), bg, CellAttr.Bold);
+        f.Put(x + 2, y, file.Letter, ChangeColor(file.Change), bg, CellAttrs.Bold);
         string counts = CountsText(file);
         int nameMax = width - 5 - (counts.Length + 2);
         if (_comments.CountIn(file.Path) > 0) f.Put(x + 3, y, "▪", _theme.Mauve, bg);
@@ -847,7 +847,7 @@ public sealed class ReviewScreen : ITuiScreen, IReviewCommentView
         if (Selected is not { } file) return;
         string position = $"{_selected + 1}/{_list.Count} ";
         int x = f.Text(1, y, f.Width - 2, position, _theme.Subtext, _theme.Mantle);
-        x = f.Text(x, y, f.Width - x - 1, file.Letter + " ", _theme.Blue, _theme.Mantle, CellAttr.Bold);
+        x = f.Text(x, y, f.Width - x - 1, file.Letter + " ", _theme.Blue, _theme.Mantle, CellAttrs.Bold);
         string counts = CountsText(file);
         f.Text(x, y, f.Width - x - counts.Length - 2, Tail(file.Path, f.Width - x - counts.Length - 2), _theme.Text, _theme.Mantle);
         if (counts.Length > 0) f.Text(f.Width - counts.Length - 1, y, counts.Length, counts, _theme.Overlay, _theme.Mantle);
@@ -876,7 +876,7 @@ public sealed class ReviewScreen : ITuiScreen, IReviewCommentView
         if (selected) f.Put(x, y, "▌", _theme.Lavender, bg);
         if (row == 0)
         {
-            f.Text(x + 2, y, width - 3, "All changes on the branch", _commit is null ? _theme.Green : _theme.Text, bg, CellAttr.Bold);
+            f.Text(x + 2, y, width - 3, "All changes on the branch", _commit is null ? _theme.Green : _theme.Text, bg, CellAttrs.Bold);
         }
         else
         {
@@ -893,7 +893,7 @@ public sealed class ReviewScreen : ITuiScreen, IReviewCommentView
         int height = Math.Min(PickerRows + 4, f.Height - 2);
         int x = Math.Max(0, (f.Width - width) / 2), y = Math.Max(0, (f.Height - height) / 2);
         f.Fill(x, y, width, height, _theme.Text, _theme.Surface0);
-        f.Text(x + 2, y + 1, width - 4, "Compare with branch", _theme.Subtext, _theme.Surface0, CellAttr.Bold);
+        f.Text(x + 2, y + 1, width - 4, "Compare with branch", _theme.Subtext, _theme.Surface0, CellAttrs.Bold);
         int promptX = f.Text(x + 2, y + 2, 2, "> ", _theme.Lavender, _theme.Surface0);
         f.Text(promptX, y + 2, x + width - promptX - 2, _pickerFilter.Length > 0 ? _pickerFilter : "", _theme.Text, _theme.Surface0);
         if (_pickerBranches is null) { f.Text(x + 2, y + 4, width - 4, "Reading branches...", _theme.Overlay, _theme.Surface0); return; }

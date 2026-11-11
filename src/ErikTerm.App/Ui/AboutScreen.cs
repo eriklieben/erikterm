@@ -370,6 +370,9 @@ internal sealed class AboutScreen
         row.X += w + th.S(8);
     }
 
+    /// <summary>Where a tab's layout goes: the ops it adds to <see cref="Ops"/>, measured with <see cref="Dl"/> at <see cref="Th"/>'s sizes.</summary>
+    private readonly record struct OpLayout(DrawList Dl, Theme Th, List<Op> Ops);
+
     /// <summary>The Overview tab's columns and text sizes.</summary>
     private readonly record struct OverviewGrid(float RowPx, float RowH, float HeadH, float LabelW, float ColW, float ColGap, bool TwoColumns, FontSet.Metrics Metrics);
 
@@ -387,7 +390,7 @@ internal sealed class AboutScreen
         for (int si = 0; si < _sections.Count; si++)
         {
             int col = two && heights[1] < heights[0] ? 1 : 0;
-            heights[col] = AddOverviewSection(dl, th, ops, _sections[si], si, col, heights[col], grid) + sectionGap;
+            heights[col] = AddOverviewSection(new OpLayout(dl, th, ops), _sections[si], si, col, heights[col], grid) + sectionGap;
         }
         _contentH[0] = MathF.Max(heights[0], heights[1]) - sectionGap;
     }
@@ -400,8 +403,9 @@ internal sealed class AboutScreen
     }
 
     /// <summary>A section's heading and rows from <paramref name="y"/> down; returns the y below them.</summary>
-    private float AddOverviewSection(DrawList dl, Theme th, List<Op> ops, AboutSection s, int si, int col, float y, in OverviewGrid g)
+    private float AddOverviewSection(in OpLayout l, AboutSection s, int si, int col, float y, in OverviewGrid g)
     {
+        var (dl, th, ops) = l;
         float px = th.UiPx, rowPx = g.RowPx;
         var rm = g.Metrics;
         float x = col * (g.ColW + g.ColGap);
@@ -418,14 +422,15 @@ internal sealed class AboutScreen
 
         foreach (var r in s.Rows)
         {
-            AddOverviewRow(dl, th, ops, r, si, col, x, y, g);
+            AddOverviewRow(in l, r, si, col, x, y, g);
             y += g.RowH;
         }
         return y;
     }
 
-    private void AddOverviewRow(DrawList dl, Theme th, List<Op> ops, AboutRow r, int si, int col, float x, float y, in OverviewGrid g)
+    private void AddOverviewRow(in OpLayout l, AboutRow r, int si, int col, float x, float y, in OverviewGrid g)
     {
+        var (dl, th, ops) = l;
         float rowPx = g.RowPx;
         float b = MathF.Round(y + (g.RowH - g.Metrics.Height) / 2 + g.Metrics.Ascender);
         ops.Add(new Op { Kind = OpKind.Text, Text = r.Label, X = x, Y = b, Px = rowPx, Ink = Ink.Muted, Alpha = 1, Group = si });
@@ -468,16 +473,17 @@ internal sealed class AboutScreen
         y += th.S(16);
 
         for (int i = 0; i < _licenses.Count; i++)
-            y = AddLicense(dl, th, ops, _licenses[i], i + 1, w, y, t);
+            y = AddLicense(new OpLayout(dl, th, ops), _licenses[i], i + 1, w, y, t);
         _contentH[1] = y;
     }
 
     /// <summary>One component's entry from <paramref name="y"/> down; returns the y below it.</summary>
-    private static float AddLicense(DrawList dl, Theme th, List<Op> ops, LicenseEntry e, int g, float w, float y, in LicenseType t)
+    private static float AddLicense(in OpLayout l, LicenseEntry e, int g, float w, float y, in LicenseType t)
     {
+        var (dl, th, ops) = l;
         ops.Add(new Op { Kind = OpKind.Rect, X = 0, Y = MathF.Round(y), W = w, H = MathF.Max(1, MathF.Round(th.S(1))), Ink = Ink.Border, Alpha = 1, Group = g });
         y += th.S(16);
-        y = AddLicenseTitle(dl, th, ops, e, g, w, y, t);
+        y = AddLicenseTitle(in l, e, g, w, y, t);
 
         foreach (var line in Wrap(dl, e.Copyright, t.MetaPx, w))
         {
@@ -485,7 +491,7 @@ internal sealed class AboutScreen
             y += t.MetaLine;
         }
 
-        if (e.Credit is { } credit) y = AddLicenseCredit(dl, th, ops, credit, g, w, y, t);
+        if (e.Credit is { } credit) y = AddLicenseCredit(in l, credit, g, w, y, t);
 
         y += th.S(8);
         foreach (var p in e.Paragraphs)
@@ -508,8 +514,9 @@ internal sealed class AboutScreen
     }
 
     /// <summary>Name, version, license pill on the right; returns the y below them.</summary>
-    private static float AddLicenseTitle(DrawList dl, Theme th, List<Op> ops, LicenseEntry e, int g, float w, float y, in LicenseType t)
+    private static float AddLicenseTitle(in OpLayout l, LicenseEntry e, int g, float w, float y, in LicenseType t)
     {
+        var (dl, th, ops) = l;
         float pillH = MathF.Round(t.Pill.Height + th.S(8));
         float pillW = MathF.Round(dl.Measure(e.License, t.PillPx) + th.S(18));
         float rowH = MathF.Max(t.Name.Height, pillH);
@@ -530,8 +537,9 @@ internal sealed class AboutScreen
     }
 
     /// <summary>The FreeType credit line, set off in an accent callout; returns the y below it.</summary>
-    private static float AddLicenseCredit(DrawList dl, Theme th, List<Op> ops, string credit, int g, float w, float y, in LicenseType t)
+    private static float AddLicenseCredit(in OpLayout l, string credit, int g, float w, float y, in LicenseType t)
     {
+        var (dl, th, ops) = l;
         y += th.S(8);
         float pad = th.S(12);
         var lines = Wrap(dl, credit, t.MetaPx, w - 2 * pad - th.S(4));
@@ -780,13 +788,14 @@ internal sealed class AboutScreen
         float bx = panel.X + th.S(28) + MathF.Round(slide);
         float by = bodyTop + _bodyPadTop - MathF.Round(scroll);
         dl.PushClip(view);
-        DrawBodyOps(dl, th, view, bx, by, ca, fade, now);
-        UpdateConfigLink(dl, th, bx, by, ca, fade, now);
+        var body = new BodyOrigin(bx, by, ca, fade);
+        DrawBodyOps(dl, th, view, in body, now);
+        UpdateConfigLink(dl, th, in body, now);
 
         // Soft edges where content scrolls out of view.
         float edge = th.S(22);
-        if (scroll > 0.5f) EdgeFade(dl, th, view.X, view.Y, view.W, edge, down: true, MathF.Min(1, scroll / edge) * ca);
-        if (scroll < _maxScroll - 0.5f) EdgeFade(dl, th, view.X, view.Bottom - edge, view.W, edge, down: false, MathF.Min(1, (_maxScroll - scroll) / edge) * ca);
+        if (scroll > 0.5f) EdgeFade(dl, th, new RectF(view.X, view.Y, view.W, edge), down: true, MathF.Min(1, scroll / edge) * ca);
+        if (scroll < _maxScroll - 0.5f) EdgeFade(dl, th, new RectF(view.X, view.Bottom - edge, view.W, edge), down: false, MathF.Min(1, (_maxScroll - scroll) / edge) * ca);
         dl.PopClip();
 
         if (_maxScroll > 0)
@@ -798,8 +807,12 @@ internal sealed class AboutScreen
         }
     }
 
-    private void DrawBodyOps(DrawList dl, Theme th, RectF view, float bx, float by, float ca, float fade, long now)
+    /// <summary>Where the scrolled body content starts (<see cref="X"/>, <see cref="Y"/>), the card's content alpha and the tab-switch fade.</summary>
+    private readonly record struct BodyOrigin(float X, float Y, float ContentAlpha, float Fade);
+
+    private void DrawBodyOps(DrawList dl, Theme th, RectF view, in BodyOrigin body, long now)
     {
+        float bx = body.X, by = body.Y, ca = body.ContentAlpha, fade = body.Fade;
         foreach (ref readonly var op in System.Runtime.InteropServices.CollectionsMarshal.AsSpan(_body[_tab]))
         {
             float top = by + op.Y - (op.Kind is OpKind.Text or OpKind.Glyph ? op.Px * 1.2f : 0);
@@ -811,8 +824,9 @@ internal sealed class AboutScreen
     }
 
     /// <summary>The config link's click target, and its hover underline / focus.</summary>
-    private void UpdateConfigLink(DrawList dl, Theme th, float bx, float by, float ca, float fade, long now)
+    private void UpdateConfigLink(DrawList dl, Theme th, in BodyOrigin body, long now)
     {
+        float bx = body.X, by = body.Y, ca = body.ContentAlpha, fade = body.Fade;
         if (_tab != 0 || _linkRel.W <= 0)
         {
             _targets[(int)Target.ConfigLink] = default;
@@ -847,7 +861,7 @@ internal sealed class AboutScreen
             var r = _buttonRel[i];
             var br = new RectF(panel.X + r.X, footTop + r.Y, r.W, r.H);
             _targets[(int)target] = br;
-            DrawButton(dl, th, br, i, primary: target == Target.Close, _glow[(int)target].Value(now), _focusVisible && _focus == target, fa);
+            DrawButton(dl, th, br, i, _glow[(int)target].Value(now), _focusVisible && _focus == target, fa);
         }
     }
 
@@ -864,8 +878,9 @@ internal sealed class AboutScreen
         }
     }
 
-    private static void EdgeFade(DrawList dl, Theme th, float x, float y, float w, float h, bool down, float a)
+    private static void EdgeFade(DrawList dl, Theme th, RectF band, bool down, float a)
     {
+        float x = band.X, y = band.Y, h = band.H;
         const int Bands = 8;
         float bh = h / Bands;
         for (int i = 0; i < Bands; i++)
@@ -873,7 +888,7 @@ internal sealed class AboutScreen
             float t = (i + 0.5f) / Bands;               // 0 at the top band
             float alpha = down ? 1 - t : t;             // opaque at the view's edge
             float y0 = MathF.Round(y + i * bh), y1 = MathF.Round(y + (i + 1) * bh);
-            dl.Rect(x, y0, x + w, y1, th.PanelBg, alpha * alpha * 0.92f * a);
+            dl.Rect(x, y0, band.Right, y1, th.PanelBg, alpha * alpha * 0.92f * a);
         }
     }
 
@@ -881,15 +896,18 @@ internal sealed class AboutScreen
     {
         float a = Stagger(3, now, out float r) * ca;
         float dy = MathF.Round(r * th.S(8));
-        for (int i = 0; i < 2; i++) DrawTab(dl, th, i, ox, oy, dy, a, now);
+        for (int i = 0; i < 2; i++)
+        {
+            var rel = _tabRel[i];
+            DrawTab(dl, th, i, new RectF(ox + rel.X, oy + rel.Y + dy, rel.W, rel.H), a, now);
+        }
         DrawTabUnderline(dl, th, ox, oy, a, now, ca);
     }
 
-    private void DrawTab(DrawList dl, Theme th, int i, float ox, float oy, float dy, float a, long now)
+    /// <summary>Tab <paramref name="i"/>'s label and icon in <paramref name="rect"/>, with its hover and focus backgrounds.</summary>
+    private void DrawTab(DrawList dl, Theme th, int i, RectF rect, float a, long now)
     {
         float px = th.UiPx, tpx = px * 0.92f;
-        var rel = _tabRel[i];
-        var rect = new RectF(ox + rel.X, oy + rel.Y + dy, rel.W, rel.H);
         var target = i == 0 ? Target.TabOverview : Target.TabLicenses;
         _targets[(int)target] = rect;
         bool active = i == _tab;
@@ -917,8 +935,11 @@ internal sealed class AboutScreen
         dl.RoundRect(new RectF(ox + _indicatorX.Value(now), lineY - h, _indicatorW.Value(now), h), h / 2, th.Accent, a);
     }
 
-    private void DrawButton(DrawList dl, Theme th, RectF r, int index, bool primary, float hover, bool focused, float a)
+    /// <summary>Footer button <paramref name="index"/> (Copy, Open config, Close: the last is the primary one).</summary>
+    private void DrawButton(DrawList dl, Theme th, RectF r, int index, float hover, bool focused, float a)
     {
+        bool primary = Target.Copy + index == Target.Close;
+
         float px = th.UiPx * 0.9f;
         float radius = th.S(8);
         if (focused) dl.RoundRect(new RectF(r.X - th.S(3), r.Y - th.S(3), r.W + th.S(6), r.H + th.S(6)), radius + th.S(3), th.Accent, 0.45f * a);

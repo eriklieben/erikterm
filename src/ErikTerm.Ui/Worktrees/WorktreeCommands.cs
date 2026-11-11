@@ -5,15 +5,17 @@ namespace ErikTerm.Ui;
 /// <summary>Every command that changes a repository, as argv. Branch names are validated first; none of these force anything.</summary>
 public static class WorktreeCommands
 {
-    public static string[] SquashMerge(string mainRoot, string branch) => ["git", "-C", mainRoot, "merge", "--squash", "--end-of-options", branch];
+    private const string EndOfOptions = "--end-of-options";
+
+    public static string[] SquashMerge(string mainRoot, string branch) => ["git", "-C", mainRoot, "merge", "--squash", EndOfOptions, branch];
     public static string[] Commit(string mainRoot, string message) => ["git", "-C", mainRoot, "commit", "-m", message];
-    public static string[] Merge(string mainRoot, string branch) => ["git", "-C", mainRoot, "merge", "--no-ff", "--no-edit", "--end-of-options", branch];
-    public static string[] Rebase(string worktree, string target) => ["git", "-C", worktree, "rebase", "--end-of-options", target];
-    public static string[] FastForward(string mainRoot, string branch) => ["git", "-C", mainRoot, "merge", "--ff-only", "--end-of-options", branch];
+    public static string[] Merge(string mainRoot, string branch) => ["git", "-C", mainRoot, "merge", "--no-ff", "--no-edit", EndOfOptions, branch];
+    public static string[] Rebase(string worktree, string target) => ["git", "-C", worktree, "rebase", EndOfOptions, target];
+    public static string[] FastForward(string mainRoot, string branch) => ["git", "-C", mainRoot, "merge", "--ff-only", EndOfOptions, branch];
     public static string[] Push(string worktree, string remote, string branch) => ["git", "-C", worktree, "push", "--set-upstream", remote, "refs/heads/" + branch + ":refs/heads/" + branch];
     public static string[] PullRequest(string target, string branch, string title, string body) => ["gh", "pr", "create", "--base", target, "--head", branch, "--title", title, "--body", body];
     public static string[] RemoveWorktree(string mainRoot, string path) => ["git", "-C", mainRoot, "worktree", "remove", "--", path];
-    public static string[] DeleteBranch(string mainRoot, string branch, bool landedCheckPassed) => ["git", "-C", mainRoot, "branch", landedCheckPassed ? "-D" : "-d", "--end-of-options", branch];
+    public static string[] DeleteBranch(string mainRoot, string branch, bool landedCheckPassed) => ["git", "-C", mainRoot, "branch", landedCheckPassed ? "-D" : "-d", EndOfOptions, branch];
 
     /// <summary><c>git OPERATION --continue</c> or <c>--abort</c>, in the worktree.</summary>
     public static string[] OperationStep(string worktree, GitOperationKind kind, bool abort)

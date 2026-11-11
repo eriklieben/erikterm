@@ -107,7 +107,7 @@ internal sealed class SessionContainer
     public string[]? Command(string self, bool shellIntegration)
     {
         if (Containers.ContainerExec.EngineName(Engine) is null || Id.Length == 0) return null;
-        var argv = Containers.ContainerShellCommand.Build(self, Engine, EngineOptions ?? [], Id, WorkspaceFolder, User, Workdir, shellIntegration);
+        var argv = Containers.ContainerShellCommand.Build(self, new Containers.ContainerShellSpec(Engine, EngineOptions ?? [], Id, WorkspaceFolder, User, Workdir), shellIntegration);
         return RestoreLaunch.IsSafe(argv) && !Id.StartsWith('-') && argv.Skip(1).All(a => a.Length > 0) ? argv : null;
     }
 }

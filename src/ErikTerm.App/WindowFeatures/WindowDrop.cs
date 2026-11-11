@@ -145,7 +145,7 @@ internal sealed class WindowDrop(IFeatureWindow window, IPointerWindow pointer, 
         var r = new RectF(MathF.Round(_dropRect.X - th.S(3)), MathF.Round(_dropRect.Y - th.S(3)), MathF.Round(_dropRect.W + th.S(6)), MathF.Round(_dropRect.H + th.S(6)));
 
         dl.RoundRect(r, th.S(8), th.Accent, 0.07f * v);
-        DashedOutline(dl, r, th.S(8), MathF.Max(1, MathF.Round(th.S(2))), th.S(9), th.S(6), th.Accent, 0.85f * v);
+        DashedOutline(dl, r, th.S(8), new Dashes(MathF.Max(1, MathF.Round(th.S(2))), th.S(9), th.S(6)), th.Accent, 0.85f * v);
 
         float px = th.UiPx * 0.95f;
         const string hint = "Drop to paste path";
@@ -160,9 +160,14 @@ internal sealed class WindowDrop(IFeatureWindow window, IPointerWindow pointer, 
         dl.Text(hint, pill.X + padX + iconW, b, px, th.PanelFg, v, FontStyle.Bold);
     }
 
+    /// <summary>A dashed line: <see cref="Thick"/> wide, <see cref="Dash"/> long dashes, <see cref="Gap"/> apart.</summary>
+    private readonly record struct Dashes(float Thick, float Dash, float Gap);
+
     /// <summary>Dashes along a rectangle's straight edges, with solid rounded corners.</summary>
-    private static void DashedOutline(DrawList dl, RectF r, float radius, float thick, float dash, float gap, uint rgb, float a)
+    private static void DashedOutline(DrawList dl, RectF r, float radius, in Dashes dashes, uint rgb, float a)
     {
+        var (thick, dash, gap) = dashes;
+
         float x0 = r.X + radius, x1 = r.Right - radius, y0 = r.Y + radius, y1 = r.Bottom - radius;
         for (float x = x0; x < x1; x += dash + gap)
         {

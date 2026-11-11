@@ -42,6 +42,8 @@ internal readonly record struct TmuxShellProgram(string Path, string Flag, bool 
 /// </summary>
 internal static class TmuxShell
 {
+    private const string ShExe = "sh.exe";
+
     /// <summary>The shell and the flag that runs a command string with it.</summary>
     public static TmuxShellProgram ForCommand(Func<string, string?> env)
     {
@@ -79,17 +81,17 @@ internal static class TmuxShell
         foreach (string dir in directories)
         {
             if (!File.Exists(Path.Combine(dir, "git.exe"))) continue;
-            yield return Path.Combine(dir, "sh.exe");                       // git.exe in <Git>\bin
-            yield return Path.Combine(dir, "..", "bin", "sh.exe");          // git.exe in <Git>\cmd
+            yield return Path.Combine(dir, ShExe);                       // git.exe in <Git>\bin
+            yield return Path.Combine(dir, "..", "bin", ShExe);          // git.exe in <Git>\cmd
         }
         foreach (string root in new[] { env("ProgramFiles"), env("ProgramW6432"), env("ProgramFiles(x86)") }.OfType<string>().Where(r => r.Length > 0))
-            yield return Path.Combine(root, "Git", "bin", "sh.exe");
-        if (env("LOCALAPPDATA") is { Length: > 0 } local) yield return Path.Combine(local, "Programs", "Git", "bin", "sh.exe");
+            yield return Path.Combine(root, "Git", "bin", ShExe);
+        if (env("LOCALAPPDATA") is { Length: > 0 } local) yield return Path.Combine(local, "Programs", "Git", "bin", ShExe);
         // Anything else calling itself a shell, as long as it isn't a WSL launcher.
         foreach (string dir in directories)
         {
             if (IsWindowsSubsystemForLinux(dir, env)) continue;
-            yield return Path.Combine(dir, "sh.exe");
+            yield return Path.Combine(dir, ShExe);
             yield return Path.Combine(dir, "bash.exe");
         }
     }

@@ -5,7 +5,7 @@ namespace ErikTerm.Ui.Compare;
 
 /// <summary>Character attributes of a cell.</summary>
 [Flags]
-public enum CellAttr : byte { None = 0, Bold = 1, Dim = 2, Underline = 4 }
+public enum CellAttrs : byte { None = 0, Bold = 1, Dim = 2, Underline = 4 }
 
 /// <summary>One terminal cell. <see cref="Text"/> is one grapheme's text; an empty string marks the right half of a wide character.</summary>
 public struct Cell
@@ -13,8 +13,24 @@ public struct Cell
     public string Text { get; set; }
     public uint Fg { get; set; }
     public uint Bg { get; set; }
-    public CellAttr Attr { get; set; }
+    public CellAttrs Attr { get; set; }
 }
+
+/// <summary>A run of <see cref="Width"/> cells on row <see cref="Y"/> of a frame, from column <see cref="X"/>.</summary>
+public readonly record struct FrameRun(int X, int Y, int Width)
+{
+    /// <summary>The same run <paramref name="rows"/> rows further down.</summary>
+    public FrameRun Down(int rows) => this with { Y = Y + rows };
+}
+
+/// <summary>How a line of text is drawn: its colours, the background of its highlighted spans, and its attributes.</summary>
+public readonly record struct FrameLineStyle(uint Fg, uint Bg, uint SpanBg, CellAttrs Attr = CellAttrs.None);
+
+/// <summary>
+/// A button in a screen's toolbar: its label, the hit action (and argument) a click reports, and how it looks: a
+/// primary or active button is filled with <see cref="Color"/> (the screen's accent when null).
+/// </summary>
+public readonly record struct FrameButton(string Label, int Action, int Arg = 0, bool Primary = false, bool Active = false, uint? Color = null);
 
 /// <summary>A clickable rectangle; <see cref="Action"/> and <see cref="Arg"/> mean what the screen drew them to mean.</summary>
 public readonly record struct HitRegion(int X, int Y, int Width, int Height, int Action, int Arg = 0)
@@ -92,7 +108,7 @@ public sealed class Frame
     /// Draws text clipped to <paramref name="maxWidth"/> cells; returns the x after it. File content and file names go
     /// through here, so anything that could be terminal control (escape, C1, bidi overrides) is replaced by a dot.
     /// </summary>
-    public int Text(int x, int y, int maxWidth, ReadOnlySpan<char> text, uint fg, uint bg, CellAttr attr = CellAttr.None)
+    public int Text(int x, int y, int maxWidth, ReadOnlySpan<char> text, uint fg, uint bg, CellAttrs attr = CellAttrs.None)
     {
         if (y < 0 || y >= Height) return x;
         int end = Math.Min(Width, x + maxWidth);
@@ -123,13 +139,13 @@ public sealed class Frame
         if (prev.Text.Length != 0) { prev.Text += char.ConvertFromUtf32(cp); }
     }
 
-    private int PadWithBlanks(int x, int end, int y, uint fg, uint bg, CellAttr attr)
+    private int PadWithBlanks(int x, int end, int y, uint fg, uint bg, CellAttrs attr)
     {
         while (x < end) Put(x++, y, " ", fg, bg, attr);
         return x;
     }
 
-    public void Put(int x, int y, string text, uint fg, uint bg, CellAttr attr = CellAttr.None)
+    public void Put(int x, int y, string text, uint fg, uint bg, CellAttrs attr = CellAttrs.None)
     {
         if (x < 0 || y < 0 || x >= Width || y >= Height) return;
         Cells[y * Width + x] = new Cell { Text = text, Fg = fg, Bg = bg, Attr = attr };
@@ -196,7 +212,7 @@ public sealed class FrameEncoder
     private sealed class Pen
     {
         private uint _fg, _bg;
-        private CellAttr _attr = CellAttr.None;
+        private CellAttrs _attr = CellAttrs.None;
         private bool _styled;
         private int _x = -1, _y = -1;
 
@@ -217,12 +233,12 @@ public sealed class FrameEncoder
 
         public void Advance(int x, int y) => (_x, _y) = (x, y);
 
-        private static void AppendSgr(StringBuilder sb, uint fg, uint bg, CellAttr attr)
+        private static void AppendSgr(StringBuilder sb, uint fg, uint bg, CellAttrs attr)
         {
             sb.Append("\e[0");
-            if (attr.HasFlag(CellAttr.Bold)) sb.Append(";1");
-            if (attr.HasFlag(CellAttr.Dim)) sb.Append(";2");
-            if (attr.HasFlag(CellAttr.Underline)) sb.Append(";4");
+            if (attr.HasFlag(CellAttrs.Bold)) sb.Append(";1");
+            if (attr.HasFlag(CellAttrs.Dim)) sb.Append(";2");
+            if (attr.HasFlag(CellAttrs.Underline)) sb.Append(";4");
             sb.Append(";38;2;").Append((fg >> 16) & 0xFF).Append(';').Append((fg >> 8) & 0xFF).Append(';').Append(fg & 0xFF);
             sb.Append(";48;2;").Append((bg >> 16) & 0xFF).Append(';').Append((bg >> 8) & 0xFF).Append(';').Append(bg & 0xFF);
             sb.Append('m');

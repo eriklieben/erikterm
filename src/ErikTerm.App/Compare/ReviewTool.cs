@@ -78,6 +78,11 @@ internal static class ReviewTool
 /// </summary>
 internal sealed class GitReviewSource(string cwd) : IReviewSource
 {
+    private const string RevParse = "rev-parse";
+    private const string Quiet = "--quiet";
+    private const string EndOfOptions = "--end-of-options";
+    private const string NoColor = "--no-color";
+
     private const int FetchTimeoutMs = 120_000, MergeTreeTimeoutMs = 20_000, MaxCommits = 2000;
     /// <summary>Untracked files are counted by reading them: at most this many and only this big.</summary>
     private const int MaxCountedUntracked = 4000, MaxCountedBytes = 1 << 20;
@@ -101,21 +106,21 @@ internal sealed class GitReviewSource(string cwd) : IReviewSource
     {
         if (GitTool.TopLevel(cwd) is not { } root) return ReviewSnapshot.Failed(ReviewState.NotARepository, $"Not in a git repository: {cwd}");
 
-        var head = Git(root, "rev-parse", "--verify", "--quiet", "HEAD^{commit}");
+        var head = Git(root, RevParse, "--verify", Quiet, "HEAD^{commit}");
         if (!head.Ok) return ReviewSnapshot.Failed(ReviewState.NoCommits, "This repository has no commits yet.");
         string headOid = head.Text;
 
-        var symbolic = Git(root, "symbolic-ref", "--quiet", "--short", "HEAD");
+        var symbolic = Git(root, "symbolic-ref", Quiet, "--short", "HEAD");
         string branch = symbolic.Ok ? symbolic.Text : $"HEAD at {headOid[..7]}";
 
-        bool Exists(string name) => Git(root, "rev-parse", "--verify", "--quiet", "--end-of-options", name + "^{commit}").Ok;
+        bool Exists(string name) => Git(root, RevParse, "--verify", Quiet, EndOfOptions, name + "^{commit}").Ok;
 
         string defaultBase = WorktreeGit.Probe(root, out _)?.DefaultBase ?? "HEAD";
         if (ReviewRules.ChooseBase(baseOverride, defaultBase, Exists) is not { } @base)
             return ReviewSnapshot.Failed(ReviewState.NoBase, "This repository has no main or master branch to compare with.");
         if (!Exists(@base)) return ReviewSnapshot.Failed(ReviewState.UnknownBase, $"No such branch: {@base}");
 
-        string baseOid = Git(root, "rev-parse", "--verify", "--quiet", "--end-of-options", @base + "^{commit}").Text;
+        string baseOid = Git(root, RevParse, "--verify", Quiet, EndOfOptions, @base + "^{commit}").Text;
         var mergeBase = Git(root, "merge-base", baseOid, headOid);
         if (!mergeBase.Ok) return ReviewSnapshot.Failed(ReviewState.Unrelated, $"{branch} and {@base} share no history.");
         string baseCommon = mergeBase.Text.Split('\n')[0];
@@ -154,7 +159,7 @@ internal sealed class GitReviewSource(string cwd) : IReviewSource
 
     private static List<ReviewFile> Diff(string root, params string[] revisions)
     {
-        string[] common = ["diff", "--no-ext-diff", "--no-textconv", "--no-color", "-M", "-z"];
+        string[] common = ["diff", "--no-ext-diff", "--no-textconv", NoColor, "-M", "-z"];
         var status = Git(root, [.. common, "--name-status", .. revisions, "--"]);
         var counts = Git(root, [.. common, "--numstat", .. revisions, "--"]);
         return ReviewParser.WithCounts(ReviewParser.NameStatus(Text(status)), ReviewParser.Numstat(Text(counts)));
@@ -194,7 +199,7 @@ internal sealed class GitReviewSource(string cwd) : IReviewSource
     private static HashSet<string> UncommittedPaths(string root, List<ReviewFile> untracked)
     {
         var set = new HashSet<string>(StringComparer.Ordinal);
-        var r = Git(root, "diff", "--no-ext-diff", "--no-color", "-M", "--name-only", "-z", "HEAD", "--");
+        var r = Git(root, "diff", "--no-ext-diff", NoColor, "-M", "--name-only", "-z", "HEAD", "--");
         if (r.Ok) foreach (string path in Text(r).Split('\0', StringSplitOptions.RemoveEmptyEntries)) set.Add(path);
         foreach (var f in untracked) set.Add(f.Path);
         return set;
@@ -202,20 +207,20 @@ internal sealed class GitReviewSource(string cwd) : IReviewSource
 
     private static int BehindCount(string root, string @base, string remoteBase)
     {
-        var r = Git(root, "rev-list", "--count", "--end-of-options", $"{@base}..{remoteBase}");
+        var r = Git(root, "rev-list", "--count", EndOfOptions, $"{@base}..{remoteBase}");
         return r.Ok && int.TryParse(r.Text, out int n) ? n : 0;
     }
 
     private static List<ReviewCommit> Commits(string root, string baseOid, string headOid)
     {
-        var r = Git(root, "-c", "i18n.logOutputEncoding=UTF-8", "log", "-z", "--no-color", "--no-show-signature", $"-n{MaxCommits}",
+        var r = Git(root, "-c", "i18n.logOutputEncoding=UTF-8", "log", "-z", NoColor, "--no-show-signature", $"-n{MaxCommits}",
             "--format=%H%x00%P%x00%h%x00%an%x00%ar%x00%s", $"{baseOid}..{headOid}", "--");
         return r.Ok ? ReviewParser.Commits(Text(r)) : [];
     }
 
     private static bool IsLinked(string root)
     {
-        var r = Git(root, "rev-parse", "--git-dir", "--git-common-dir");
+        var r = Git(root, RevParse, "--git-dir", "--git-common-dir");
         var lines = Text(r).Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         return r.Ok && lines.Length == 2 && Path.GetFullPath(lines[0], root) != Path.GetFullPath(lines[1], root);
     }
@@ -297,7 +302,7 @@ internal sealed class GitReviewSource(string cwd) : IReviewSource
 
     public IReadOnlyList<ReviewFile> CommitFiles(ReviewSnapshot snapshot, ReviewCommit commit)
     {
-        string[] options = ["--no-ext-diff", "--no-textconv", "--no-color", "-M", "-z"];
+        string[] options = ["--no-ext-diff", "--no-textconv", NoColor, "-M", "-z"];
         string[] Args(string kind) => commit.Parent is { } parent
             ? ["diff", .. options, kind, parent, commit.Sha, "--"]
             : ["diff-tree", "--root", "-r", "--no-commit-id", .. options, kind, commit.Sha, "--"];
@@ -314,7 +319,7 @@ internal sealed class GitReviewSource(string cwd) : IReviewSource
         var version = GitTool.Run(snapshot.Root, "version");
         if (!version.Ok || !GitVersion.SupportsWriteTree(version.Text)) return ConflictPrediction.Unknown("Conflict prediction needs git 2.38 or later");
 
-        string objects = Path.GetFullPath(Text(Git(snapshot.Root, "rev-parse", "--git-path", "objects")).Trim(), snapshot.Root);
+        string objects = Path.GetFullPath(Text(Git(snapshot.Root, RevParse, "--git-path", "objects")).Trim(), snapshot.Root);
         var quarantine = Directory.CreateTempSubdirectory("etreview");
         try
         {
@@ -361,7 +366,7 @@ internal sealed class GitReviewSource(string cwd) : IReviewSource
         // ssh must not prompt on the terminal this screen is drawing on: it fails and says so instead.
         if (Environment.GetEnvironmentVariable("GIT_SSH_COMMAND") is null && !Git(snapshot.Root, "config", "core.sshCommand").Ok)
             environment["GIT_SSH_COMMAND"] = "ssh -o BatchMode=yes";
-        var r = GitTool.Run(snapshot.Root, ["fetch", "origin", "--end-of-options", branch], environment, FetchTimeoutMs);
+        var r = GitTool.Run(snapshot.Root, ["fetch", "origin", EndOfOptions, branch], environment, FetchTimeoutMs);
         if (r.Ok) return null;
         if (r.ExitCode == GitTool.TimedOut) return $"git fetch origin {branch} timed out";
         return FirstLine(r.Stderr) ?? $"git fetch origin {branch} failed";

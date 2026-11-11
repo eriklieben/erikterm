@@ -277,7 +277,7 @@ internal sealed class InfoBar
         if (m.Dot != AgentState.None)
         {
             float d = MathF.Round(th.S(9));
-            AgentBadge.Dot(dl, th, m.Dot, x + d / 2 + th.S(2), cy, d, f.Alpha, now);
+            AgentBadge.Dot(dl, th, m.Dot, new AgentBadge.DotSpot(x + d / 2 + th.S(2), cy, d), f.Alpha, now);
             x += d + th.S(14);
         }
         else x += dl.Glyph(m.Icon, x, b, f.Px * 1.05f, f.Accent, f.Alpha) + th.S(10);

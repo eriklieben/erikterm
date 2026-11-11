@@ -21,6 +21,8 @@ public enum VimParse { Pending, Complete, Invalid, Cancelled }
 /// </summary>
 public sealed class VimKeyParser
 {
+    private const string WindowPrefix = "<C-w>";
+
     private int _count, _opCount;
     private char _op;
     private string? _prefix;          // "g", "z", "[", "]", "f", "F", "t", "T", "m", "'", "`", "<C-w>", "i", "a"
@@ -52,7 +54,7 @@ public sealed class VimKeyParser
         if (TakeCountDigit(key)) return VimParse.Pending;
         if (AfterOperatorOrVisual(key, visual, out command) is { } handled) return handled;
 
-        if (key is "g" or "z" or "[" or "]" or "f" or "F" or "t" or "T" or "m" or "'" or "`" or "<C-w>")
+        if (key is "g" or "z" or "[" or "]" or "f" or "F" or "t" or "T" or "m" or "'" or "`" or WindowPrefix)
         {
             _prefix = key;
             return VimParse.Pending;
@@ -124,7 +126,7 @@ public sealed class VimKeyParser
                 return key == prefix ? Done(prefix + key, '\0', out command) : Invalid();
             case "i" or "a":
                 return key is "w" or "W" or "p" or "s" ? Done(prefix + key, '\0', out command) : Invalid();
-            case "<C-w>":
+            case WindowPrefix:
                 return AfterCtrlW(key, out command);
             default: // f F t T m ' `: one character
                 return VimKeys.IsChar(key, out char arg) ? Done(prefix, arg, out command) : Invalid();
@@ -144,23 +146,23 @@ public sealed class VimKeyParser
     private VimParse AfterCtrlW(string key, out VimCommand command)
     {
         command = default;
-        if (VimKeys.IsCtrl(key, out char cc)) return Done("<C-w>", cc, out command);
+        if (VimKeys.IsCtrl(key, out char cc)) return Done(WindowPrefix, cc, out command);
         if (VimKeys.IsChar(key, out char wc))
         {
             if (wc is >= '0' and <= '9' && (wc != '0' || _count > 0))
             {
                 _count = Math.Min(_count * 10 + (wc - '0'), 99_999);
-                _prefix = "<C-w>";
+                _prefix = WindowPrefix;
                 return VimParse.Pending;
             }
-            return Done("<C-w>", wc, out command);
+            return Done(WindowPrefix, wc, out command);
         }
         return key switch
         {
-            VimKeys.Left => Done("<C-w>", 'h', out command),
-            VimKeys.Down => Done("<C-w>", 'j', out command),
-            VimKeys.Up => Done("<C-w>", 'k', out command),
-            VimKeys.Right => Done("<C-w>", 'l', out command),
+            VimKeys.Left => Done(WindowPrefix, 'h', out command),
+            VimKeys.Down => Done(WindowPrefix, 'j', out command),
+            VimKeys.Up => Done(WindowPrefix, 'k', out command),
+            VimKeys.Right => Done(WindowPrefix, 'l', out command),
             _ => Invalid(),
         };
     }

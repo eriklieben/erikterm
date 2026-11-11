@@ -26,19 +26,32 @@ internal static class RepoBadge
     // ---- Tab (compact) -------------------------------------------------------------------------
 
     /// <summary>
+    /// How a badge's texts draw: on <see cref="Baseline"/> at <see cref="Px"/> and opacity <see cref="Alpha"/>.
+    /// <see cref="Spin"/> is the clock of the pending-checks spinner; 0 draws it still.
+    /// </summary>
+    public readonly record struct BadgeInk(float Baseline, float Px, float Alpha, long Spin);
+
+    /// <summary>Where a pane pill goes: its right edge and top, and the most width it may take.</summary>
+    public readonly record struct PillAnchor(float Right, float Top, float MaxWidth);
+
+    /// <summary>One drawing (or, with <see cref="Draw"/> false, measuring) pass over a badge's pieces.</summary>
+    private readonly record struct Pass(DrawList Dl, Theme Th, float Baseline, float Px, float Alpha, long Spin, bool Draw);
+
+    /// <summary>
     /// Draws the compact badge right-aligned at <paramref name="right"/>, as much of it as fits in
     /// <paramref name="maxWidth"/> (dropping the branch first, then the counts). Returns the width drawn (0 = none).
     /// </summary>
-    public static float DrawCompact(DrawList dl, Theme th, RepoBadgeModel m, float right, float baseline, float px, float a, float maxWidth, long now, bool animate)
+    public static float DrawCompact(DrawList dl, Theme th, RepoBadgeModel m, float right, float maxWidth, in BadgeInk ink)
     {
         if (maxWidth <= 0) return 0;
+        var measure = new Pass(dl, th, ink.Baseline, ink.Px, ink.Alpha, ink.Spin, Draw: false);
         for (int level = 0; level < 3; level++)
         {
-            float w = Compact(dl, th, m, 0, baseline, px, a, level, now, animate, draw: false);
+            float w = Compact(in measure, m, 0, level);
             if (w <= 0) return 0;
             if (w <= maxWidth)
             {
-                Compact(dl, th, m, MathF.Round(right - w), baseline, px, a, level, now, animate, draw: true);
+                Compact(measure with { Draw = true }, m, MathF.Round(right - w), level);
                 return w;
             }
         }
@@ -47,101 +60,107 @@ internal static class RepoBadge
 
     /// <summary>The width of the whole compact badge (level 0), for the tab switcher's rows.</summary>
     public static float CompactWidth(DrawList dl, Theme th, RepoBadgeModel m, float px) =>
-        Compact(dl, th, m, 0, 0, px, 1, 0, 0, animate: false, draw: false);
+        Compact(new Pass(dl, th, 0, px, 1, 0, Draw: false), m, 0, 0);
 
     /// <summary>level 0: everything; 1: no branch; 2: the single most important glyph.</summary>
-    private static float Compact(DrawList dl, Theme th, RepoBadgeModel m, float x, float baseline, float px, float a, int level, long now, bool animate, bool draw)
+    private static float Compact(in Pass p, RepoBadgeModel m, float x, int level)
     {
+        var th = p.Th;
         float start = x, gap = th.S(6);
-        float small = px * 0.92f;
+        var small = p with { Px = p.Px * 0.92f };
         if (m.WouldConflict)
         {
-            x += Piece(dl, Icons.Warning, "", th.Danger, x, baseline, small, a, draw);
+            x += Piece(in small, Icons.Warning, "", th.Danger, x);
             if (level == 2) return x - start;
             x += gap;
         }
-        if (level == 2) return CompactSingleGlyph(dl, th, m, x, baseline, px, a, now, animate, draw);
-        x = CompactCounts(dl, th, m, x, baseline, small, a, gap, branch: level == 0, draw, out bool any);
+        if (level == 2) return CompactSingleGlyph(in p, m, x);
+        x = CompactCounts(in small, m, x, gap, branch: level == 0, out bool any);
         if (m.PrText is not null || m.Checks != CheckState.None)
         {
             if (any) x += gap + th.S(2);
-            x += Checks(dl, th, m, x, baseline, px, a, now, animate, draw);
+            x += Checks(in p, m, x);
         }
         return x - start;
     }
 
     /// <summary>Level 2's one glyph: the checks if there are any, else the changes, else the branch icon.</summary>
-    private static float CompactSingleGlyph(DrawList dl, Theme th, RepoBadgeModel m, float x, float baseline, float px, float a, long now, bool animate, bool draw)
+    private static float CompactSingleGlyph(in Pass p, RepoBadgeModel m, float x)
     {
-        if (m.PrText is not null || m.Checks != CheckState.None) return Checks(dl, th, m, x, baseline, px, a, now, animate, draw);
-        if (m.DirtyText is not null) return Dirty(dl, th, m, x, baseline, px * 0.92f, a, draw);
-        return draw ? dl.Glyph(BranchIcon, x, baseline, px, th.Muted, a) : dl.Measure("", px);
+        if (m.PrText is not null || m.Checks != CheckState.None) return Checks(in p, m, x);
+        if (m.DirtyText is not null) return Dirty(p with { Px = p.Px * 0.92f }, m, x);
+        return p.Draw ? p.Dl.Glyph(BranchIcon, x, p.Baseline, p.Px, p.Th.Muted, p.Alpha) : p.Dl.Measure("", p.Px);
     }
 
-    /// <summary>The branch (when asked for), ahead/behind and the changes. Returns the pen; <paramref name="any"/> says whether something was added.</summary>
-    private static float CompactCounts(DrawList dl, Theme th, RepoBadgeModel m, float x, float baseline, float small, float a, float gap, bool branch, bool draw, out bool any)
+    /// <summary>The branch (when asked for), ahead/behind and the changes, at <paramref name="p"/>'s (small) size. Returns the pen; <paramref name="any"/> says whether something was added.</summary>
+    private static float CompactCounts(in Pass p, RepoBadgeModel m, float x, float gap, bool branch, out bool any)
     {
+        var th = p.Th;
         any = false;
         if (branch)
         {
-            x += Piece(dl, BranchIcon, m.BranchShort, Colors.Mix(th.PanelFg, th.Muted, 0.35f), x, baseline, small, a, draw, th.Muted, th.S(3));
+            x += Piece(in p, BranchIcon, m.BranchShort, Colors.Mix(th.PanelFg, th.Muted, 0.35f), x, th.Muted, th.S(3));
             any = true;
         }
         if (m.AheadText is not null || m.BehindText is not null)
         {
             if (any) x += gap;
-            x = AheadBehind(dl, th, m, x, baseline, small, a, draw);
+            x = AheadBehind(in p, m, x);
             any = true;
         }
         if (m.DirtyText is not null)
         {
             if (any) x += gap;
-            x += Dirty(dl, th, m, x, baseline, small, a, draw);
+            x += Dirty(in p, m, x);
             any = true;
         }
         return x;
     }
 
     /// <summary>"↑1 ↓2"; returns the pen after it.</summary>
-    private static float AheadBehind(DrawList dl, Theme th, RepoBadgeModel m, float x, float baseline, float small, float a, bool draw)
+    private static float AheadBehind(in Pass p, RepoBadgeModel m, float x)
     {
-        if (m.AheadText is not null) x += Piece(dl, 0, m.AheadText, th.Accent, x, baseline, small, a, draw);
-        if (m.BehindText is not null) x += (m.AheadText is not null ? th.S(2) : 0) + Piece(dl, 0, m.BehindText, th.Accent, x + (m.AheadText is not null ? th.S(2) : 0), baseline, small, a, draw);
+        var th = p.Th;
+        if (m.AheadText is not null) x += Piece(in p, 0, m.AheadText, th.Accent, x);
+        if (m.BehindText is not null) x += (m.AheadText is not null ? th.S(2) : 0) + Piece(in p, 0, m.BehindText, th.Accent, x + (m.AheadText is not null ? th.S(2) : 0));
         return x;
     }
 
     /// <summary>The dot and the count of changed files.</summary>
-    private static float Dirty(DrawList dl, Theme th, RepoBadgeModel m, float x, float baseline, float px, float a, bool draw) =>
-        Piece(dl, ChangesDot, m.DirtyText!, m.Conflicted ? th.Danger : th.Warning, x, baseline, px, a, draw, iconGap: th.S(3));
+    private static float Dirty(in Pass p, RepoBadgeModel m, float x) =>
+        Piece(in p, ChangesDot, m.DirtyText!, m.Conflicted ? p.Th.Danger : p.Th.Warning, x, iconGap: p.Th.S(3));
 
     /// <summary>"#42 ✓" (or just the checks state when there's no PR).</summary>
-    private static float Checks(DrawList dl, Theme th, RepoBadgeModel m, float x, float baseline, float px, float a, long now, bool animate, bool draw)
+    private static float Checks(in Pass p, RepoBadgeModel m, float x)
     {
+        var th = p.Th;
         float start = x;
-        float small = px * 0.92f;
         if (m.PrText is not null)
         {
             uint prColor = m.Draft ? th.Muted : Colors.Mix(th.PanelFg, th.Accent, 0.35f);
-            x += Piece(dl, PullRequestIcon, m.PrText, prColor, x, baseline, small, a, draw, th.Accent, th.S(2));
+            x += Piece(p with { Px = p.Px * 0.92f }, PullRequestIcon, m.PrText, prColor, x, th.Accent, th.S(2));
             if (m.Checks != CheckState.None) x += th.S(4);
         }
-        x += CheckGlyph(dl, th, m.Checks, x, baseline, px, a, now, animate, draw);
+        x += CheckGlyph(in p, m.Checks, x);
         return x - start;
     }
 
-    private static float CheckGlyph(DrawList dl, Theme th, CheckState state, float x, float baseline, float px, float a, long now, bool animate, bool draw)
+    private static float CheckGlyph(in Pass p, CheckState state, float x)
     {
+        DrawList dl = p.Dl;
+        Theme th = p.Th;
+        float px = p.Px;
         switch (state)
         {
-            case CheckState.Pass: return draw ? dl.Glyph(PassIcon, x, baseline, px * 0.95f, th.Success, a) : dl.Atlas.Get(PassIcon, FontStyle.Regular, px * 0.95f).Advance;
-            case CheckState.Fail: return draw ? dl.Glyph(FailIcon, x, baseline, px * 0.95f, th.Danger, a) : dl.Atlas.Get(FailIcon, FontStyle.Regular, px * 0.95f).Advance;
+            case CheckState.Pass: return p.Draw ? dl.Glyph(PassIcon, x, p.Baseline, px * 0.95f, th.Success, p.Alpha) : dl.Atlas.Get(PassIcon, FontStyle.Regular, px * 0.95f).Advance;
+            case CheckState.Fail: return p.Draw ? dl.Glyph(FailIcon, x, p.Baseline, px * 0.95f, th.Danger, p.Alpha) : dl.Atlas.Get(FailIcon, FontStyle.Regular, px * 0.95f).Advance;
             case CheckState.Pending:
                 float size = MathF.Round(px * 0.9f);
-                if (draw)
+                if (p.Draw)
                 {
                     var m = dl.MetricsFor(px);
-                    float cy = baseline - m.Ascender + m.Height / 2;
-                    Spinner(dl, x + size / 2, cy, size / 2, th.Warning, a, animate ? now : 0);
+                    float cy = p.Baseline - m.Ascender + m.Height / 2;
+                    Spinner(dl, x + size / 2, cy, size / 2, th.Warning, p.Alpha, p.Spin);
                 }
                 return size + th.S(1);
             default: return 0;
@@ -165,16 +184,17 @@ internal static class RepoBadge
     }
 
     /// <summary>An optional icon then text; returns the advance.</summary>
-    private static float Piece(DrawList dl, int icon, string text, uint rgb, float x, float baseline, float px, float a, bool draw, uint iconRgb = 0, float iconGap = 0)
+    private static float Piece(in Pass p, int icon, string text, uint rgb, float x, uint iconRgb = 0, float iconGap = 0)
     {
+        DrawList dl = p.Dl;
         float start = x;
         if (icon != 0)
         {
             uint glyphRgb = iconRgb == 0 ? rgb : iconRgb;
-            float adv = draw ? dl.Glyph(icon, x, baseline, px, glyphRgb, a) : dl.Atlas.Get(icon, FontStyle.Regular, px).Advance;
+            float adv = p.Draw ? dl.Glyph(icon, x, p.Baseline, p.Px, glyphRgb, p.Alpha) : dl.Atlas.Get(icon, FontStyle.Regular, p.Px).Advance;
             x += adv + iconGap;
         }
-        x += draw ? dl.Text(text, x, baseline, px, rgb, a) : dl.Measure(text, px);
+        x += p.Draw ? dl.Text(text, x, p.Baseline, p.Px, rgb, p.Alpha) : dl.Measure(text, p.Px);
         return x - start;
     }
 
@@ -184,17 +204,17 @@ internal static class RepoBadge
     public static float PillHeight(Theme th) => MathF.Round(th.UiPx * 0.82f * 2.0f);
 
     /// <summary>
-    /// The full badge as a floating pill whose right edge is <paramref name="right"/> and top is <paramref name="top"/>.
-    /// Returns its width (0 when nothing to show or it doesn't fit in <paramref name="maxWidth"/>).
+    /// The full badge as a floating pill at <paramref name="at"/> (its right edge and top); <paramref name="spin"/> is the
+    /// spinner's clock (0 = still). Returns its width (0 when nothing to show or it doesn't fit in the anchor's MaxWidth).
     /// </summary>
-    public static float DrawPill(DrawList dl, Theme th, RepoBadgeModel m, float right, float top, float maxWidth, float a, long now, bool animate)
+    public static float DrawPill(DrawList dl, Theme th, RepoBadgeModel m, in PillAnchor at, float a, long spin)
     {
         float px = th.UiPx * 0.82f;
         float h = PillHeight(th), padX = th.S(10);
-        float content = Full(dl, th, m, 0, 0, px, a, now, animate, draw: false);
+        float content = Full(new Pass(dl, th, 0, px, a, spin, Draw: false), m, 0);
         float w = MathF.Round(content + padX * 2);
-        if (w > maxWidth || a <= 0.001f) return w > maxWidth ? 0 : w;
-        var r = new RectF(MathF.Round(right - w), MathF.Round(top), w, h);
+        if (w > at.MaxWidth || a <= 0.001f) return w > at.MaxWidth ? 0 : w;
+        var r = new RectF(MathF.Round(at.Right - w), MathF.Round(at.Top), w, h);
         dl.Shadow(r.Offset(0, th.S(4)), h / 2, th.S(12), 0.40f * a);
         uint border = m.Checks switch
         {
@@ -203,32 +223,32 @@ internal static class RepoBadge
             _ => Colors.Mix(th.PanelBg, th.PanelFg, 0.16f),
         };
         dl.Panel(r, h / 2, th.PanelBg, 0.94f * a, border, a, MathF.Max(1, th.S(1)));
-        Full(dl, th, m, r.X + padX, Widgets.Baseline(dl, px, r.Y, h), px, a, now, animate, draw: true);
+        Full(new Pass(dl, th, Widgets.Baseline(dl, px, r.Y, h), px, a, spin, Draw: true), m, r.X + padX);
         return w;
     }
 
     /// <summary>Lays the pill's short colored texts out in groups: a wider gap before a group's first text, a tight one inside it.</summary>
     private struct PillPen
     {
-        public DrawList Dl;
-        public Theme Th;
-        public float X, Baseline, Px, Alpha, Gap, Tight;
-        public bool Draw, First;
+        public Pass Pass;
+        public float X, Gap, Tight;
+        public bool First;
 
         public void Add(string? text, uint rgb, int icon = 0)
         {
             if (text is null) return;
             X += First ? Gap : Tight;
-            X += Piece(Dl, icon, text, rgb, X, Baseline, Px, Alpha, Draw, iconGap: icon != 0 ? Th.S(3) : 0);
+            X += Piece(in Pass, icon, text, rgb, X, iconGap: icon != 0 ? Pass.Th.S(3) : 0);
             First = false;
         }
     }
 
-    private static float Full(DrawList dl, Theme th, RepoBadgeModel m, float x, float baseline, float px, float a, long now, bool animate, bool draw)
+    private static float Full(in Pass p, RepoBadgeModel m, float x)
     {
+        var th = p.Th;
         float start = x, gap = th.S(8);
-        x += Piece(dl, m.Detached ? CommitIcon : BranchIcon, m.Branch.Length > 40 ? m.BranchShort : m.Branch, th.PanelFg, x, baseline, px, a, draw, th.Accent, th.S(4));
-        var pen = new PillPen { Dl = dl, Th = th, X = x, Baseline = baseline, Px = px, Alpha = a, Gap = gap, Tight = th.S(4), Draw = draw, First = true };
+        x += Piece(in p, m.Detached ? CommitIcon : BranchIcon, m.Branch.Length > 40 ? m.BranchShort : m.Branch, th.PanelFg, x, th.Accent, th.S(4));
+        var pen = new PillPen { Pass = p, X = x, Gap = gap, Tight = th.S(4), First = true };
         pen.Add(m.AheadText, th.Accent);
         pen.Add(m.BehindText, th.Accent);
         pen.First = true;
@@ -240,10 +260,10 @@ internal static class RepoBadge
         if (m.PrText is not null || m.Checks != CheckState.None)
         {
             x += gap;
-            if (draw) dl.Rect(new RectF(MathF.Round(x - gap / 2), baseline - px * 0.75f, MathF.Max(1, th.S(1)), px * 0.85f), th.Border, a);
+            if (p.Draw) p.Dl.Rect(new RectF(MathF.Round(x - gap / 2), p.Baseline - p.Px * 0.75f, MathF.Max(1, th.S(1)), p.Px * 0.85f), th.Border, p.Alpha);
             x += th.S(2);
-            x += Checks(dl, th, m, x, baseline, px, a, now, animate, draw);
-            if (m.Draft) x += gap + Piece(dl, 0, "draft", th.Muted, x + gap, baseline, px * 0.92f, a, draw);
+            x += Checks(in p, m, x);
+            if (m.Draft) x += gap + Piece(p with { Px = p.Px * 0.92f }, 0, "draft", th.Muted, x + gap);
         }
         return x - start;
     }

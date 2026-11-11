@@ -232,7 +232,7 @@ public static class AgentSignals
         bool space = false;
         foreach (char c in s)
         {
-            if (c is >= '‪' and <= '‮' or >= '⁦' and <= '⁩' or '‎' or '‏' or '؜') continue;
+            if (c is >= '\u202a' and <= '\u202e' or >= '\u2066' and <= '\u2069' or '\u200e' or '\u200f' or '\u061c') continue;
             bool ws = char.IsControl(c) || char.IsWhiteSpace(c);
             if (ws) { space = sb.Length > 0; continue; }
             if (space) { sb.Append(' '); space = false; }

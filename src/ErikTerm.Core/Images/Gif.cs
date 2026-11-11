@@ -53,6 +53,9 @@ public static class Gif
 
     private readonly record struct Frame(int X, int Y, int Width, int Height, bool Interlaced);
 
+    /// <summary>The RGBA canvas of the logical screen the frame is painted onto.</summary>
+    private readonly record struct Canvas(byte[] Rgba, int Width, int Height);
+
     /// <summary>Decodes the frame whose descriptor starts at <paramref name="pos"/> onto a canvas of the logical screen size.</summary>
     private static DecodedImage DecodeFrame(ReadOnlySpan<byte> d, int pos, int sw, int sh, byte[]? global, int transparent)
     {
@@ -72,7 +75,7 @@ public static class Gif
 
         var indices = Lzw(GatherSubBlocks(d, pos), minCode, fw * fh);
         var rgba = new byte[sw * sh * 4];
-        PaintFrame(indices, new Frame(fx, fy, fw, fh, (f & 0x40) != 0), table, transparent, rgba, sw, sh);
+        PaintFrame(indices, new Frame(fx, fy, fw, fh, (f & 0x40) != 0), table, transparent, new Canvas(rgba, sw, sh));
         return new DecodedImage(sw, sh, rgba);
     }
 
@@ -91,20 +94,22 @@ public static class Gif
     }
 
     /// <summary>Writes the frame's indices row by row, in interlace order if the frame is interlaced.</summary>
-    private static void PaintFrame(byte[] indices, Frame frame, byte[] table, int transparent, byte[] rgba, int sw, int sh)
+    private static void PaintFrame(byte[] indices, Frame frame, byte[] table, int transparent, in Canvas canvas)
     {
         int k = 0;
         for (int pass = 0, row = 0; k < indices.Length && row < frame.Height;)
         {
-            k = PaintRow(indices, k, frame, row, table, transparent, rgba, sw, sh);
+            k = PaintRow(indices, k, frame, row, table, transparent, canvas);
             if (!frame.Interlaced) row++;
             else if (!NextInterlacedRow(ref row, ref pass, frame.Height)) break;
         }
     }
 
     /// <summary>Paints one row of the frame starting at index <paramref name="k"/>; returns the next index.</summary>
-    private static int PaintRow(byte[] indices, int k, Frame frame, int y, byte[] table, int transparent, byte[] rgba, int sw, int sh)
+    private static int PaintRow(byte[] indices, int k, Frame frame, int y, byte[] table, int transparent, in Canvas canvas)
     {
+        byte[] rgba = canvas.Rgba;
+        int sw = canvas.Width, sh = canvas.Height;
         for (int x = 0; x < frame.Width && k < indices.Length; x++, k++)
         {
             int ci = indices[k];

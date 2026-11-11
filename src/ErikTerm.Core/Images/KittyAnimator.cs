@@ -9,6 +9,8 @@ namespace ErikTerm.Core.Images;
 /// </summary>
 internal sealed class KittyAnimator(ImageStore images)
 {
+    private const string NoSuchFrame = "ENOENT:no such frame";
+
     private readonly ImageStore _images = images;
 
     /// <summary>a=f: frame data (decoded), composed onto a new frame (base frame c= or color Y=) or onto frame r=.</summary>
@@ -19,7 +21,8 @@ internal sealed class KittyAnimator(ImageStore images)
         bool isNew = c.Rows <= 0;
         string? err = isNew ? KittyNewFrameTarget(c, anim, w, h, out var target) : KittyExistingFrame(c, anim, out target);
         if (err is not null) return err;
-        Composite(data.Rgba, data.Width, 0, 0, target, w, h, c.X, c.Y, data.Width, data.Height, overwrite: c.CellX == 1);
+        Composite(new RgbaPixels(data.Rgba, data.Width, data.Height), new RgbaPixels(target, w, h),
+            new CompositeArea(0, 0, c.X, c.Y, data.Width, data.Height), overwrite: c.CellX == 1);
 
         if (isNew)
         {
@@ -39,7 +42,7 @@ internal sealed class KittyAnimator(ImageStore images)
     private static string? KittyExistingFrame(KittyCommand c, ImageAnimation anim, out byte[] target)
     {
         target = [];
-        if (c.Rows > anim.FrameCount || anim.Frame(c.Rows - 1) is not { } existing) return "ENOENT:no such frame";
+        if (c.Rows > anim.FrameCount || anim.Frame(c.Rows - 1) is not { } existing) return NoSuchFrame;
         target = existing;
         return null;
     }
@@ -73,13 +76,13 @@ internal sealed class KittyAnimator(ImageStore images)
         long now = _images.Clock();
         if (c.Rows > 0)
         {
-            if (c.Rows > anim.FrameCount) return "ENOENT:no such frame";
+            if (c.Rows > anim.FrameCount) return NoSuchFrame;
             if (c.Z != 0) anim.SetGap(c.Rows - 1, c.Z);
         }
         if (c.Height > 0) anim.SetLoops(c.Height);
         if (c.Columns > 0)
         {
-            if (c.Columns > anim.FrameCount) return "ENOENT:no such frame";
+            if (c.Columns > anim.FrameCount) return NoSuchFrame;
             anim.SetCurrent(c.Columns - 1, now);
         }
         if (c.Width is >= 1 and <= 3) anim.SetState((ImageAnimation.PlayState)c.Width, now);
@@ -92,7 +95,7 @@ internal sealed class KittyAnimator(ImageStore images)
     {
         var anim = image.Animate();
         int w = image.Width, h = image.Height;
-        if (c.Rows <= 0 || c.Rows > anim.FrameCount || c.Columns <= 0 || c.Columns > anim.FrameCount) return "ENOENT:no such frame";
+        if (c.Rows <= 0 || c.Rows > anim.FrameCount || c.Columns <= 0 || c.Columns > anim.FrameCount) return NoSuchFrame;
         int rw = c.W > 0 ? c.W : w, rh = c.H > 0 ? c.H : h;
         int sx = c.CellX, sy = c.CellY, dx = c.X, dy = c.Y;
         if (sx < 0 || sy < 0 || dx < 0 || dy < 0 || (long)sx + rw > w || (long)sy + rh > h || (long)dx + rw > w || (long)dy + rh > h)
@@ -101,20 +104,27 @@ internal sealed class KittyAnimator(ImageStore images)
             return "EINVAL:source and destination rectangles overlap";
         var src = anim.Frame(c.Rows - 1);
         var dst = anim.Frame(c.Columns - 1);
-        if (src is null || dst is null) return "ENOENT:no such frame";
-        Composite(src, w, sx, sy, dst, w, h, dx, dy, rw, rh, overwrite: c.Cursor == 1);
+        if (src is null || dst is null) return NoSuchFrame;
+        Composite(new RgbaPixels(src, w, h), new RgbaPixels(dst, w, h), new CompositeArea(sx, sy, dx, dy, rw, rh), overwrite: c.Cursor == 1);
         anim.Touched();
         _images.Changed();
         return null;
     }
 
+    /// <summary>An RGBA buffer, <see cref="Width"/> pixels a row.</summary>
+    internal readonly record struct RgbaPixels(byte[] Pixels, int Width, int Height);
+
+    /// <summary>A <see cref="W"/>×<see cref="H"/> rectangle copied from (SrcX, SrcY) to (DstX, DstY).</summary>
+    internal readonly record struct CompositeArea(int SrcX, int SrcY, int DstX, int DstY, int W, int H);
+
     /// <summary>
-    /// Draws the <paramref name="rw"/>×<paramref name="rh"/> rectangle at (<paramref name="sx"/>, <paramref name="sy"/>) of an
-    /// RGBA buffer <paramref name="srcStride"/> pixels wide onto <paramref name="dst"/> at (<paramref name="dx"/>, <paramref name="dy"/>),
-    /// clipped; straight-alpha "over" unless <paramref name="overwrite"/>.
+    /// Draws the <paramref name="area"/> rectangle of <paramref name="src"/> onto <paramref name="dst"/>, clipped to
+    /// <paramref name="dst"/>; straight-alpha "over" unless <paramref name="overwrite"/>.
     /// </summary>
-    internal static void Composite(byte[] src, int srcStride, int sx, int sy, byte[] dst, int dw, int dh, int dx, int dy, int rw, int rh, bool overwrite)
+    internal static void Composite(in RgbaPixels src, in RgbaPixels dst, CompositeArea area, bool overwrite)
     {
+        int sx = area.SrcX, sy = area.SrcY, dx = area.DstX, dy = area.DstY, rw = area.W, rh = area.H;
+        int srcStride = src.Width, dw = dst.Width, dh = dst.Height;
         if (dx < 0) { sx -= dx; rw += dx; dx = 0; }
         if (dy < 0) { sy -= dy; rh += dy; dy = 0; }
         rw = Math.Min(rw, dw - dx);
@@ -123,9 +133,9 @@ internal sealed class KittyAnimator(ImageStore images)
         for (int y = 0; y < rh; y++)
         {
             int so = ((sy + y) * srcStride + sx) * 4, d = ((dy + y) * dw + dx) * 4;
-            if (so < 0 || so + rw * 4 > src.Length) break;
-            if (overwrite) Array.Copy(src, so, dst, d, rw * 4);
-            else BlendRow(src, so, dst, d, rw);
+            if (so < 0 || so + rw * 4 > src.Pixels.Length) break;
+            if (overwrite) Array.Copy(src.Pixels, so, dst.Pixels, d, rw * 4);
+            else BlendRow(src.Pixels, so, dst.Pixels, d, rw);
         }
     }
 

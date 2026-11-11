@@ -30,7 +30,8 @@ internal static class ProgressBar
         return Ease.InOutCubic(t < 0.5f ? t * 2 : 2 - t * 2);
     }
 
-    public static void Draw(DrawList dl, Theme th, RectF track, ProgressReport p, float alpha, long now, bool animate, uint? accent = null)
+    /// <summary>The bar in <paramref name="track"/>; an indeterminate one has its segment at <paramref name="sweep"/> (<see cref="Sweep"/>).</summary>
+    public static void Draw(DrawList dl, Theme th, RectF track, ProgressReport p, float alpha, float sweep, uint? accent = null)
     {
         if (!p.IsActive || alpha <= 0.002f || track.W < 4 || track.H <= 0) return;
         float radius = track.H / 2;
@@ -39,7 +40,7 @@ internal static class ProgressBar
         if (p.State == ProgressState.Indeterminate)
         {
             float seg = MathF.Round(MathF.Max(track.H * 2, track.W * 0.3f));
-            float x = track.X + (track.W - seg) * Sweep(now, animate);
+            float x = track.X + (track.W - seg) * sweep;
             dl.RoundRect(new RectF(MathF.Round(x), track.Y, seg, track.H), radius, c, 0.95f * alpha);
             return;
         }

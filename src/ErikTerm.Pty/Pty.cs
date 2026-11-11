@@ -114,28 +114,22 @@ public sealed class Pty : IDisposable
 #pragma warning restore S6640
     {
         if (OperatingSystem.IsWindows()) return "not supported on Windows";
-        var allocations = new List<nint>();
+        var strings = new NativeUtf8Strings();
         byte** args = (byte**)NativeMemory.AllocZeroed((nuint)(argv.Count + 1), (nuint)sizeof(nint));
         byte** envp = (byte**)NativeMemory.AllocZeroed((nuint)(environment.Count + 1), (nuint)sizeof(nint));
         try
         {
-            byte* Utf8(string s)
-            {
-                nint p = Marshal.StringToCoTaskMemUTF8(s);
-                allocations.Add(p);
-                return (byte*)p;
-            }
-            for (int i = 0; i < argv.Count; i++) args[i] = Utf8(argv[i]);
+            for (int i = 0; i < argv.Count; i++) args[i] = strings.Add(argv[i]);
             int n = 0;
-            foreach (var (k, v) in environment) envp[n++] = Utf8(k + "=" + v);
-            Native.execve(Utf8(path), args, envp);
+            foreach (var (k, v) in environment) envp[n++] = strings.Add(k + "=" + v);
+            Native.execve(strings.Add(path), args, envp);
             return Marshal.GetPInvokeErrorMessage(Marshal.GetLastPInvokeError());
         }
         finally
         {
             NativeMemory.Free(args);
             NativeMemory.Free(envp);
-            foreach (var p in allocations) Marshal.FreeCoTaskMem(p);
+            strings.Dispose();
         }
     }
 

@@ -284,7 +284,7 @@ internal sealed class TabSwitcherOverlay
             float b = Widgets.Baseline(dl, px, list.Y, rowH * 2);
             dl.Text(msg, list.X + (list.W - dl.Measure(msg, px)) / 2, b, px, th.Muted, v);
         }
-        else DrawRows(dl, th, list, rowH, padX, px, matches, now, v);
+        else DrawRows(dl, th, list, rowH, matches, new RowStyle(padX, px, v, now));
         dl.PopClip();
         if (matches.Count > rows) DrawScrollThumb(dl, th, list, matches.Count, rows, now, v);
 
@@ -308,8 +308,16 @@ internal sealed class TabSwitcherOverlay
         dl.Text(count, panel.Right - padX - countW, baseline, px * 0.82f, th.Muted, v * 0.9f);
     }
 
-    private void DrawRows(DrawList dl, Theme th, RectF list, float rowH, float padX, float px, IReadOnlyList<TabSwitcherMatch> matches, long now, float v)
+    /// <summary>How the list's rows draw: inset <see cref="PadX"/>, text at <see cref="Px"/>, faded to <see cref="Alpha"/>, animated at <see cref="Now"/>.</summary>
+    private readonly record struct RowStyle(float PadX, float Px, float Alpha, long Now);
+
+    /// <summary>One row's text line: <see cref="RowStyle"/>'s size, opacity and clock, on the row's baseline.</summary>
+    private readonly record struct RowLine(float Baseline, float Px, float Alpha, long Now);
+
+    private void DrawRows(DrawList dl, Theme th, RectF list, float rowH, IReadOnlyList<TabSwitcherMatch> matches, in RowStyle s)
     {
+        long now = s.Now;
+        float v = s.Alpha;
         float scroll = _scroll.Value(now);
         float hy = list.Y + (_highlight.Value(now) - scroll) * rowH;
         var highlight = new RectF(list.X + th.S(6), hy + th.S(2), list.W - th.S(12), rowH - th.S(4));
@@ -323,13 +331,16 @@ internal sealed class TabSwitcherOverlay
             if (!_rows.TryGetValue(match.Entry.Id, out var row)) continue;
             float top = list.Y + (i - scroll) * rowH;
             bool selected = i == _model.SelectedIndex;
-            DrawRow(dl, th, row, match, new RectF(list.X, top, list.W, rowH), padX, px, selected, now, v);
+            DrawRow(dl, th, row, match, new RectF(list.X, top, list.W, rowH), selected, in s);
         }
     }
 
-    private void DrawRow(DrawList dl, Theme th, Row row, TabSwitcherMatch match, RectF rect, float padX, float px, bool selected, long now, float v)
+    private void DrawRow(DrawList dl, Theme th, Row row, TabSwitcherMatch match, RectF rect, bool selected, in RowStyle s)
     {
+        float padX = s.PadX, px = s.Px, v = s.Alpha;
+        long now = s.Now;
         float baseline = Widgets.Baseline(dl, px, rect.Y, rect.H);
+        var line = new RowLine(baseline, px, v, now);
         float cx = rect.X + padX;
 
         // Tab color: a small pill in the tab's color, the accent when none is set.
@@ -342,54 +353,55 @@ internal sealed class TabSwitcherOverlay
         dl.Text(row.Number, cx, baseline, px * 0.92f, numberRgb, v, FontStyle.Bold);
         cx += numberSlot;
 
-        if (row.Container) cx += ContainerIcon.Draw(dl, th, cx, baseline, px, selected ? 1 : 0, 0, v) + th.S(7);
+        if (row.Container) cx += ContainerIcon.Draw(dl, th, cx, baseline, px, selected ? 1 : 0, v) + th.S(7);
         float titleRoom = rect.Right - padX - RightColumnsWidth(dl, th, row, px) - cx;
         string title = dl.Ellipsize(row.Title, px, MathF.Max(th.S(40), titleRoom));
         float titleDim = selected ? 0 : 0.2f;
         uint titleRgb = row.Active ? th.PanelFg : Colors.Mix(th.PanelFg, th.Muted, titleDim);
         var highlight = ReferenceEquals(title, row.Title) && match.Positions.Count > 0 ? match.Positions : null;
-        float titleW = dl.Text(title, cx, baseline, px, titleRgb, v, row.Active ? FontStyle.Bold : FontStyle.Regular, highlight, th.Accent);
+        float titleW = dl.Text(title, cx, baseline, px, titleRgb, v, new TextHighlight(row.Active ? FontStyle.Bold : FontStyle.Regular, highlight, th.Accent));
         cx += titleW + th.S(12);
 
         // Right to left: unread marker, agent state, repo badge.
         float right = rect.Right - padX;
-        right -= DrawMarker(dl, th, row, right, rect, px, baseline, v);
-        right -= DrawAgent(dl, th, row, right, rect, px, baseline, now, v);
-        if (row.Badge is { } badge) DrawBadge(dl, th, badge, row.Title, cx, right - th.S(10), baseline, px, now, v);
+        right -= DrawMarker(dl, th, row, right, rect, in line);
+        right -= DrawAgent(dl, th, row, right, rect, in line);
+        if (row.Badge is { } badge) DrawBadge(dl, th, badge, row.Title, cx, right - th.S(10), in line);
 
         if (row.Progress.IsActive)
         {
             float h = MathF.Max(1, MathF.Round(th.S(2)));
             var track = new RectF(rect.X + padX + barW + th.S(10), rect.Bottom - h - th.S(3), rect.W - 2 * padX - barW - th.S(10), h);
-            ProgressBar.Draw(dl, th, track, row.Progress, v, now, AnimateProgress, row.Color);
+            ProgressBar.Draw(dl, th, track, row.Progress, v, ProgressBar.Sweep(now, AnimateProgress), row.Color);
         }
     }
 
     /// <summary>The repo badge, right-aligned at <paramref name="right"/>, and the repo's name left of it (from <paramref name="left"/>) when there is room.</summary>
-    private static void DrawBadge(DrawList dl, Theme th, RepoBadgeModel badge, string title, float left, float right, float baseline, float px, long now, float v)
+    private static void DrawBadge(DrawList dl, Theme th, RepoBadgeModel badge, string title, float left, float right, in RowLine line)
     {
         float maxW = right - left;
         if (maxW <= th.S(16)) return;
-        float bw = RepoBadge.DrawCompact(dl, th, badge, right, baseline, px * 0.9f, v * 0.9f, maxW, now, animate: true);
+        float bw = RepoBadge.DrawCompact(dl, th, badge, right, maxW, new RepoBadge.BadgeInk(line.Baseline, line.Px * 0.9f, line.Alpha * 0.9f, line.Now));
         string repo = string.Equals(badge.RepoName, title, StringComparison.OrdinalIgnoreCase) ? "" : badge.RepoName; // the title says it already
-        DrawRepoName(dl, th, repo, left, right - bw - (bw > 0 ? th.S(10) : 0), baseline, px, v);
+        DrawRepoName(dl, th, repo, left, right - bw - (bw > 0 ? th.S(10) : 0), in line);
     }
 
     /// <summary>The repository's name, muted, ending at <paramref name="right"/>: in what room the badge left.</summary>
-    private static void DrawRepoName(DrawList dl, Theme th, string repo, float left, float right, float baseline, float px, float v)
+    private static void DrawRepoName(DrawList dl, Theme th, string repo, float left, float right, in RowLine line)
     {
         if (repo.Length == 0 || right - left < th.S(28)) return;
-        float small = px * 0.82f;
+        float small = line.Px * 0.82f;
         string name = dl.Ellipsize(repo, small, right - left);
-        dl.Text(name, right - dl.Measure(name, small), baseline, small, th.Muted, v * 0.9f);
+        dl.Text(name, right - dl.Measure(name, small), line.Baseline, small, th.Muted, line.Alpha * 0.9f);
     }
 
-    private static float DrawMarker(DrawList dl, Theme th, Row row, float right, RectF rect, float px, float baseline, float v)
+    private static float DrawMarker(DrawList dl, Theme th, Row row, float right, RectF rect, in RowLine line)
     {
+        float px = line.Px, v = line.Alpha;
         if (row.Unread)
         {
             float w = dl.Atlas.Get(Icons.BellDot, FontStyle.Regular, px).Advance;
-            dl.Glyph(Icons.BellDot, right - w, baseline, px, th.Danger, v);
+            dl.Glyph(Icons.BellDot, right - w, line.Baseline, px, th.Danger, v);
             return w + th.S(8);
         }
         if (row.Activity && !row.Active)
@@ -401,15 +413,15 @@ internal sealed class TabSwitcherOverlay
         return 0;
     }
 
-    private static float DrawAgent(DrawList dl, Theme th, Row row, float right, RectF rect, float px, float baseline, long now, float v)
+    private static float DrawAgent(DrawList dl, Theme th, Row row, float right, RectF rect, in RowLine line)
     {
         if (row.Agent == AgentState.None) return 0;
-        float small = px * 0.82f;
+        float small = line.Px * 0.82f;
         string word = AgentStateText.Word(row.Agent);
         float w = dl.Measure(word, small);
-        dl.Text(word, right - w, baseline, small, row.Agent == AgentState.Waiting ? th.Danger : th.Muted, v);
+        dl.Text(word, right - w, line.Baseline, small, row.Agent == AgentState.Waiting ? th.Danger : th.Muted, line.Alpha);
         float d = MathF.Round(th.S(7));
-        AgentBadge.Dot(dl, th, row.Agent, right - w - th.S(9), rect.Y + rect.H / 2, d, v, now);
+        AgentBadge.Dot(dl, th, row.Agent, new AgentBadge.DotSpot(right - w - th.S(9), rect.Y + rect.H / 2, d), line.Alpha, line.Now);
         return w + th.S(9) + d + th.S(8);
     }
 
@@ -428,38 +440,21 @@ internal sealed class TabSwitcherOverlay
         float y = panel.Bottom - footerH;
         dl.Rect(new RectF(panel.X + th.S(1), y, panel.W - th.S(2), MathF.Max(1, th.S(1))), th.Border, v);
         float baseline = Widgets.Baseline(dl, th.UiPx * 0.82f, y, footerH);
-        float x = panel.X + padX;
+        var hints = new FooterHints(dl, th, panel.X + padX, y + footerH / 2, baseline, v, th.S(16));
         if (_model.Mode == TabSwitcherMode.Hold)
         {
-            x = Hint(dl, th, x, y, footerH, baseline, TabKeys, "move", v);
-            x = Hint(dl, th, x, y, footerH, baseline, ReleaseKeys, "release to switch", v);
+            hints.Add(TabKeys, "move");
+            hints.Add(ReleaseKeys, "release to switch");
         }
         else
         {
-            x = Hint(dl, th, x, y, footerH, baseline, NavKeys, "move", v);
-            x = Hint(dl, th, x, y, footerH, baseline, EnterKeys, "switch", v);
+            hints.Add(NavKeys, "move");
+            hints.Add(EnterKeys, "switch");
         }
-        Hint(dl, th, x, y, footerH, baseline, CancelKeys, "cancel", v);
+        hints.Add(CancelKeys, "cancel");
     }
 
     private static readonly string[] TabKeys = ["Tab"], ReleaseKeys = ["Ctrl"], NavKeys = ["↑", "↓"], EnterKeys = ["↵"], CancelKeys = ["esc"];
-
-    private static float Hint(DrawList dl, Theme th, float x, float top, float h, float baseline, string[] keys, string label, float a)
-    {
-        float keysW = KeysWidth(dl, th, keys);
-        Widgets.Keycaps(dl, th, keys, x + keysW, top + h / 2, a);
-        x += keysW + th.S(6);
-        x += dl.Text(label, x, baseline, th.UiPx * 0.82f, th.Muted, a);
-        return x + th.S(16);
-    }
-
-    private static float KeysWidth(DrawList dl, Theme th, string[] keys)
-    {
-        float px = th.UiPx * 0.78f;
-        float h = MathF.Round(dl.MetricsFor(px).Height + th.S(6)), pad = th.S(5), total = 0;
-        foreach (var k in keys) total += MathF.Max(h, dl.Measure(k, px) + 2 * pad) + th.S(3);
-        return total - th.S(3);
-    }
 
     /// <summary>What the panel needs so every title shows in full, up to what the window can hold.</summary>
     private float NaturalWidth(DrawList dl, Theme th, float px)

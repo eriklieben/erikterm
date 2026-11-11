@@ -82,21 +82,22 @@ internal sealed class PaneRenderer
 
         DrawBackgroundPass(dl, in grid, theme);
 
-        DrawSelection(dl, pane, ox, oy, yFirst, yEnd, cw, ch, theme, appear);
+        DrawSelection(dl, pane, in grid, theme);
         Search?.DrawHighlights(dl, pane, ox, oy, theme, appear);
-        _images.Draw(dl, t, ox, oy, _dim, appear, now, below: true); // kitty z < 0 (ImageRenderer.cs)
+        var frame = new PaneFrame(dl, pane, ox, oy, _dim, _text, appear, now);
+        _images.Draw(in frame, below: true); // kitty z < 0 (ImageRenderer.cs)
 
         uint emojiTint = _dim.Apply(0xFFFFFF); // color glyphs aren't tinted, but inactive panes still dim them
-        DrawForegroundPass(dl, in grid, fonts, theme, emojiTint);
+        DrawForegroundPass(dl, in grid, theme, emojiTint);
         cache.End();
-        DrawSelectedText(dl, pane, ox, oy, yFirst, yEnd, cursorRow, theme, appear, emojiTint);
+        DrawSelectedText(dl, pane, in grid, theme, emojiTint);
 
-        _images.Draw(dl, t, ox, oy, _dim, appear, now, below: false); // images over the text (ImageRenderer.cs)
+        _images.Draw(in frame, below: false); // images over the text (ImageRenderer.cs)
 
         // In vim mode the program's cursor steps back (drawn as when unfocused) for vim's own (VimCursorRenderer.cs).
-        CursorRenderer.Draw(dl, pane, ox, oy, focused && pane.Vim is null, windowFocused, CursorBlinkRate, _dim, appear, now, _text, theme.HarfbuzzFeatures, theme.CursorBorder,
-            CursorBlinkPhase, CursorThicknessPoints, CursorThicknessCells, Scale, CursorHeightEm);
-        if (pane.Vim is not null) VimCursorRenderer.Draw(dl, pane, ox, oy, theme, focused && windowFocused, appear, _dim, _text);
+        CursorRenderer.Draw(in frame, focused && pane.Vim is null, windowFocused, new CursorRenderer.Look(CursorBlinkRate, theme.HarfbuzzFeatures,
+            theme.CursorBorder, CursorBlinkPhase, CursorThicknessPoints, CursorThicknessCells, Scale, CursorHeightEm));
+        if (pane.Vim is not null) VimCursorRenderer.Draw(in frame, theme, focused && windowFocused);
 
         ScrollbarRenderer.Draw(dl, pane, rect, theme, now, Search);
 
@@ -138,7 +139,7 @@ internal sealed class PaneRenderer
             }
             RowsBuilt++;
             int start = dl.QuadCount;
-            BuildBackground(dl, row, grid.Cols, grid.Ox, py, grid.Cw, grid.Ch, grid.Pal, theme);
+            BuildBackground(dl, in grid, row, py, theme);
             e.BgQuads = dl.CopyQuads(start, dl.QuadCount, ref e.Bg);
             e.BuiltX = grid.Ox;
             e.BuiltY = py;
@@ -147,7 +148,7 @@ internal sealed class PaneRenderer
     }
 
     /// <summary>Pass 2: glyphs and decorations of the rows pass 1 marked fresh; the others replay from the cache.</summary>
-    private void DrawForegroundPass(DrawList dl, in GridPass grid, FontSet fonts, Theme theme, uint emojiTint)
+    private void DrawForegroundPass(DrawList dl, in GridPass grid, Theme theme, uint emojiTint)
     {
         var t = grid.Term;
         for (int y = grid.YFirst; y < grid.YEnd; y++)
@@ -162,7 +163,7 @@ internal sealed class PaneRenderer
                 continue;
             }
             int start = dl.QuadCount;
-            BuildForeground(dl, row, grid.Cols, y == grid.CursorRow ? t.CursorX : -1, grid.Ox, py, fonts, grid.Pal, theme, emojiTint);
+            BuildForeground(dl, in grid, row, y == grid.CursorRow ? t.CursorX : -1, py, theme, emojiTint);
             e.FgQuads = dl.CopyQuads(start, dl.QuadCount, ref e.Fg);
             dl.ScaleAlpha(start, dl.QuadCount, grid.Appear);
         }
@@ -171,8 +172,11 @@ internal sealed class PaneRenderer
     private static uint BackgroundOf(in Cell c, Palette pal) =>
         (c.Flags & CellAttributes.Inverse) != 0 ? pal.ResolveForeground(c.Fg, (c.Flags & CellAttributes.Bold) != 0) : pal.ResolveBackground(c.Bg);
 
-    private void BuildBackground(DrawList dl, Row row, int cols, float ox, float py, int cw, int ch, Palette pal, Theme theme)
+    private void BuildBackground(DrawList dl, in GridPass grid, Row row, float py, Theme theme)
     {
+        int cols = grid.Cols, cw = grid.Cw, ch = grid.Ch;
+        float ox = grid.Ox;
+        var pal = grid.Pal;
         var cells = row.Cells;
         int n = Math.Min(cells.Length, cols);
         uint defaultBg = pal.Background;
@@ -206,11 +210,12 @@ internal sealed class PaneRenderer
         return end;
     }
 
-    private void BuildForeground(DrawList dl, Row row, int cols, int cursorCol, float ox, float py, FontSet fonts, Palette pal, Theme theme, uint emojiTint)
+    private void BuildForeground(DrawList dl, in GridPass grid, Row row, int cursorCol, float py, Theme theme, uint emojiTint)
     {
+        var pal = grid.Pal;
+        float ox = grid.Ox;
         var cells = row.Cells;
-        int n = Math.Min(cells.Length, cols);
-        int cw = fonts.CellWidth;
+        int n = Math.Min(cells.Length, grid.Cols);
         _text.BeginRow(dl, theme.HarfbuzzFeatures, row, n, cursorCol);
         for (int x = 0; x < n; x++)
         {
@@ -224,7 +229,7 @@ internal sealed class PaneRenderer
 
             uint fg = ForegroundOf(in c, pal);
             if (hasGlyph) _text.SetColor(x, fg); // shaped and drawn per row by EndRow
-            if (decorated) DrawCellDecorations(dl, row, x, flags, ox + x * cw, py, fonts, pal, fg);
+            if (decorated) DrawCellDecorations(dl, in grid, row, x, flags, py, fg);
         }
         _text.EndRow(dl, ox, py, 1, emojiTint);
     }
@@ -244,37 +249,43 @@ internal sealed class PaneRenderer
         return _dim.Apply(fg);
     }
 
-    private void DrawCellDecorations(DrawList dl, Row row, int x, CellAttributes flags, float px, float py, FontSet fonts, Palette pal, uint fg)
+    /// <summary>The underline, strikethrough and overline of cell <paramref name="x"/> of a row whose top is at <paramref name="py"/>.</summary>
+    private void DrawCellDecorations(DrawList dl, in GridPass grid, Row row, int x, CellAttributes flags, float py, uint fg)
     {
+        float px = grid.Ox + x * grid.Cw;
         int span = (flags & CellAttributes.WideLead) != 0 ? 2 : 1;
         if ((flags & CellAttributes.Underline) != 0)
         {
             // SGR 58: the underline's own color, dimmed like the text in an inactive pane.
             uint ul = row.HasUnderlineColors ? row.UnderlineColorAt(x) : 0;
-            uint uc = ul == 0 ? fg : _dim.Apply(pal.ResolveForeground(ul, bold: false));
-            DrawUnderline(dl, CellStyle.Underline(flags), px, py, fonts.CellWidth, span, fonts, uc, 1);
+            uint uc = ul == 0 ? fg : _dim.Apply(grid.Pal.ResolveForeground(ul, bold: false));
+            DrawUnderline(dl, CellStyle.Underline(flags), px, py, span, uc, 1);
         }
-        DrawStrikeAndOverline(dl, flags, px, py, span, fonts, fg, 1);
+        DrawStrikeAndOverline(dl, flags, px, py, span, fg, 1);
     }
 
-    private static void DrawStrikeAndOverline(DrawList dl, CellAttributes flags, float px, float py, int span, FontSet fonts, uint fg, float a)
+    /// <summary>Strikethrough and overline of <paramref name="span"/> cells at (px, py), in the draw list's grid font.</summary>
+    private static void DrawStrikeAndOverline(DrawList dl, CellAttributes flags, float px, float py, int span, uint fg, float a)
     {
+        var fonts = dl.Fonts;
         int cw = fonts.CellWidth, ch = fonts.CellHeight, thickness = fonts.LineThickness;
         if ((flags & CellAttributes.Strike) != 0) dl.Rect(px, py + ch / 2, px + cw * span, py + ch / 2 + thickness, fg, a);
         if ((flags & CellAttributes.Overline) != 0) dl.Rect(px, py, px + cw * span, py + thickness, fg, a);
     }
 
     /// <summary>The selection, over the backgrounds (it used to replace them; it's opaque, so the result is the same).</summary>
-    private void DrawSelection(DrawList dl, Pane pane, float ox, float oy, int yFirst, int yEnd, int cw, int ch, Theme theme, float appear)
+    private void DrawSelection(DrawList dl, Pane pane, in GridPass grid, Theme theme)
     {
         var t = pane.Term;
         if (pane.Selection?.Range(t) is not var (sl, sc, el, ec)) return;
-        bool block = pane.Selection.Mode == SelectionMode.Block;
+        var range = new SelectedRange(sl, sc, el, ec, pane.Selection.Mode == SelectionMode.Block);
+        float ox = grid.Ox, oy = grid.Oy, appear = grid.Appear;
+        int cw = grid.Cw, ch = grid.Ch;
         long viewTop = t.ViewTopLine;
         uint color = _dim.Apply(theme.Selection);
-        for (int y = yFirst; y < yEnd; y++)
+        for (int y = grid.YFirst; y < grid.YEnd; y++)
         {
-            if (!SelectedSpan(t, viewTop + y, sl, sc, el, ec, out int s, out int e, block)) continue;
+            if (!SelectedSpan(t, viewTop + y, in range, out int s, out int e)) continue;
             float py = oy + y * ch;
             dl.Rect(ox + s * cw, py, ox + (e + 1) * cw, py + ch, color, appear);
         }
@@ -285,49 +296,58 @@ internal sealed class PaneRenderer
     /// in selection_fg (clipped to the selection, shaped like the row). Cached rows stay untouched, so selecting
     /// doesn't rebuild anything; emoji keep their colors.
     /// </summary>
-    private void DrawSelectedText(DrawList dl, Pane pane, float ox, float oy, int yFirst, int yEnd, int cursorRow, Theme theme, float appear, uint emojiTint)
+    private void DrawSelectedText(DrawList dl, Pane pane, in GridPass grid, Theme theme, uint emojiTint)
     {
         if (theme.SelectionFg is not { } selFg) return;
         var t = pane.Term;
         if (pane.Selection?.Range(t) is not var (sl, sc, el, ec)) return;
-        bool block = pane.Selection.Mode == SelectionMode.Block;
+        var range = new SelectedRange(sl, sc, el, ec, pane.Selection.Mode == SelectionMode.Block);
+        float ox = grid.Ox, oy = grid.Oy, appear = grid.Appear;
         var fonts = dl.Fonts;
         int cw = fonts.CellWidth, ch = fonts.CellHeight, cols = t.Columns;
         long viewTop = t.ViewTopLine;
         uint bg = _dim.Apply(theme.Selection), fg = _dim.Apply(selFg);
-        for (int y = yFirst; y < yEnd; y++)
+        for (int y = grid.YFirst; y < grid.YEnd; y++)
         {
-            if (!SelectedSpan(t, viewTop + y, sl, sc, el, ec, out int s, out int e, block) || t.GetLine(viewTop + y) is not { } row) continue;
+            if (!SelectedSpan(t, viewTop + y, in range, out int s, out int e) || t.GetLine(viewTop + y) is not { } row) continue;
             float py = oy + y * ch;
             var box = new RectF(ox + s * cw, py, (e + 1 - s) * cw, ch);
             dl.Rect(box, bg, appear);
             int n = Math.Min(row.Cells.Length, cols);
             dl.PushClip(box);
             // One cell of context each side: a wide glyph or a mark may reach into the selection.
-            _text.DrawCells(dl, theme.HarfbuzzFeatures, row, n, y == cursorRow ? t.CursorX : -1, s - 1, e + 1, ox, py, fg, appear, emojiTint);
+            _text.DrawCells(dl, new GridText.RowShape(theme.HarfbuzzFeatures, row, n, y == grid.CursorRow ? t.CursorX : -1), s - 1, e + 1, ox, py,
+                new GridText.CellInk(fg, appear, emojiTint));
             dl.PopClip();
-            DrawSelectedDecorations(dl, row.Cells, s, Math.Min(e, n - 1), ox, py, fonts, fg, appear);
+            DrawSelectedDecorations(dl, row.Cells, s, Math.Min(e, n - 1), new RowPen(ox, py, fg, appear));
         }
     }
 
-    private static void DrawSelectedDecorations(DrawList dl, Cell[] cells, int s, int e, float ox, float py, FontSet fonts, uint fg, float appear)
+    /// <summary>Where and how a row's overlay decorations are drawn: the row's top-left (Ox, Py), in Fg at opacity A.</summary>
+    private readonly record struct RowPen(float Ox, float Py, uint Fg, float A);
+
+    /// <summary>The decorations of the selected cells [<paramref name="s"/>, <paramref name="e"/>], in the selection's colors.</summary>
+    private static void DrawSelectedDecorations(DrawList dl, Cell[] cells, int s, int e, in RowPen pen)
     {
-        int cw = fonts.CellWidth;
+        float ox = pen.Ox, py = pen.Py, appear = pen.A;
+        uint fg = pen.Fg;
+        int cw = dl.Fonts.CellWidth;
         for (int x = s; x <= e; x++)
         {
             var f = cells[x].Flags;
             if ((f & CellAttributes.Hidden) != 0 || (f & DecorationFlags) == 0) continue;
             float px = ox + x * cw;
             int span = (f & CellAttributes.WideLead) != 0 ? 2 : 1;
-            if ((f & CellAttributes.Underline) != 0) DrawUnderline(dl, CellStyle.Underline(f), px, py, cw, span, fonts, fg, appear);
-            DrawStrikeAndOverline(dl, f, px, py, span, fonts, fg, appear);
+            if ((f & CellAttributes.Underline) != 0) DrawUnderline(dl, CellStyle.Underline(f), px, py, span, fg, appear);
+            DrawStrikeAndOverline(dl, f, px, py, span, fg, appear);
         }
     }
 
-    /// <summary>An underline of any SGR 4:n style under <paramref name="span"/> cells at (px, py).</summary>
-    private static void DrawUnderline(DrawList dl, UnderlineStyle style, float px, float py, int cw, int span, FontSet fonts, uint rgb, float a)
+    /// <summary>An underline of any SGR 4:n style under <paramref name="span"/> cells at (px, py), in the draw list's grid font.</summary>
+    private static void DrawUnderline(DrawList dl, UnderlineStyle style, float px, float py, int span, uint rgb, float a)
     {
-        int ch = fonts.CellHeight, t = fonts.LineThickness, y = fonts.UnderlinePosition;
+        var fonts = dl.Fonts;
+        int cw = fonts.CellWidth, ch = fonts.CellHeight, t = fonts.LineThickness, y = fonts.UnderlinePosition;
         switch (style)
         {
             case UnderlineStyle.Double:
@@ -341,7 +361,7 @@ internal sealed class PaneRenderer
                 for (int i = 0; i < span; i++)
                 {
                     float x0 = px + i * cw;
-                    dl.Quad(x0, py + g.Top, x0 + g.Width, py + g.Top + g.Height, g.U0, g.V0, g.U1, g.V1, rgb, a);
+                    dl.Quad(x0, py + g.Top, x0 + g.Width, py + g.Top + g.Height, in g.Uv, rgb, a);
                 }
                 break;
             default:
@@ -350,9 +370,15 @@ internal sealed class PaneRenderer
         }
     }
 
+    /// <summary>A selection: from column Sc of line Sl to column Ec of line El, or that block of columns on each line.</summary>
+    private readonly record struct SelectedRange(long Sl, int Sc, long El, int Ec, bool Block);
+
     /// <summary>The selected columns [s, e] of a line (widened to whole wide characters), or false.</summary>
-    private static bool SelectedSpan(Terminal t, long line, long sl, int sc, long el, int ec, out int s, out int e, bool block = false)
+    private static bool SelectedSpan(Terminal t, long line, in SelectedRange range, out int s, out int e)
     {
+        long sl = range.Sl, el = range.El;
+        int sc = range.Sc, ec = range.Ec;
+        bool block = range.Block;
         s = e = 0;
         if (line < sl || line > el) return false;
         int cols = t.Columns;

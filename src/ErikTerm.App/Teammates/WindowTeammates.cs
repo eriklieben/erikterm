@@ -387,13 +387,13 @@ internal sealed class WindowTeammates<TPane>(ITeammateWindow<TPane> window) wher
         dl.PushClip(r);
         float cx = r.X + th.S(9) + dot / 2, cy = r.Y + h / 2;
         if (state == AgentState.None) dl.RoundRect(new RectF(MathF.Round(cx - dot / 2), MathF.Round(cy - dot / 2), dot, dot), dot / 2, tc, 0.9f * alpha);
-        else AgentBadge.Dot(dl, th, state, cx, cy, dot, alpha, now);
+        else AgentBadge.Dot(dl, th, state, new AgentBadge.DotSpot(cx, cy, dot), alpha, now);
         float tx = r.X + th.S(9) + dot + th.S(6);
         float b = Widgets.Baseline(dl, px, r.Y, h);
         // The name in the teammate's color, " · working" muted: one cached string, drawn in two colors.
         int nameLen = Math.Min(t.Name.Length, t.Label.Length);
-        tx += DrawSpan(dl, t.Label, 0, nameLen, tx, b, px, Colors.Mix(th.PanelFg, tc, 0.55f), alpha);
-        DrawSpan(dl, t.Label, nameLen, t.Label.Length - nameLen, tx, b, px, th.Muted, alpha);
+        tx += DrawSpan(dl, t.Label.AsSpan(0, nameLen), tx, b, px, Colors.Mix(th.PanelFg, tc, 0.55f), alpha);
+        DrawSpan(dl, t.Label.AsSpan(nameLen), tx, b, px, th.Muted, alpha);
         int glyph = open ? Icons.Close : Icons.SplitRight;
         float ga = open ? 0.55f + 0.45f * hover : 0.25f + 0.6f * hover;
         dl.Glyph(glyph, r.Right - th.S(7) - icon, b, px, open ? th.PanelFg : tc, ga * alpha);
@@ -401,12 +401,13 @@ internal sealed class WindowTeammates<TPane>(ITeammateWindow<TPane> window) wher
         return true;
     }
 
-    /// <summary>Draws text[start..start+length] without allocating.</summary>
-    private static float DrawSpan(DrawList dl, string text, int start, int length, float x, float baseline, float px, uint rgb, float a)
+    /// <summary>Draws part of a string without allocating one for it.</summary>
+    private static float DrawSpan(DrawList dl, ReadOnlySpan<char> text, float x, float baseline, float px, uint rgb, float a)
     {
         float pen = x;
-        int end = start + length;
-        int i = start;
+        int end = text.Length;
+        int i = 0;
+
         while (i < end)
         {
             int cp = text[i];

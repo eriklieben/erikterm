@@ -39,8 +39,11 @@ internal sealed class PaneContainer(ContainerExecTarget target, ContainerInfo in
 
     /// <summary>The pane command for another shell in this container, starting in <paramref name="workdir"/>.</summary>
     public string[] ShellCommand(string self, string workdir, bool shellIntegration) =>
-        ContainerShellCommand.Build(self, Target.Engine, Target.EngineOptions, Info.Id, Info.LocalFolder, Target.User, workdir, shellIntegration);
+        ContainerShellCommand.Build(self, new ContainerShellSpec(Target.Engine, Target.EngineOptions, Info.Id, Info.LocalFolder, Target.User, workdir), shellIntegration);
 }
+
+/// <summary>Which shell <see cref="ContainerShellCommand"/> opens: the engine (and its global options), the container, its dev container folder, the user and the directory.</summary>
+internal readonly record struct ContainerShellSpec(string Engine, IReadOnlyList<string> EngineOptions, string Id, string? WorkspaceFolder, string? User, string? Workdir);
 
 /// <summary>
 /// The pane command for a shell in a container: <c>erikterm devcontainer shell</c> with the container, its folder (to
@@ -49,9 +52,10 @@ internal sealed class PaneContainer(ContainerExecTarget target, ContainerInfo in
 /// </summary>
 internal static class ContainerShellCommand
 {
-    public static string[] Build(string self, string engine, IReadOnlyList<string> engineOptions, string id, string? workspaceFolder,
-        string? user, string? workdir, bool shellIntegration)
+    public static string[] Build(string self, in ContainerShellSpec shell, bool shellIntegration)
     {
+        var (engine, engineOptions, id, workspaceFolder, user, workdir) = shell;
+
         var argv = new List<string> { self, "devcontainer", "shell", "--engine", engine };
         foreach (var o in engineOptions) argv.AddRange(["--engine-option", o]);
         argv.AddRange(["--container", id]);

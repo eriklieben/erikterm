@@ -70,6 +70,9 @@ internal sealed class Toasts
     /// <summary>The sizes every toast shares.</summary>
     private readonly record struct ToastFrame(float Px, float Margin, float Gap, float Pad, FontSet.Metrics Metrics, float LineH, float IconW);
 
+    /// <summary>Where the stack goes: the bottom-right of <see cref="Window"/>, above any of the <see cref="Avoid"/> rects.</summary>
+    private readonly record struct ToastArea(RectF Window, List<RectF>? Avoid);
+
     /// <summary>A toast's measured text and size this frame.</summary>
     private readonly record struct ToastSize(string? Detail, float ActionW, float W, float H);
 
@@ -83,9 +86,10 @@ internal sealed class Toasts
         var lm = dl.MetricsFor(px);
         var f = new ToastFrame(px, th.S(18), th.S(10), th.S(14), lm, lm.Height * 1.35f, px * 2.0f);
         float bottom = window.Bottom - f.Margin;
+        var area = new ToastArea(window, avoid);
 
         for (int i = _toasts.Count - 1; i >= 0; i--)
-            bottom = DrawToast(dl, th, _toasts[i], window, bottom, f, now, avoid);
+            bottom = DrawToast(dl, th, _toasts[i], in area, bottom, f, now);
     }
 
     private void RetireExpired(Theme th, long now)
@@ -97,8 +101,10 @@ internal sealed class Toasts
     }
 
     /// <summary>Places and draws one toast; returns the bottom edge for the next one up.</summary>
-    private static float DrawToast(DrawList dl, Theme th, Toast t, RectF window, float bottom, in ToastFrame f, long now, List<RectF>? avoid)
+    private static float DrawToast(DrawList dl, Theme th, Toast t, in ToastArea area, float bottom, in ToastFrame f, long now)
     {
+        var (window, avoid) = area;
+
         float v = t.Visible.Value(now);
         var size = Measure(dl, th, t, f);
         float h = size.H;

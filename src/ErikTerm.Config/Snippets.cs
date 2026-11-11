@@ -23,6 +23,8 @@ public sealed record Snippet(string Name, string Text, string? Description = nul
 /// </summary>
 public static class Snippets
 {
+    private const string DescriptionKey = "description";
+
     public const int MaxNameLength = 100;
     public const int MaxTextLength = 64 * 1024;
 
@@ -63,10 +65,10 @@ public static class Snippets
 
         private void ReadTableEntry(string key, TomlTable entry)
         {
-            foreach (string k in entry.Keys.Where(field => field is not ("text" or "description")))
+            foreach (string k in entry.Keys.Where(field => field is not ("text" or DescriptionKey)))
                 warn($"snippets.{key}: unknown field '{k}' (text, description)");
             entry.TryGet("text", out var text, out _);
-            entry.TryGet("description", out var description, out _);
+            entry.TryGet(DescriptionKey, out var description, out _);
             Add(key, text, description, "snippets");
         }
 
@@ -81,11 +83,11 @@ public static class Snippets
 
         private void ReadArrayEntry(TomlTable entry, int number)
         {
-            foreach (string k in entry.Keys.Where(field => field is not ("name" or "text" or "description")))
+            foreach (string k in entry.Keys.Where(field => field is not ("name" or "text" or DescriptionKey)))
                 warn($"snippets[{number}]: unknown field '{k}' (name, text, description)");
             entry.TryGet("name", out var n, out _);
             entry.TryGet("text", out var text, out _);
-            entry.TryGet("description", out var description, out _);
+            entry.TryGet(DescriptionKey, out var description, out _);
             if (n is not string name) { warn($"snippets[{number}]: needs a name (a string)"); return; }
             Add(name, text, description, $"snippets[{number}]");
         }

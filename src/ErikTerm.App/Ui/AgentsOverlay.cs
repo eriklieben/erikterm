@@ -173,7 +173,7 @@ internal sealed class AgentsOverlay<TPane> where TPane : class
             var hl = new RectF(list.X + th.S(8), hy + th.S(2), list.W - th.S(16), rowH - th.S(4));
             dl.RoundRect(hl, th.S(8), th.Accent, 0.14f * v);
             for (int i = first; i < Math.Min(_rows.Count, first + shown); i++)
-                DrawRow(dl, th, i, list, list.Y + (i - first) * rowH, rowH, px, pad, v, now);
+                DrawRow(dl, th, i, new RectF(list.X, list.Y + (i - first) * rowH, list.W, rowH), pad, v, now);
         }
         dl.PopClip();
         if (selectedPrompt is not null) DrawPromptBody(dl, th, selectedPrompt, new RectF(panel.X + pad, list.Bottom + th.S(6), panel.W - 2 * pad, bodyH), bodyLineH, v);
@@ -181,30 +181,33 @@ internal sealed class AgentsOverlay<TPane> where TPane : class
         float fy = panel.Bottom - footerH;
         dl.Rect(new RectF(panel.X + th.S(1), fy, panel.W - th.S(2), MathF.Max(1, th.S(1))), th.Border, v);
         float fb = Widgets.Baseline(dl, px * 0.82f, fy, footerH);
-        float fx = panel.X + pad;
-        fx = Hint(dl, th, fx, fy + footerH / 2, fb, AgentsOverlayKeys.Arrows, "navigate", v);
-        fx = Hint(dl, th, fx, fy + footerH / 2, fb, AgentsOverlayKeys.Enter, "jump to pane", v);
-        fx = Hint(dl, th, fx, fy + footerH / 2, fb, AgentsOverlayKeys.Esc, "close", v);
+        var hints = new FooterHints(dl, th, panel.X + pad, fy + footerH / 2, fb, v, th.S(18));
+        hints.Add(AgentsOverlayKeys.Arrows, "navigate");
+        hints.Add(AgentsOverlayKeys.Enter, "jump to pane");
+        hints.Add(AgentsOverlayKeys.Esc, "close");
         if (selectedPrompt is null) return;
-        fx = Hint(dl, th, fx, fy + footerH / 2, fb, AgentsOverlayKeys.Yes, "yes, once", v);
-        Hint(dl, th, fx, fy + footerH / 2, fb, AgentsOverlayKeys.No, "no", v);
+        hints.Add(AgentsOverlayKeys.Yes, "yes, once");
+        hints.Add(AgentsOverlayKeys.No, "no");
     }
 
-    private void DrawRow(DrawList dl, Theme th, int i, RectF list, float top, float rowH, float px, float pad, float v, long now)
+    /// <summary>Row <paramref name="i"/> in <paramref name="rect"/> (the list's width): the state dot, title, age and answers, then where and what.</summary>
+    private void DrawRow(DrawList dl, Theme th, int i, RectF rect, float pad, float v, long now)
     {
         var row = _rows[i];
+        float px = th.UiPx, top = rect.Y, rowH = rect.H;
         float l1 = MathF.Round(top + rowH * 0.40f), l2 = MathF.Round(top + rowH * 0.78f);
-        float dx = list.X + pad + th.S(6);
-        AgentBadge.Dot(dl, th, row.State, dx, top + rowH * 0.32f, MathF.Round(th.S(9)), v, now);
+        float dx = rect.X + pad + th.S(6);
+        AgentBadge.Dot(dl, th, row.State, new AgentBadge.DotSpot(dx, top + rowH * 0.32f, MathF.Round(th.S(9))), v, now);
         float tx = dx + th.S(18);
         float ageW = dl.Measure(row.Age, px * 0.85f);
-        float right = list.Right - pad;
+        float right = rect.Right - pad;
         dl.Text(row.Age, right - ageW, l1, px * 0.85f, th.Muted, v);
         float titleEnd = right - ageW - th.S(16);
         if (row.Prompt is { } prompt)
         {
-            titleEnd = AnswerPill(dl, th, prompt.No, "n", th.Danger, i, titleEnd, top + rowH * 0.32f, l1, v);
-            titleEnd = AnswerPill(dl, th, prompt.Yes, "y", th.Success, i, titleEnd, top + rowH * 0.32f, l1, v);
+            var pillLine = new PillLine(top + rowH * 0.32f, l1, v);
+            titleEnd = AnswerPill(dl, th, prompt.No, yes: false, i, titleEnd, in pillLine);
+            titleEnd = AnswerPill(dl, th, prompt.Yes, yes: true, i, titleEnd, in pillLine);
         }
         string title = dl.Ellipsize(row.Title, px, titleEnd - tx);
         dl.Text(title, tx, l1, px, i == _selected ? th.PanelFg : Colors.Mix(th.PanelFg, th.Muted, 0.2f), v, FontStyle.Bold);
@@ -222,10 +225,17 @@ internal sealed class AgentsOverlay<TPane> where TPane : class
 
     private static int BodyRowsWithMore(AgentPrompt prompt) => BodyRowsShown(prompt) + (prompt.Body.Length > MaxBodyRows ? 1 : 0);
 
-    /// <summary>One answer as a small pill, right-aligned at <paramref name="right"/>; returns the x left of it.</summary>
-    private float AnswerPill(DrawList dl, Theme th, AgentAnswer answer, string key, uint color, int row, float right, float centerY, float baseline, float v)
+    /// <summary>The answer pills' line in a row: centred on <see cref="CenterY"/>, text on <see cref="Baseline"/>, at <see cref="Alpha"/>.</summary>
+    private readonly record struct PillLine(float CenterY, float Baseline, float Alpha);
+
+    /// <summary>One answer (yes: "y", in green; no: "n", in red) as a small pill, right-aligned at <paramref name="right"/>; returns the x left of it.</summary>
+    private float AnswerPill(DrawList dl, Theme th, AgentAnswer answer, bool yes, int row, float right, in PillLine line)
     {
+        string key = yes ? "y" : "n";
+        uint color = yes ? th.Success : th.Danger;
+        float centerY = line.CenterY, baseline = line.Baseline, v = line.Alpha;
         float px = th.UiPx * 0.85f, h = MathF.Round(px * 1.5f);
+
         string text = $"{key}  {answer.Label}";
         float w = dl.Measure(text, px) + 2 * th.S(8);
         var r = new RectF(right - w, MathF.Round(centerY - h / 2), w, h);
@@ -246,17 +256,6 @@ internal sealed class AgentsOverlay<TPane> where TPane : class
             dl.Text($"… {prompt.Body.Length - MaxBodyRows} more lines", area.X, Widgets.Baseline(dl, px, y, lineH), px, th.Muted, v);
     }
 
-    private static float Hint(DrawList dl, Theme th, float x, float centerY, float baseline, string[] keys, string label, float a)
-    {
-        float kpx = th.UiPx * 0.78f;
-        float h = MathF.Round(dl.MetricsFor(kpx).Height + th.S(6)), w = 0;
-        foreach (var k in keys) w += MathF.Max(h, dl.Measure(k, kpx) + 2 * th.S(5)) + th.S(3);
-        w -= th.S(3);
-        Widgets.Keycaps(dl, th, keys, x + w, centerY, a);
-        x += w + th.S(6);
-        x += dl.Text(label, x, baseline, th.UiPx * 0.82f, th.Muted, a);
-        return x + th.S(18);
-    }
 }
 
 /// <summary>Key names of the footer hints; outside the generic overlay so there is one instance of each.</summary>

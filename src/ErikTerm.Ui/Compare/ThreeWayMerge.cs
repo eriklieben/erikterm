@@ -58,7 +58,8 @@ public static class ThreeWayMerge
             shiftO += LengthChange(hunksO, firstO, io);
             shiftT += LengthChange(hunksT, firstT, it);
 
-            AddRegion(chunks, io > firstO, it > firstT, baseRange, oursRange, theirsRange, baseKnown, interner);
+            var kind = RegionKind(io > firstO, it > firstT, oursRange, theirsRange);
+            AddRegion(chunks, kind, baseRange, oursRange, theirsRange, baseKnown, interner);
         }
         AddStable(chunks, baseLines, cursor, baseLines.Length, baseKnown);
         return chunks;
@@ -91,12 +92,18 @@ public static class ThreeWayMerge
         if (start < end) chunks.Add(new MergeChunk(MergeChunkKind.Stable, Slice(baseLines, start, end), Slice(baseLines, start, end), Slice(baseLines, start, end), baseKnown));
     }
 
-    private static void AddRegion(List<MergeChunk> chunks, bool oursTouched, bool theirsTouched, string[] baseRange, string[] oursRange, string[] theirsRange, bool baseKnown, LineInterner interner)
+    /// <summary>How a changed region merges: the side that touched it alone wins, the same change on both sides merges, anything else conflicts.</summary>
+    private static MergeChunkKind RegionKind(bool oursTouched, bool theirsTouched, string[] oursRange, string[] theirsRange)
     {
-        if (oursTouched && !theirsTouched) chunks.Add(new MergeChunk(MergeChunkKind.AutoOurs, baseRange, oursRange, theirsRange, baseKnown));
-        else if (theirsTouched && !oursTouched) chunks.Add(new MergeChunk(MergeChunkKind.AutoTheirs, baseRange, oursRange, theirsRange, baseKnown));
-        else if (oursRange.SequenceEqual(theirsRange)) chunks.Add(new MergeChunk(MergeChunkKind.AutoBoth, baseRange, oursRange, theirsRange, baseKnown));
-        else AddRefinedConflict(chunks, baseRange, oursRange, theirsRange, baseKnown, interner);
+        if (oursTouched && !theirsTouched) return MergeChunkKind.AutoOurs;
+        if (theirsTouched && !oursTouched) return MergeChunkKind.AutoTheirs;
+        return oursRange.SequenceEqual(theirsRange) ? MergeChunkKind.AutoBoth : MergeChunkKind.Conflict;
+    }
+
+    private static void AddRegion(List<MergeChunk> chunks, MergeChunkKind kind, string[] baseRange, string[] oursRange, string[] theirsRange, bool baseKnown, LineInterner interner)
+    {
+        if (kind == MergeChunkKind.Conflict) AddRefinedConflict(chunks, baseRange, oursRange, theirsRange, baseKnown, interner);
+        else chunks.Add(new MergeChunk(kind, baseRange, oursRange, theirsRange, baseKnown));
     }
 
     /// <summary>

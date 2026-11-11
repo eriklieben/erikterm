@@ -208,23 +208,24 @@ internal sealed class PaneSearchOverlay<TPane> where TPane : class
         float fy = panel.Bottom - footerH;
         dl.Rect(new RectF(panel.X + th.S(1), fy, panel.W - th.S(2), MathF.Max(1, th.S(1))), th.Border, v);
         float fb = Widgets.Baseline(dl, px * 0.82f, fy, footerH);
-        float fx = panel.X + th.S(18);
-        fx = Hint(dl, th, fx, fy + footerH / 2, fb, PaneSearchOverlayKeys.Arrows, "navigate", v);
-        fx = Hint(dl, th, fx, fy + footerH / 2, fb, PaneSearchOverlayKeys.Enter, "go to match", v);
-        fx = Hint(dl, th, fx, fy + footerH / 2, fb, PaneSearchOverlayKeys.AltC, "case", v);
-        fx = Hint(dl, th, fx, fy + footerH / 2, fb, PaneSearchOverlayKeys.AltR, "regex", v);
-        Hint(dl, th, fx, fy + footerH / 2, fb, PaneSearchOverlayKeys.Esc, "close", v);
+        var hints = new FooterHints(dl, th, panel.X + th.S(18), fy + footerH / 2, fb, v, th.S(18));
+        hints.Add(PaneSearchOverlayKeys.Arrows, "navigate");
+        hints.Add(PaneSearchOverlayKeys.Enter, "go to match");
+        hints.Add(PaneSearchOverlayKeys.AltC, "case");
+        hints.Add(PaneSearchOverlayKeys.AltR, "regex");
+        hints.Add(PaneSearchOverlayKeys.Esc, "close");
     }
 
     private void DrawField(DrawList dl, Theme th, RectF panel, float h, float v, long now)
     {
-        float px = th.UiPx * 1.05f, chipPx = th.UiPx * 0.82f, pad = th.S(16);
+        float px = th.UiPx * 1.05f, pad = th.S(16);
         float baseline = Widgets.Baseline(dl, px, panel.Y, h);
         float x = panel.X + pad;
         x += dl.Glyph(Icons.Search, x, baseline, px * 1.05f, th.Accent, v) + th.S(10);
 
-        _regexChip = Chip(dl, th, ".*", panel.Right - th.S(12), panel.Y, h, chipPx, _regex, v);
-        _caseChip = Chip(dl, th, "Aa", _regexChip.X - th.S(4), panel.Y, h, chipPx, _caseSensitive, v);
+        var bar = new RectF(panel.X, panel.Y, panel.W, h);
+        _regexChip = Chip(dl, th, ".*", panel.Right - th.S(12), bar, _regex, v);
+        _caseChip = Chip(dl, th, "Aa", _regexChip.X - th.S(4), bar, _caseSensitive, v);
 
         var field = new RectF(x, panel.Y, MathF.Max(0, _caseChip.X - th.S(12) - x), h);
         float typedW = dl.Measure(_query, px), shift = MathF.Max(0, typedW + th.S(4) - field.W);
@@ -313,9 +314,12 @@ internal sealed class PaneSearchOverlay<TPane> where TPane : class
         dl.PopClip();
     }
 
-    private static RectF Chip(DrawList dl, Theme th, string label, float right, float top, float h, float px, bool on, float v)
+    /// <summary>A toggle chip right-aligned at <paramref name="right"/>, centred in the field <paramref name="bar"/>'s height.</summary>
+    private static RectF Chip(DrawList dl, Theme th, string label, float right, RectF bar, bool on, float v)
     {
-        float tw = dl.Measure(label, px, FontStyle.Bold), ch = MathF.Round(h - th.S(18));
+        float px = th.UiPx * 0.82f, top = bar.Y, h = bar.H;
+        float tw
+ = dl.Measure(label, px, FontStyle.Bold), ch = MathF.Round(h - th.S(18));
         float w = MathF.Round(MathF.Max(ch * 1.25f, tw + th.S(12)));
         var r = new RectF(right - w, MathF.Round(top + (h - ch) / 2), w, ch);
         if (on) dl.Panel(r, th.S(6), Colors.Mix(th.PanelBg, th.Accent, 0.28f), v, th.Accent, 0.8f * v);
@@ -324,17 +328,6 @@ internal sealed class PaneSearchOverlay<TPane> where TPane : class
         return r;
     }
 
-    private static float Hint(DrawList dl, Theme th, float x, float centerY, float baseline, string[] keys, string label, float a)
-    {
-        float kpx = th.UiPx * 0.78f;
-        float h = MathF.Round(dl.MetricsFor(kpx).Height + th.S(6)), w = 0;
-        foreach (var k in keys) w += MathF.Max(h, dl.Measure(k, kpx) + 2 * th.S(5)) + th.S(3);
-        w -= th.S(3);
-        Widgets.Keycaps(dl, th, keys, x + w, centerY, a);
-        x += w + th.S(6);
-        x += dl.Text(label, x, baseline, th.UiPx * 0.82f, th.Muted, a);
-        return x + th.S(18);
-    }
 }
 
 /// <summary>Key names of the footer hints; outside the generic overlay so there is one instance of each.</summary>

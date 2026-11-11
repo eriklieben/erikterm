@@ -11,10 +11,12 @@ namespace ErikTerm.App.Windowing;
 /// Runs an action (a key binding, the palette, a menu, vim mode): a thin switch per group that hands each action to
 /// the class that does it. <c>key</c>/<c>mod</c> are the triggering key, for the actions that pass it through.
 /// </summary>
+#pragma warning disable S107 // TermWindow's wiring: each part takes the peers it calls, so its dependencies stay visible; a bundle of them would only hide that
 internal sealed class ActionDispatcher(
     IWindowHost window, PaneActions panes, TabBarController tabs, TabList<Tab> tabList, WindowSearch search, CloseConfirmFlow closeConfirm,
     ExitHoldFlow exitHold, WindowBroadcast broadcast, WindowThemes themes, AboutPanel about, CommandCatalog commands,
     WindowTabSwitcher<Tab> tabSwitcher, WindowTabColors<Tab> tabColors, WindowVim<Pane> vim, ContextMenu menu, CommandPalette palette)
+#pragma warning restore S107
 {
     private static long Now => Environment.TickCount64;
 

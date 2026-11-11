@@ -126,8 +126,11 @@ internal sealed unsafe class WindowsPty : IPtyBackend
 
             // conhost holds its own duplicates now. Keeping our copy of the output pipe's write end
             // would mean ReadFile never sees ERROR_BROKEN_PIPE.
+            // Null once closed, so the clean-up below leaves them alone.
             inputRead.Dispose();
+            inputRead = null;
             outputWrite.Dispose();
+            outputWrite = null;
 
             PROCESS_INFORMATION pi = StartProcess(application, commandLine, environmentBlock, cwd, console);
             CloseHandle(pi.hThread);

@@ -485,7 +485,7 @@ public class ContainerTests
         var env = new Dictionary<string, string> { ["TERM"] = "xterm-erikterm", ["TERM_PROGRAM"] = "erikterm" };
 
         // Act
-        var argv = DevcontainerCommand.ExecArgv(engine, Info(), "vscode", "/workspaces/app/src", setup, "/tmp/erikterm-abc", true, env, [], tty: true);
+        var argv = DevcontainerCommand.ExecArgv(engine, new(Info(), "vscode", "/workspaces/app/src"), new(setup, "/tmp/erikterm-abc", true), env, [], tty: true);
 
         // Assert
         await Assert.That(argv).IsEquivalentTo(new[]
@@ -505,7 +505,7 @@ public class ContainerTests
         var setup = new DevcontainerCommand.Setup(false, true, "/bin/bash", "/root");
 
         // Act
-        var argv = DevcontainerCommand.ExecArgv(engine, Info(), null, "/w", setup, "/tmp/erikterm-abc", true, new Dictionary<string, string>(), [], tty: true);
+        var argv = DevcontainerCommand.ExecArgv(engine, new(Info(), null, "/w"), new(setup, "/tmp/erikterm-abc", true), new Dictionary<string, string>(), [], tty: true);
 
         // Assert
         await Assert.That(argv).Contains("ENV=/tmp/erikterm-abc/bash/erikterm-inject.bash");
@@ -522,7 +522,7 @@ public class ContainerTests
         var setup = new DevcontainerCommand.Setup(false, false, "/bin/zsh", "/root");
 
         // Act
-        var argv = DevcontainerCommand.ExecArgv(engine, Info(), null, "/w", setup, "/tmp/erikterm-abc", true, new Dictionary<string, string>(), [], tty: true);
+        var argv = DevcontainerCommand.ExecArgv(engine, new(Info(), null, "/w"), new(setup, "/tmp/erikterm-abc", true), new Dictionary<string, string>(), [], tty: true);
 
         // Assert
         await Assert.That(argv.Any(a => a.StartsWith("ZDOTDIR=", StringComparison.Ordinal))).IsFalse();
@@ -537,7 +537,7 @@ public class ContainerTests
         var setup = new DevcontainerCommand.Setup(true, true, "/bin/zsh", "/root");
 
         // Act
-        var argv = DevcontainerCommand.ExecArgv(engine, Info(), null, "/w", setup, "/tmp/x", true, new Dictionary<string, string>(), ["ls", "-la"], tty: false);
+        var argv = DevcontainerCommand.ExecArgv(engine, new(Info(), null, "/w"), new(setup, "/tmp/x", true), new Dictionary<string, string>(), ["ls", "-la"], tty: false);
 
         // Assert
         await Assert.That(argv).IsEquivalentTo(new[] { "docker", "exec", "-i", "-w", "/w", "0123456789abcdef0123", "ls", "-la" }, CollectionOrdering.Matching);

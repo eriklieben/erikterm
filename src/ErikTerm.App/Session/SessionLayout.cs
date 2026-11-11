@@ -5,6 +5,8 @@ namespace ErikTerm.App.Session;
 /// <summary>Converts between a <see cref="LayoutTree{T}"/> and its saved form. Generic so it is testable without real panes.</summary>
 internal static class SessionLayout
 {
+    private const string Vertical = "vertical";
+
     /// <summary>A corrupt or hand-edited file must not spawn hundreds of shells.</summary>
     public const int MaxPanesPerTab = 32;
     public const int MaxTabs = 64;
@@ -25,7 +27,7 @@ internal static class SessionLayout
         if (first is null || second is null) return first ?? second;
         return new SessionNode
         {
-            Axis = n.Axis == SplitAxis.Horizontal ? "horizontal" : "vertical",
+            Axis = n.Axis == SplitAxis.Horizontal ? "horizontal" : Vertical,
             Ratio = Math.Round(ClampRatio(n.Ratio), 4),
             First = first,
             Second = second,
@@ -88,7 +90,7 @@ internal static class SessionLayout
             var second = Walk(n.Second, ref budget, depth + 1);
             return new SessionNode
             {
-                Axis = string.Equals(n.Axis, "vertical", StringComparison.OrdinalIgnoreCase) ? "vertical" : "horizontal",
+                Axis = string.Equals(n.Axis, Vertical, StringComparison.OrdinalIgnoreCase) ? Vertical : "horizontal",
                 Ratio = ClampRatio(n.Ratio ?? 0.5),
                 First = first,
                 Second = second,
@@ -101,7 +103,7 @@ internal static class SessionLayout
     private static double ClampRatio(double r) => double.IsFinite(r) ? Math.Clamp(r, MinRatio, MaxRatio) : 0.5;
 
     public static SplitAxis AxisOf(SessionNode n) =>
-        string.Equals(n.Axis, "vertical", StringComparison.OrdinalIgnoreCase) ? SplitAxis.Vertical : SplitAxis.Horizontal;
+        string.Equals(n.Axis, Vertical, StringComparison.OrdinalIgnoreCase) ? SplitAxis.Vertical : SplitAxis.Horizontal;
 
     /// <summary>Each leaf's rectangle (same order as <see cref="Leaves"/>) — so panes can be spawned at their final size.</summary>
     public static List<RectI> LeafRects(SessionNode root, RectI bounds, int gap)

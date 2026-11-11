@@ -26,7 +26,7 @@ internal sealed class WindowPrompts(IFeatureWindow window, IPaneInput input, Loc
     {
         string cmd = b.Command.Length > 0 ? b.Command : "Command";
         string lines = b.LineCount == 1 ? "1 line" : $"{b.LineCount} lines";
-        string status = b.ExitCode switch { Row.NoExitCode => "", 0 => "", int c => $" · exit {c}" };
+        string status = b.ExitCode switch { Row.NoExitCode => "", 0 => "", _ => $" · exit {b.ExitCode}" };
         return $"{cmd} · {lines}{status}";
     }
 

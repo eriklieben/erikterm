@@ -17,6 +17,8 @@ internal interface IDebugScriptOwner : IWindowOwner
 /// </summary>
 internal sealed class DebugScript(IDebugScriptOwner owner, TabTearOff tearOff)
 {
+    private const string WindowPlaceholder = "{window}";
+
     private static readonly int ScriptStepMs = int.TryParse(Environment.GetEnvironmentVariable("ERIKTERM_SCRIPT_STEP_MS"), out int sm) ? sm : 350;
 
     private readonly string? _screenshotTemplate = Environment.GetEnvironmentVariable("ERIKTERM_SCREENSHOT");
@@ -50,10 +52,10 @@ internal sealed class DebugScript(IDebugScriptOwner owner, TabTearOff tearOff)
     /// <summary>A window opened: it gets the ERIKTERM_SCREENSHOT capture (when that's for it) and the next steps.</summary>
     public void OnWindowOpened(TermWindow w)
     {
-        if (_screenshotTemplate is { } template && (template.Contains("{window}") || !_screenshotAssigned))
+        if (_screenshotTemplate is { } template && (template.Contains(WindowPlaceholder) || !_screenshotAssigned))
         {
             _screenshotAssigned = true;
-            w._screenshotPath = template.Replace("{window}", w.Id.ToString());
+            w._screenshotPath = template.Replace(WindowPlaceholder, w.Id.ToString());
             w._screenshotAt = Environment.TickCount64 + _screenshotDelay;
         }
         Target = w;
@@ -109,8 +111,8 @@ internal sealed class DebugScript(IDebugScriptOwner owner, TabTearOff tearOff)
     private void Shot(string arg, TermWindow w)
     {
         for (int i = 0; i < Windows.Count; i++)
-            if (arg.Contains("{window}") || ReferenceEquals(Windows[i], w)) Windows[i].ScheduleScreenshot(arg.Replace("{window}", Windows[i].Id.ToString()));
-        if (arg.Contains("{window}")) tearOff.CaptureGhost(arg.Replace("{window}", "ghost"));
+            if (arg.Contains(WindowPlaceholder) || ReferenceEquals(Windows[i], w)) Windows[i].ScheduleScreenshot(arg.Replace(WindowPlaceholder, Windows[i].Id.ToString()));
+        if (arg.Contains(WindowPlaceholder)) tearOff.CaptureGhost(arg.Replace(WindowPlaceholder, "ghost"));
     }
 
     private void MoveTab(TermWindow w, string arg)

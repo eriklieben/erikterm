@@ -170,25 +170,30 @@ internal static class BoxDrawing
 
     private static void Lines(ref Canvas c, int t, int l, int r, int u, int d)
     {
-        Arms(ref c, false, c.W, c.H, t, l, r, u, d);
-        Arms(ref c, true, c.H, c.W, t, u, d, l, r);
+        Arms(ref c, new Axis(false, c.W, c.H, t), l, r, u, d);
+        Arms(ref c, new Axis(true, c.H, c.W, t), u, d, l, r);
     }
 
     /// <summary>
-    /// Draws the arms along one axis (x when not transposed): <paramref name="neg"/> towards 0 and
-    /// <paramref name="pos"/> towards <paramref name="along"/>, meeting the perpendicular arms
-    /// <paramref name="pn"/> (towards 0 across) and <paramref name="pp"/>.
+    /// The axis arms are drawn along: x unless <see cref="Transposed"/>, <see cref="Along"/> pixels long and
+    /// <see cref="Across"/> wide, in strokes <see cref="T"/> pixels thick.
     /// </summary>
-    private static void Arms(ref Canvas c, bool tr, int along, int across, int t, int neg, int pos, int pn, int pp)
+    private readonly record struct Axis(bool Transposed, int Along, int Across, int T);
+
+    /// <summary>
+    /// Draws the arms along one axis: <paramref name="neg"/> towards 0 and <paramref name="pos"/> towards its far end,
+    /// meeting the perpendicular arms <paramref name="pn"/> (towards 0 across) and <paramref name="pp"/>.
+    /// </summary>
+    private static void Arms(ref Canvas c, in Axis axis, int neg, int pos, int pn, int pp)
     {
-        var crossing = new Crossing(along, t, pn, pp);
+        var crossing = new Crossing(axis.Along, axis.T, pn, pp);
         for (int side = 0; side < 2; side++)
         {
             int weight = side == 0 ? neg : pos;
             if (weight == None) continue;
             bool towardsZero = side == 0;
-            if (weight == Double) DoubleArm(ref c, tr, along, across, t, towardsZero, crossing);
-            else SingleArm(ref c, tr, along, across, t, weight, towardsZero, (towardsZero ? pos : neg) != None, crossing);
+            if (weight == Double) DoubleArm(ref c, in axis, towardsZero, crossing);
+            else SingleArm(ref c, in axis, weight, towardsZero, (towardsZero ? pos : neg) != None, crossing);
         }
     }
 
@@ -214,8 +219,10 @@ internal static class BoxDrawing
         }
     }
 
-    private static void SingleArm(ref Canvas c, bool tr, int along, int across, int t, int weight, bool towardsZero, bool other, in Crossing crossing)
+    private static void SingleArm(ref Canvas c, in Axis axis, int weight, bool towardsZero, bool other, in Crossing crossing)
     {
+        bool tr = axis.Transposed;
+        int along = axis.Along, across = axis.Across, t = axis.T;
         int bw = Width(weight, t), b0 = BandStart(across, bw);
         int end = SingleArmEnd(along, t, bw, towardsZero, other, crossing);
         FillArm(ref c, tr, towardsZero, end, along, b0, b0 + bw);
@@ -238,8 +245,10 @@ internal static class BoxDrawing
     }
 
     /// <summary>Double arm: two strokes, each meeting the perpendicular arms on its own side.</summary>
-    private static void DoubleArm(ref Canvas c, bool tr, int along, int across, int t, bool towardsZero, in Crossing crossing)
+    private static void DoubleArm(ref Canvas c, in Axis axis, bool towardsZero, in Crossing crossing)
     {
+        bool tr = axis.Transposed;
+        int along = axis.Along, across = axis.Across, t = axis.T;
         int s0 = BandStart(across, 3 * t);
         for (int stroke = 0; stroke < 2; stroke++)
         {

@@ -192,8 +192,9 @@ internal sealed class VimHelpOverlay
         if (_scroll.Target > _maxScroll) _scroll.Snap(_maxScroll);
         float scroll = _scroll.Value(now);
         dl.PushClip(view);
+        var body = new BodyPass(view, titleH, ca, now);
         for (int c = 0; c < _columns; c++)
-            DrawColumn(dl, th, c, panel.X + innerPad + c * (_colW + colGap), bodyTop + bodyPad - scroll, titleH, view, ca, now);
+            DrawColumn(dl, th, c, panel.X + innerPad + c * (_colW + colGap), bodyTop + bodyPad - scroll, in body);
         dl.PopClip();
         if (_maxScroll > 0)
         {
@@ -242,8 +243,16 @@ internal sealed class VimHelpOverlay
         dl.Rect(new RectF(panel.X + th.S(1), oy + headerH, panel.W - th.S(2), MathF.Max(1, MathF.Round(th.S(1)))), th.Border, ca);
     }
 
-    private void DrawColumn(DrawList dl, Theme th, int c, float x, float y, float titleH, RectF view, float ca, long now)
+    /// <summary>The scrolling body's <see cref="View"/>, section title height, content alpha and clock, shared by its columns.</summary>
+    private readonly record struct BodyPass(RectF View, float TitleH, float ContentAlpha, long Now);
+
+    /// <summary>Where a section's rows start (<see cref="X"/>, <see cref="Y"/>), drawn <see cref="Lift"/> lower while they rise in, at <see cref="Alpha"/>.</summary>
+    private readonly record struct SectionPen(float X, float Y, float Lift, float Alpha);
+
+    private void DrawColumn(DrawList dl, Theme th, int c, float x, float y, in BodyPass body)
     {
+        float titleH = body.TitleH, ca = body.ContentAlpha;
+        long now = body.Now;
         float px = th.UiPx, headPx = px * 0.78f;
         foreach (int i in _sectionsIn[c])
         {
@@ -253,14 +262,16 @@ internal sealed class VimHelpOverlay
             float hb = MathF.Round(y + titleH * 0.68f + lift);
             dl.Text(Titles[i], x, hb, headPx, th.Accent, a, FontStyle.Bold);
             y += titleH;
-            y = DrawEntries(dl, th, i, c, x, y, lift, view, a);
+            y = DrawEntries(dl, th, i, c, new SectionPen(x, y, lift, a), body.View);
             y += th.S(10);
         }
     }
 
     /// <summary>A section's rows that are in view; returns the y below the section.</summary>
-    private float DrawEntries(DrawList dl, Theme th, int section, int c, float x, float y, float lift, RectF view, float a)
+    private float DrawEntries(DrawList dl, Theme th, int section, int c, in SectionPen pen, RectF view)
     {
+        var (x, y, lift, a) = pen;
+
         float keyPx = th.UiPx * 0.86f, textPx = th.UiPx * 0.86f;
         var entries = VimHelp.Sections[section].Entries;
         var texts = _fitted[section];

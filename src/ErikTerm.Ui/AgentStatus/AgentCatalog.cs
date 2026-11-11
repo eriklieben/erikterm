@@ -17,6 +17,14 @@ public sealed record AgentDefinition(string Id, string Name, string[] Commands, 
 /// </summary>
 public static class AgentCatalog
 {
+    private const string Permission = "permission";
+    private const string NeedsPermission = "needs permission";
+    private const string EscToInterrupt = "esc to interrupt";
+    private const string Approval = "approval";
+    private const string Working = "working";
+    private const string Allow = "Allow";
+    private const string CursorAgent = "cursor-agent";
+
     private static ScreenClause C(int bottom, params string[] anyOf) => new(anyOf, bottom);
 
     // Claude Code's spinner frames ("·✢*✶✻✽", ✳ on macOS/ghostty), as in its binary.
@@ -25,16 +33,16 @@ public static class AgentCatalog
     public static readonly AgentDefinition Claude = new("claude-code", "Claude", ["claude"], ["@anthropic-ai/claude-code", "claude-code/cli", "/claude/versions/"], ["claude-code"],
     [
         // Permission dialogs: "Do you want to proceed?" / "Do you want to make this edit to x?" over numbered choices.
-        new("permission", AgentState.Waiting,
+        new(Permission, AgentState.Waiting,
             [C(24, "Do you want to", "Would you like to", "needs your permission", "Do you trust"), C(18, "1. Yes", "1. Allow", "1. Approve")],
-            "needs permission", "permission"),
+            NeedsPermission, Permission),
         // AskUserQuestion / plan approval: numbered options with the selector, and the dialog's footer.
         new("question", AgentState.Waiting,
             [new(["1. "], 18, LeadingGlyphs: "❯"), C(6, "Enter to select", "to navigate", "Esc to cancel")],
             "has a question", "question"),
         // "✻ Cogitating… (12s · ↓ 1.2k tokens · esc to interrupt)"
-        new("spinner", AgentState.Working, [new(["… (", "esc to interrupt"], 14, LeadingGlyphs: ClaudeSpinner)]),
-        new("interrupt", AgentState.Working, [C(8, "esc to interrupt")]),
+        new("spinner", AgentState.Working, [new(["… (", EscToInterrupt], 14, LeadingGlyphs: ClaudeSpinner)]),
+        new("interrupt", AgentState.Working, [C(8, EscToInterrupt)]),
         // The input box: "❯ " (or "> ") between rules, and the footer hint.
         new("prompt", AgentState.Idle, [C(6, "? for shortcuts")]),
         new("input-box", AgentState.Idle, [new([], 8, LeadingGlyphs: "❯>"), new(["───"], 9)]),
@@ -42,56 +50,56 @@ public static class AgentCatalog
 
     public static readonly AgentDefinition Codex = new("codex", "Codex", ["codex", "codex-tui"], ["@openai/codex", "/codex/codex"], ["codex"],
     [
-        new("approval", AgentState.Waiting,
+        new(Approval, AgentState.Waiting,
             [C(26, "Would you like to run the following command?", "Would you like to make the following edits?",
                 "Would you like to send input", "Press a number to choose", "Allow command?")],
-            "needs permission", "permission"),
-        new("working", AgentState.Working, [C(8, "to interrupt")]),
+            NeedsPermission, Permission),
+        new(Working, AgentState.Working, [C(8, "to interrupt")]),
         new("prompt", AgentState.Idle, [C(8, "context left", "Ask Codex to do anything", "Ask a follow-up", "? for shortcuts")]),
     ]);
 
     public static readonly AgentDefinition Gemini = new("gemini-cli", "Gemini", ["gemini"], ["@google/gemini-cli", "gemini-cli"], ["gemini-cli"],
     [
         new("confirm", AgentState.Waiting, [C(24, "Allow execution", "Apply this change?", "Waiting for user confirmation", "Do you want to proceed")],
-            "needs permission", "permission"),
-        new("working", AgentState.Working, [C(10, "esc to cancel")]),
+            NeedsPermission, Permission),
+        new(Working, AgentState.Working, [C(10, "esc to cancel")]),
         new("prompt", AgentState.Idle, [C(8, "Type your message")]),
     ]);
 
     public static readonly AgentDefinition OpenCode = new("opencode", "OpenCode", ["opencode"], ["opencode-ai", "/opencode"], ["opencode"],
     [
-        new("permission", AgentState.Waiting, [C(20, "Permission required", "Allow once", "allow always")], "needs permission", "permission"),
-        new("working", AgentState.Working, [C(6, "esc interrupt", "esc to interrupt", "working")]),
+        new(Permission, AgentState.Waiting, [C(20, "Permission required", "Allow once", "allow always")], NeedsPermission, Permission),
+        new(Working, AgentState.Working, [C(6, "esc interrupt", EscToInterrupt, Working)]),
     ]);
 
     public static readonly AgentDefinition Amp = new("amp", "Amp", ["amp"], ["@sourcegraph/amp"], ["amp"],
     [
-        new("approval", AgentState.Waiting, [C(20, "Approve", "Allow", "Run this command?")], "needs permission", "permission"),
-        new("working", AgentState.Working, [C(6, "Esc to cancel", "esc to interrupt")]),
+        new(Approval, AgentState.Waiting, [C(20, "Approve", Allow, "Run this command?")], NeedsPermission, Permission),
+        new(Working, AgentState.Working, [C(6, "Esc to cancel", EscToInterrupt)]),
     ]);
 
     public static readonly AgentDefinition Aider = new("aider", "Aider", ["aider"], ["/aider", "aider-chat", "-m aider"], ["aider"],
     [
         new("confirm", AgentState.Waiting, [C(4, "(Y)es/(N)o", "[Yes]:", "(D)on't ask again")], "has a question", "question"),
-        new("working", AgentState.Working, [C(4, "Waiting for", "Tokens:")]),
+        new(Working, AgentState.Working, [C(4, "Waiting for", "Tokens:")]),
     ]);
 
-    public static readonly AgentDefinition Cursor = new("cursor-agent", "Cursor", ["cursor-agent"], ["cursor-agent"], ["cursor-agent"],
+    public static readonly AgentDefinition Cursor = new(CursorAgent, "Cursor", [CursorAgent], [CursorAgent], [CursorAgent],
     [
-        new("approval", AgentState.Waiting, [C(20, "Run this command?", "Allow", "Accept")], "needs permission", "permission"),
-        new("working", AgentState.Working, [C(6, "ctrl+c to stop", "Generating", "esc to interrupt")]),
+        new(Approval, AgentState.Waiting, [C(20, "Run this command?", Allow, "Accept")], NeedsPermission, Permission),
+        new(Working, AgentState.Working, [C(6, "ctrl+c to stop", "Generating", EscToInterrupt)]),
     ]);
 
     public static readonly AgentDefinition Copilot = new("copilot-cli", "Copilot", ["copilot"], ["@github/copilot"], ["copilot"],
     [
-        new("approval", AgentState.Waiting, [C(20, "Do you want to run this command?", "Do you want to edit", "Allow")], "needs permission", "permission"),
-        new("working", AgentState.Working, [C(6, "Esc to cancel", "esc to interrupt")]),
+        new(Approval, AgentState.Waiting, [C(20, "Do you want to run this command?", "Do you want to edit", Allow)], NeedsPermission, Permission),
+        new(Working, AgentState.Working, [C(6, "Esc to cancel", EscToInterrupt)]),
     ]);
 
     public static readonly AgentDefinition Droid = new("droid", "Droid", ["droid"], ["factory-cli", "/droid"], ["droid"],
     [
-        new("approval", AgentState.Waiting, [C(20, "Allow", "Approve", "Do you want to")], "needs permission", "permission"),
-        new("working", AgentState.Working, [C(6, "esc to stop", "esc to interrupt")]),
+        new(Approval, AgentState.Waiting, [C(20, Allow, "Approve", "Do you want to")], NeedsPermission, Permission),
+        new(Working, AgentState.Working, [C(6, "esc to stop", EscToInterrupt)]),
     ]);
 
     public static readonly AgentDefinition[] All = [Claude, Codex, Gemini, OpenCode, Amp, Aider, Cursor, Copilot, Droid];

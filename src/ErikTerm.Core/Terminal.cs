@@ -1042,7 +1042,9 @@ public sealed class Terminal : ISynchronizedOutputTarget, ILinkedRows, ITerminal
         if (priv == 0 && inter.IsEmpty)
         {
             int n = p.Get(0, 1);
+#pragma warning disable S1479 // one case per CSI final byte: the compiler makes it a jump table on the hottest path, a lookup table would add an indirect call per sequence
             switch ((char)final)
+#pragma warning restore S1479
             {
                 case '@': InsertChars(n); break;
                 case 'A': CursorUp(n); break;
@@ -1770,14 +1772,14 @@ public sealed class Terminal : ISynchronizedOutputTarget, ILinkedRows, ITerminal
     private int CellH => Math.Max(1, CellPixelHeight);
 
     /// <summary>
-    /// Writes an image into the grid at the cursor as a box of <paramref name="cols"/>×<paramref name="rows"/> cells
-    /// (clipped at the right edge). The picture fills the content rectangle (cell units) inside the box.
+    /// Writes an image into the grid at the cursor as a box of <see cref="InlineImage.Columns"/>×<see cref="InlineImage.Rows"/>
+    /// cells (clipped at the right edge). The picture fills the content rectangle (cell units) inside the box.
     /// </summary>
-    void IImageGrid.PlaceCellImage(TerminalImage image, int cols, int rows, float cx, float cy, float cw, float ch, ImageCursor cursor)
+    void IImageGrid.PlaceCellImage(in InlineImage placement, ImageCursor cursor)
     {
-        cols = Math.Clamp(cols, 1, ImageStore.MaxTileColumns);
-        rows = Math.Clamp(rows, 1, ImageStore.MaxTileRows);
-        int slot = _images.AllocateSlot(new InlineImage(image, cols, rows, cx, cy, cw, ch));
+        int cols = Math.Clamp(placement.Columns, 1, ImageStore.MaxTileColumns);
+        int rows = Math.Clamp(placement.Rows, 1, ImageStore.MaxTileRows);
+        int slot = _images.AllocateSlot(placement with { Columns = cols, Rows = rows });
 
         if (_pendingWrap) { _pendingWrap = false; if (cursor != ImageCursor.Stay) WrapToNextLine(); }
         int startX = _x, startY = _y;

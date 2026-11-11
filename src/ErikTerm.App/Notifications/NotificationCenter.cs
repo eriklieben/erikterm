@@ -62,20 +62,20 @@ internal sealed class NotificationCenter(IDesktopNotifier desktop)
 
     // ---- Posting ----------------------------------------------------------------------------------
 
-    public NotificationRoute Post(in NotificationRequest r, in NotificationContext ctx)
+    public NotificationRoutes Post(in NotificationRequest r, in NotificationContext ctx)
     {
-        if (ctx.PaneSeen) return NotificationRoute.None; // never for the pane you're looking at
+        if (ctx.PaneSeen) return NotificationRoutes.None; // never for the pane you're looking at
         long now = ctx.Now;
         bool waiting = r.Priority == NotificationPriority.Waiting;
 
         var (app, title, body) = CleanedText(r);
-        if (IsFlooding(r.PaneId, now, waiting)) return NotificationRoute.None;
+        if (IsFlooding(r.PaneId, now, waiting)) return NotificationRoutes.None;
 
         var item = Record(r, now, app, title, body);
-        var route = NotificationRoute.History;
+        var route = NotificationRoutes.History;
         bool desktopAllowed = r.Source != NotificationSource.Agent || AgentDesktop;
-        if (BarEnabled) route |= NotificationRoute.Bar;
-        else if (ctx.WindowFocused && desktopAllowed) route |= NotificationRoute.Toast;
+        if (BarEnabled) route |= NotificationRoutes.Bar;
+        else if (ctx.WindowFocused && desktopAllowed) route |= NotificationRoutes.Toast;
 
         if (!ctx.WindowFocused && desktopAllowed) route |= OutOfWindowRoute(item, now, waiting);
         Changed();
@@ -142,7 +142,7 @@ internal sealed class NotificationCenter(IDesktopNotifier desktop)
         return item;
     }
 
-    private NotificationRoute OutOfWindowRoute(NotificationItem item, long now, bool waiting)
+    private NotificationRoutes OutOfWindowRoute(NotificationItem item, long now, bool waiting)
     {
         switch (Mode)
         {
@@ -151,21 +151,21 @@ internal sealed class NotificationCenter(IDesktopNotifier desktop)
             case OsNotificationMode.Ask when desktop.Available:
                 if (!AskPending) AskApp = item.App.Length > 0 ? item.App : "A program";
                 AskPending = true;
-                return NotificationRoute.Ask;
+                return NotificationRoutes.Ask;
             default:
-                return NotificationRoute.None;
+                return NotificationRoutes.None;
         }
     }
 
-    private NotificationRoute SendToDesktop(NotificationItem item, long now, bool waiting)
+    private NotificationRoutes SendToDesktop(NotificationItem item, long now, bool waiting)
     {
         bool paneLimited = !waiting && _desktopAt.TryGetValue(item.PaneId, out long last) && now - last < DesktopPaneIntervalMs;
-        if (paneLimited || now - _lastDesktopAt < DesktopGlobalIntervalMs) return NotificationRoute.None;
+        if (paneLimited || now - _lastDesktopAt < DesktopGlobalIntervalMs) return NotificationRoutes.None;
         _desktopAt[item.PaneId] = _lastDesktopAt = now;
         if (_desktopAt.Count > 256) Prune(_desktopAt, now, DesktopPaneIntervalMs);
         desktop.Send(item.PaneId, NotificationText.DesktopTitle(item.Title), NotificationText.EscapeMarkup(item.Body), waiting);
         item.SentToDesktop = true;
-        return NotificationRoute.Os;
+        return NotificationRoutes.Os;
     }
 
     // ---- The user's answer ------------------------------------------------------------------------

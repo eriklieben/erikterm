@@ -72,6 +72,15 @@ internal static class Widgets
         return total;
     }
 
+    /// <summary>The width <see cref="Keycaps"/> draws <paramref name="keys"/> in, to place them before drawing.</summary>
+    public static float KeycapsWidth(DrawList dl, Theme th, string[] keys)
+    {
+        float px = th.UiPx * 0.78f;
+        float h = MathF.Round(dl.MetricsFor(px).Height + th.S(6)), total = 0;
+        foreach (var k in keys) total += MathF.Max(h, dl.Measure(k, px) + 2 * th.S(5)) + th.S(3);
+        return total - th.S(3);
+    }
+
     /// <summary>Floating panel chrome: drop shadow, 1px border, fill.</summary>
     public static void FloatingPanel(DrawList dl, Theme th, RectF r, float radius, float alpha)
     {

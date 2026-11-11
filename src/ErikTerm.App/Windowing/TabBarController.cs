@@ -14,10 +14,12 @@ namespace ErikTerm.App.Windowing;
 /// layout, focus and zoom are the window's live state (<see cref="IWindowHost.EnterTab"/>); background tabs are kept in
 /// step by <see cref="BackgroundTabs"/>.
 /// </summary>
+#pragma warning disable S107 // TermWindow's wiring: each part takes the peers it calls, so its dependencies stay visible; a bundle of them would only hide that
 internal sealed class TabBarController(
     IWindowHost window, TabList<Tab> tabs, TabBar bar, FloatingChrome chrome, WindowTabSwitcher<Tab> switcher,
     WindowTabColors<Tab> tabColors, PaneRenderer renderer, BackgroundTabs background, WindowProgress progress, WindowSearch search,
     CloseConfirmFlow closeConfirm, ExitHoldFlow exitHold, ContextMenu menu, PaneSelect paneSelect)
+#pragma warning restore S107
 {
     private static readonly string HomeDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
     private Tab? _outgoing;            // the tab sliding out during a switch
@@ -27,6 +29,11 @@ internal sealed class TabBarController(
 
     /// <summary>The tab sliding out during a switch (its panes are left where the animation puts them).</summary>
     public Tab? Outgoing => _outgoing;
+
+    /// <summary>The tab bar this controls, the floating window bar it rides in, and the Ctrl+Tab switcher.</summary>
+    public TabBar Bar => bar;
+    public FloatingChrome Floating => chrome;
+    public WindowTabSwitcher<Tab> Switcher => switcher;
 
     /// <summary>
     /// Whether the bar has a place in the layout. A floating bar always does: it is hidden by sliding above the
@@ -357,8 +364,12 @@ internal sealed class TabBarController(
             for (int i = 0; i < items.Count; i++) // by index: foreach over the IReadOnlyList would box its enumerator every frame
             {
                 var tab = items[i];
-                bar.Set(tab.Id, tab.Title, ReferenceEquals(tab, tabs.Active), tab.Activity, now, tab.AgentState, window.TabRepoBadge(tab), // git/GitHub badge (WindowFeatures/WindowIntegrations.cs)
-                    tabColors.ColorOf(tab), tab.Progress, NeedsAttention(tab), tab.InContainer); // Tabs/WindowTabColors.cs, Windowing/WindowProgress.cs, Tabs/WindowTabSwitcher.cs
+                bar.Set(tab.Id, new TabBar.TabState
+                {
+                    Title = tab.Title, Active = ReferenceEquals(tab, tabs.Active), Activity = tab.Activity, Agent = tab.AgentState,
+                    Badge = window.TabRepoBadge(tab), // git/GitHub badge (WindowFeatures/WindowIntegrations.cs)
+                    Color = tabColors.ColorOf(tab), Progress = tab.Progress, Attention = NeedsAttention(tab), Container = tab.InContainer, // Tabs/WindowTabColors.cs, Windowing/WindowProgress.cs, Tabs/WindowTabSwitcher.cs
+                }, now);
             }
         }
         bar.EndSync(now);

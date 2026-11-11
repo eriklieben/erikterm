@@ -84,7 +84,7 @@ internal sealed class CellImages(ImageStore images, IImageGrid grid)
         }
         float cx = (cols * cw - bw) / 2 / cw, cy = (rows * ch - bh) / 2 / ch;
         if (reqW is null && reqH is null) cx = cy = 0; // native size: top-left
-        grid.PlaceCellImage(image, cols, rows, cx, cy, bw / cw, bh / ch, options.Stay ? ImageCursor.Stay : ImageCursor.AfterLastRow);
+        grid.PlaceCellImage(new InlineImage(image, cols, rows, cx, cy, bw / cw, bh / ch), options.Stay ? ImageCursor.Stay : ImageCursor.AfterLastRow);
     }
 
     private readonly record struct Iterm2ImageOptions(string? Width, string? Height, bool Inline, bool Preserve, bool Stay);
@@ -164,6 +164,6 @@ internal sealed class CellImages(ImageStore images, IImageGrid grid)
         if (image.IsEvicted) return;
         int cw = grid.CellWidth, ch = grid.CellHeight;
         int cols = (decoded.Width + cw - 1) / cw, rows = (decoded.Height + ch - 1) / ch;
-        grid.PlaceCellImage(image, cols, rows, 0, 0, decoded.Width / (float)cw, decoded.Height / (float)ch, ImageCursor.NextLine);
+        grid.PlaceCellImage(new InlineImage(image, cols, rows, 0, 0, decoded.Width / (float)cw, decoded.Height / (float)ch), ImageCursor.NextLine);
     }
 }

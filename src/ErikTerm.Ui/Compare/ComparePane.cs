@@ -289,7 +289,7 @@ public sealed class ComparePane
         int left = x + GutterWidth - 1;
         f.Fill(left, y, width - GutterWidth + 1, 1, Theme.Text, bg);
         f.Put(left, y, "▎", note.Outdated ? Theme.Peach : Theme.Mauve, bg);
-        if (row == 0) f.Text(left + 2, y, width - GutterWidth, note.Label, note.Outdated ? Theme.Peach : Theme.Subtext, bg, CellAttr.Bold);
+        if (row == 0) f.Text(left + 2, y, width - GutterWidth, note.Label, note.Outdated ? Theme.Peach : Theme.Subtext, bg, CellAttrs.Bold);
         var lines = NoteLines(note);
         if (row < lines.Count)
         {
@@ -575,21 +575,22 @@ public sealed class ComparePane
         f.Text(tx, y, x + width - tx - 1, message, Theme.Subtext, Theme.Base);
     }
 
-    private int ToolButton(Frame f, int x, int y, int limit, string label, int action, bool active, uint? color = null, bool ignoreStyle = false)
+    /// <summary>A toolbar button; an active one is filled with its colour, or, an <paramref name="ignoreStyle"/> one, with the quiet background.</summary>
+    private int ToolButton(Frame f, int x, int y, int limit, FrameButton button, bool ignoreStyle = false)
     {
-        int width = label.Length + 2;
+        int width = button.Label.Length + 2;
         if (x + width >= limit) return x;
-        uint accent = color ?? Theme.Lavender;
+        uint accent = button.Color ?? Theme.Lavender;
         uint bg = Theme.Surface0;
         uint fg = Theme.Text;
-        if (active)
+        if (button.Active)
         {
             bg = ignoreStyle ? Theme.AutoBg : accent;
             fg = ignoreStyle ? Theme.Text : Theme.OnAccent;
         }
         f.Fill(x, y, width, 1, fg, bg);
-        f.Text(x + 1, y, width - 1, label, fg, bg);
-        f.AddHit(x, y, width, 1, action);
+        f.Text(x + 1, y, width - 1, button.Label, fg, bg);
+        f.AddHit(x, y, width, 1, button.Action, button.Arg);
         return x + width + 1;
     }
 
@@ -599,13 +600,13 @@ public sealed class ComparePane
         int limit = x + width;
         f.Fill(x, y, width, 1, Theme.Text, Theme.Mantle);
         int cx = x + 1;
-        cx = ToolButton(f, cx, y, limit, "All", ActFilterAll, _filter == CompareFilter.All);
-        cx = ToolButton(f, cx, y, limit, "Differences", ActFilterDiffs, _filter == CompareFilter.Differences);
-        cx = ToolButton(f, cx, y, limit, "Context", ActFilterContext, _filter == CompareFilter.Context);
+        cx = ToolButton(f, cx, y, limit, new("All", ActFilterAll, Active: _filter == CompareFilter.All));
+        cx = ToolButton(f, cx, y, limit, new("Differences", ActFilterDiffs, Active: _filter == CompareFilter.Differences));
+        cx = ToolButton(f, cx, y, limit, new("Context", ActFilterContext, Active: _filter == CompareFilter.Context));
         cx = f.Text(cx + 1, y, Math.Max(0, limit - cx), "Ignore", Theme.Subtext, Theme.Mantle) + 1;
-        cx = ToolButton(f, cx, y, limit, "whitespace", ActWhitespace, _rules.Whitespace, Theme.Green, ignoreStyle: true);
-        cx = ToolButton(f, cx, y, limit, "line endings", ActLineEndings, _rules.LineEndings, Theme.Green, ignoreStyle: true);
-        cx = ToolButton(f, cx, y, limit, "comments", ActComments, _rules.Comments, Theme.Green, ignoreStyle: true);
+        cx = ToolButton(f, cx, y, limit, new("whitespace", ActWhitespace, Active: _rules.Whitespace, Color: Theme.Green), ignoreStyle: true);
+        cx = ToolButton(f, cx, y, limit, new("line endings", ActLineEndings, Active: _rules.LineEndings, Color: Theme.Green), ignoreStyle: true);
+        cx = ToolButton(f, cx, y, limit, new("comments", ActComments, Active: _rules.Comments, Color: Theme.Green), ignoreStyle: true);
         string summary = Summary;
         int sx = Math.Max(cx + 1, limit - summary.Length - 2);
         f.Text(sx, y, Math.Max(0, limit - sx - 1), summary, Theme.Subtext, Theme.Mantle);
@@ -614,7 +615,7 @@ public sealed class ComparePane
     private void DrawPaneTitle(Frame f, int x, int y, int width, string title, string subtitle, uint color)
     {
         f.Fill(x, y, width, 1, Theme.Text, Theme.Mantle);
-        int nx = f.Text(x + 1, y, Math.Max(0, width - 2), title, color, Theme.Mantle, CellAttr.Bold);
+        int nx = f.Text(x + 1, y, Math.Max(0, width - 2), title, color, Theme.Mantle, CellAttrs.Bold);
         if (subtitle.Length > 0) f.Text(nx + 2, y, Math.Max(0, x + width - nx - 3), subtitle, Theme.Subtext, Theme.Mantle);
     }
 
@@ -635,8 +636,8 @@ public sealed class ComparePane
             : Changes(row);
         bool eolOnly = row.Kind != RowKind.Equal && row.Left >= 0 && row.Right >= 0
             && TextDocument.Content(_left!.Document!.RawLines[row.Left]).SequenceEqual(TextDocument.Content(_right!.Document!.RawLines[row.Right]));
-        DrawCell(f, x, y, leftW, row.Left, _left!, row.Kind, true, selected, changes.Left, row.Right < 0, eolOnly);
-        DrawCell(f, rightX, y, rightW, row.Right, _right!, row.Kind, false, selected, changes.Right, row.Left < 0, eolOnly);
+        DrawCell(f, new FrameRun(x, y, leftW), row, true, selected, changes.Left, eolOnly);
+        DrawCell(f, new FrameRun(rightX, y, rightW), row, false, selected, changes.Right, eolOnly);
     }
 
     private bool InMark(int rowIndex)
@@ -657,8 +658,14 @@ public sealed class ComparePane
         return changes;
     }
 
-    private void DrawCell(Frame f, int x, int y, int width, int line, CompareSide side, RowKind kind, bool isLeft, bool selected, TextSpan[] spans, bool otherGap, bool eolOnly)
+    /// <summary>One side of <paramref name="row"/>: <paramref name="isLeft"/> is the left one.</summary>
+    private void DrawCell(Frame f, FrameRun at, CompareRow row, bool isLeft, bool selected, TextSpan[] spans, bool eolOnly)
     {
+        var (x, y, width) = at;
+        int line = isLeft ? row.Left : row.Right;
+        bool otherGap = (isLeft ? row.Right : row.Left) < 0;
+        var side = isLeft ? _left! : _right!;
+        var kind = row.Kind;
         var (bg, spanBg, fg, attr) = CellStyle(kind, isLeft);
         if (kind == RowKind.Important && otherGap) spans = [new TextSpan(0, int.MaxValue / 2)];
 
@@ -676,15 +683,15 @@ public sealed class ComparePane
         f.Put(x, y, selected ? "▌" : " ", markerFg, bg);
         string number = (line + 1).ToString();
         f.Text(x + GutterWidth - 1 - number.Length, y, number.Length, number, Theme.Overlay, bg);
-        CompareRender.Line(f, x + GutterWidth, y, width - GutterWidth, TextDocument.Content(raw), _hScroll, fg, bg, spans, spanBg, attr);
+        CompareRender.Line(f, new FrameRun(x + GutterWidth, y, width - GutterWidth), TextDocument.Content(raw), _hScroll, spans, new FrameLineStyle(fg, bg, spanBg, attr));
         if (eolOnly) DrawEolHint(f, x, y, width, raw);
     }
 
-    private (uint Bg, uint SpanBg, uint Fg, CellAttr Attr) CellStyle(RowKind kind, bool isLeft) => kind switch
+    private (uint Bg, uint SpanBg, uint Fg, CellAttrs Attr) CellStyle(RowKind kind, bool isLeft) => kind switch
     {
-        RowKind.Important => (isLeft ? Theme.OursBg : Theme.TheirsBg, isLeft ? Theme.OursHi : Theme.TheirsHi, Theme.Text, CellAttr.None),
-        RowKind.Unimportant => (Theme.QuietBg, Theme.QuietBg, Theme.Overlay, CellAttr.Dim),
-        _ => (Theme.Base, Theme.Base, Theme.Text, CellAttr.None),
+        RowKind.Important => (isLeft ? Theme.OursBg : Theme.TheirsBg, isLeft ? Theme.OursHi : Theme.TheirsHi, Theme.Text, CellAttrs.None),
+        RowKind.Unimportant => (Theme.QuietBg, Theme.QuietBg, Theme.Overlay, CellAttrs.Dim),
+        _ => (Theme.Base, Theme.Base, Theme.Text, CellAttrs.None),
     };
 
     /// <summary>A row whose text is the same but whose terminator isn't says so at the end of the line: it's the whole difference.</summary>
@@ -729,8 +736,8 @@ public sealed class ComparePane
         var row = _result!.Rows[_visible[_cursor]];
         var changes = row.Left >= 0 && row.Right >= 0 ? Changes(row) : LineChanges.None;
         int scroll = FirstChange(changes);
-        DrawDetailLine(f, x, y, width, row.Left, _left!, Theme.Blue, changes.Left, scroll, Theme.OursHi);
-        DrawDetailLine(f, x, y + 1, width, row.Right, _right!, Theme.Peach, changes.Right, scroll, Theme.TheirsHi);
+        DrawDetailLine(f, new FrameRun(x, y, width), row.Left, _left!, true, changes.Left, scroll);
+        DrawDetailLine(f, new FrameRun(x, y + 1, width), row.Right, _right!, false, changes.Right, scroll);
     }
 
     private static int FirstChange(LineChanges changes)
@@ -741,14 +748,18 @@ public sealed class ComparePane
         return first == int.MaxValue ? 0 : Math.Max(0, first - 16);
     }
 
-    private void DrawDetailLine(Frame f, int x, int y, int width, int line, CompareSide side, uint color, TextSpan[] spans, int scroll, uint spanBg)
+    /// <summary>One side's line in the detail rows, named and in its colour (blue for the left, peach for the right).</summary>
+    private void DrawDetailLine(Frame f, FrameRun at, int line, CompareSide side, bool isLeft, TextSpan[] spans, int scroll)
     {
+        var (x, y, width) = at;
+        uint color = isLeft ? Theme.Blue : Theme.Peach;
         string name = side.Subtitle.Length > 0 ? side.Subtitle : "left";
-        if (color == Theme.Peach && side.Subtitle.Length == 0) name = "right";
+        if (!isLeft && side.Subtitle.Length == 0) name = "right";
         if (name.Length > 7) name = name[..7];
-        f.Text(x + 1, y, 8, name, color, Theme.Mantle, CellAttr.Bold);
+        f.Text(x + 1, y, 8, name, color, Theme.Mantle, CellAttrs.Bold);
         if (line < 0) return;
-        CompareRender.Line(f, x + 9, y, width - 10, TextDocument.Content(side.Document!.RawLines[line]), scroll, Theme.Text, Theme.Mantle, spans, spanBg, CellAttr.None);
+        uint spanBg = isLeft ? Theme.OursHi : Theme.TheirsHi;
+        CompareRender.Line(f, new FrameRun(x + 9, y, width - 10), TextDocument.Content(side.Document!.RawLines[line]), scroll, spans, new FrameLineStyle(Theme.Text, Theme.Mantle, spanBg));
     }
 
     private void DrawRulesPopup(Frame f, int top)
@@ -756,7 +767,7 @@ public sealed class ComparePane
         const int Width = 44, Height = 7;
         int x = Math.Max(0, f.Width - Width - 2), y = top;
         f.Fill(x, y, Width, Height, Theme.Text, Theme.Surface0);
-        f.Text(x + 2, y + 1, Width - 4, "Ignore these differences (dimmed):", Theme.Subtext, Theme.Surface0, CellAttr.Bold);
+        f.Text(x + 2, y + 1, Width - 4, "Ignore these differences (dimmed):", Theme.Subtext, Theme.Surface0, CellAttrs.Bold);
         DrawRuleLine(f, x, y + 2, "1  whitespace", _rules.Whitespace);
         DrawRuleLine(f, x, y + 3, "2  line endings", _rules.LineEndings);
         DrawRuleLine(f, x, y + 4, "3  comments", _rules.Comments);

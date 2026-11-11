@@ -10,6 +10,9 @@ namespace ErikTerm.App.WindowFeatures;
 /// <summary>What the repo pills draw with, from the window's frame (no calls back into the window while drawing).</summary>
 internal readonly record struct RepoPillFrame(DrawList Dl, Theme Theme, bool GitStatus, bool AgentPills, bool ZoomBadge, bool WindowFocused);
 
+/// <summary>What the repository scan runs on, shared by the integrations and the merge/rebase bar: the background jobs, the per-pane tracking and git status.</summary>
+internal sealed record RepoScan(BackgroundJobs Jobs, PaneTracks Tracks, WindowGit Git);
+
 /// <summary>
 /// Developer-tool integrations, the shared part: per-pane tracking (<see cref="PaneTracks"/>: directory, finished
 /// commands, focus), the scan that drives git status (<see cref="WindowGit"/>), GitHub (<see cref="WindowGitHub"/>), the
@@ -21,7 +24,7 @@ internal readonly record struct RepoPillFrame(DrawList Dl, Theme Theme, bool Git
 /// when what's shown changed. The per-frame hooks take what they need as arguments.
 /// </summary>
 internal sealed class WindowIntegrations(
-    IFeatureWindow window, BackgroundJobs jobs, PaneTracks tracks, WindowGit git, WindowGitHub github, WindowGitOperations gitOps,
+    IFeatureWindow window, RepoScan scan, WindowGitHub github, WindowGitOperations gitOps,
     WindowContainers containers, WindowEditor editor)
 {
     private readonly Dictionary<int, RectF> _pillRects = [];
@@ -41,12 +44,12 @@ internal sealed class WindowIntegrations(
     /// <summary>Tick hook (main thread, once per loop iteration).</summary>
     public void Tick(long now, Settings settings, Pane focused, bool windowFocused, bool tabBarShown, float mouseX, float mouseY)
     {
-        jobs.Drain();
+        scan.Jobs.Drain();
         if (!ReferenceEquals(settings, _integrationSettings)) { _integrationSettings = settings; _badgeEpoch++; editor.SettingsChanged(); } // config reloaded
         bool focusMoved = !ReferenceEquals(_trackedFocus, focused) || _trackedWindowFocus != windowFocused;
-        if (now >= tracks.ScanAt || focusMoved)
+        if (now >= scan.Tracks.ScanAt || focusMoved)
         {
-            tracks.ScanAt = now + ScanMs;
+            scan.Tracks.ScanAt = now + ScanMs;
             Scan(now);
         }
         TickPills(now, settings.GitStatus, mouseX, mouseY, settings.AnimationDurationMs);
@@ -62,8 +65,8 @@ internal sealed class WindowIntegrations(
     public int WakeMs(long now, bool windowFocused, bool tabBarShown, bool gitStatus, Pane focused)
     {
         int ms = int.MaxValue;
-        if (jobs.Busy) ms = 60;
-        foreach (var tr in tracks.All.Values)
+        if (scan.Jobs.Busy) ms = 60;
+        foreach (var tr in scan.Tracks.All.Values)
             if (tr.Pill.Target > 0 && tr.PillUntil > now) ms = (int)Math.Min(ms, tr.PillUntil - now + 1);
         if (windowFocused && SpinnerVisible(tabBarShown, gitStatus, focused)) ms = (int)Math.Min(ms, Math.Max(1, _spinnerFrameAt - now));
         return ms;
@@ -73,7 +76,7 @@ internal sealed class WindowIntegrations(
     public bool IsAnimating(long now)
     {
 #pragma warning disable S3267 // IsAnimating runs every frame: no LINQ iterator or closure here.
-        foreach (var tr in tracks.All.Values) if (tr.Pill.IsAnimating(now)) return true;
+        foreach (var tr in scan.Tracks.All.Values) if (tr.Pill.IsAnimating(now)) return true;
 #pragma warning restore S3267
         return false;
     }
@@ -85,7 +88,7 @@ internal sealed class WindowIntegrations(
         var focused = window.Focused;
         bool windowFocused = window.IsFocused;
         bool focusMoved = !ReferenceEquals(_trackedFocus, focused);
-        var previousRepo = tracks.Of(_trackedFocus)?.Repo;
+        var previousRepo = scan.Tracks.Of(_trackedFocus)?.Repo;
         bool regained = windowFocused && !_trackedWindowFocus;
         _trackedFocus = focused;
         _trackedWindowFocus = windowFocused;
@@ -93,23 +96,23 @@ internal sealed class WindowIntegrations(
         containers.Track(now); // before the directories, which follow a pane into its container
         TrackAllPanes(now);
         if ((focusMoved || regained) && focused is not null) NoteFocusedPane(focused, focusMoved, previousRepo, now);
-        tracks.DropDead();
+        scan.Tracks.DropDead();
         if (now >= _pruneAt)
         {
             _pruneAt = now + 10_000;
-            git.Prune();
+            scan.Git.Prune();
             github.Prune();
         }
         gitOps.Tick(now);               // merge/rebase bar
         gitOps.TickConflictChecks(now); // tab conflict warning
-        git.Schedule(now);
+        scan.Git.Schedule(now);
         github.Schedule(now);
         github.CheckRunWatches();
     }
 
     private void TrackAllPanes(long now)
     {
-        foreach (var tr in tracks.All.Values) tr.Live = false;
+        foreach (var tr in scan.Tracks.All.Values) tr.Live = false;
         var tabs = window.Tabs;
         var items = tabs.Items;
         for (int i = 0; i < items.Count; i++)
@@ -123,7 +126,7 @@ internal sealed class WindowIntegrations(
 
     private void NoteFocusedPane(Pane focused, bool focusMoved, RepoInfo? previousRepo, long now)
     {
-        var tr = tracks.Track(focused);
+        var tr = scan.Tracks.Track(focused);
         tr.FocusedAt = now;
         gitOps.FocusMoved(); // a merge or rebase may have started while the focus was elsewhere
         RequestRefresh(tr);
@@ -133,7 +136,7 @@ internal sealed class WindowIntegrations(
 
     private void TrackPane(Pane pane, long now, bool visible)
     {
-        var tr = tracks.Track(pane);
+        var tr = scan.Tracks.Track(pane);
         tr.Live = true;
         if (!window.Settings.GitStatus)
         {
@@ -176,7 +179,7 @@ internal sealed class WindowIntegrations(
         if (cwd != tr.Cwd)
         {
             tr.Cwd = cwd;
-            tr.Repo = cwd is null ? null : git.RepoFor(cwd);
+            tr.Repo = cwd is null ? null : scan.Git.RepoFor(cwd);
             if (tr.Repo is { } repo) RefreshPolicy.Request(ref repo.State);
             if (pane == window.Focused) FlashPill(tr, now);
         }
@@ -232,13 +235,13 @@ internal sealed class WindowIntegrations(
     /// <summary>Palette hook: Git and GitHub entries for the focused pane's repository.</summary>
     public void AddCommands(List<Command> list)
     {
-        var tr = tracks.Of(window.Focused);
-        git.AddCommands(list, tr);
+        var tr = scan.Tracks.Of(window.Focused);
+        scan.Git.AddCommands(list, tr);
         github.AddCommands(list, tr);
     }
 
     /// <summary>The badge of a tab: its focused pane's (<paramref name="focused"/>; no allocation, called while drawing the tab bar).</summary>
-    public RepoBadgeModel? TabBadge(Pane? focused, bool gitStatus) => gitStatus ? tracks.Of(focused)?.Badge : null;
+    public RepoBadgeModel? TabBadge(Pane? focused, bool gitStatus) => gitStatus ? scan.Tracks.Of(focused)?.Badge : null;
 
     // ==== Pane pill ============================================================================
 
@@ -251,7 +254,7 @@ internal sealed class WindowIntegrations(
 
     private void TickPills(long now, bool gitStatus, float mouseX, float mouseY, float anim)
     {
-        foreach (var (id, tr) in tracks.All)
+        foreach (var (id, tr) in scan.Tracks.All)
         {
             bool show = tr.Badge is not null && now < tr.PillUntil && gitStatus;
             // Keep it while the pointer rests on it, so it can be read.
@@ -276,7 +279,7 @@ internal sealed class WindowIntegrations(
             for (int i = 0; i < items.Count; i++)
                 if (RepoBadge.Spins(TabBadge(ReferenceEquals(items[i], tabs.Active) ? focused : items[i].Focused, gitStatus))) return true;
         }
-        foreach (var tr in tracks.All.Values)
+        foreach (var tr in scan.Tracks.All.Values)
             if (tr.Pill.Target > 0 && RepoBadge.Spins(tr.Badge)) return true;
         return false;
     }
@@ -289,14 +292,14 @@ internal sealed class WindowIntegrations(
         var th = f.Theme;
         foreach (var pane in visible)
         {
-            if (tracks.Of(pane) is not { Badge: { } badge } tr) continue;
+            if (scan.Tracks.Of(pane) is not { Badge: { } badge } tr) continue;
             float a = tr.Pill.Value(now) * pane.Appear.Value(now);
             if (a <= 0.001f) continue;
             RectF pr = pane.Rect.Value(now);
             float margin = th.S(8);
             float slide = (1 - Ease.OutCubic(a)) * th.S(-6);
             float right = RepoPillRight(f, pane, pr) - margin;
-            float w = RepoBadge.DrawPill(f.Dl, th, badge, right, pr.Y + margin + slide, pr.W - margin * 2, a, now, f.WindowFocused);
+            float w = RepoBadge.DrawPill(f.Dl, th, badge, new RepoBadge.PillAnchor(right, pr.Y + margin + slide, pr.W - margin * 2), a, f.WindowFocused ? now : 0);
             if (w > 0) _pillRects[pane.Id] = new RectF(right - w, pr.Y + margin, w, RepoBadge.PillHeight(th));
         }
     }

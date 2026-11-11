@@ -65,7 +65,7 @@ public class NotificationDisplaysTests
     [Test]
     [Arguments(null)]
     [Arguments("")]
-    [Arguments("\u0007‮\n")]
+    [Arguments("\u0007\u202e\n")]
     public async Task ANameThatCleansToNothingNamesNothing(string? displayName)
     {
         // Act
@@ -79,7 +79,7 @@ public class NotificationDisplaysTests
     public async Task ControlCharactersAndBidiMarksAreRemovedFromTheName()
     {
         // Arrange
-        const string raw = "DELL\u001b‮ U2720Q\n";
+        const string raw = "DELL\u001b\u202e U2720Q\n";
 
         // Act
         string? name = NotificationDisplays.OtherDisplayName(Left, Right, raw, [raw, Lg]);

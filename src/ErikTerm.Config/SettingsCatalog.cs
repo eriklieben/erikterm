@@ -71,8 +71,11 @@ public static class SettingsCatalog
     private static SettingInfo Choice(string group, string key, string label, string? value, string[] choices, string help) =>
         new(key, group, label, help, SettingKind.Choice, value) { Choices = choices };
 
-    private static SettingInfo Number(string group, string key, string label, double value, double min, double max, double step, string unit, string help) =>
-        new(key, group, label, help, SettingKind.Number, TomlEditor.Literal(value)) { Min = min, Max = max, Step = step, Unit = unit };
+    /// <summary>The range a number setting's stepper moves through, and the unit shown after it.</summary>
+    private readonly record struct NumberRange(double Min, double Max, double Step, string Unit);
+
+    private static SettingInfo Number(string group, string key, string label, double value, NumberRange range, string help) =>
+        new(key, group, label, help, SettingKind.Number, TomlEditor.Literal(value)) { Min = range.Min, Max = range.Max, Step = range.Step, Unit = range.Unit };
 
     private static SettingInfo Text(string group, string key, string label, string? value, string help) =>
         new(key, group, label, help, SettingKind.Text, value);
@@ -98,9 +101,9 @@ public static class SettingsCatalog
         List(Font, "font_fallback", "Fallback fonts", "",
             "Fonts tried in this order for characters the main font lacks, before the automatic fallbacks. Separate the names with commas.")
             with { DefaultLabel = "none" },
-        Number(Font, "font_size", "Font size", 12, 4, 200, 0.5, "pt",
+        Number(Font, "font_size", "Font size", 12, new(4, 200, 0.5, "pt"),
             "Text size in points. Ctrl+= and Ctrl+- zoom a single window without changing this."),
-        Number(Font, "line_height", "Line height", 1.0, 0.5, 4, 0.05, "×",
+        Number(Font, "line_height", "Line height", 1.0, new(0.5, 4, 0.05, "×"),
             "A multiple of the font's own line height. Above 1 adds room between lines; box drawing still joins up."),
         List(Font, "harfbuzz_features", "Font features", "calt=1, liga=1, clig=1",
             "OpenType features. The defaults turn on ligatures, which join -> != === into single glyphs; calt=0, liga=0 turns them off. ss01, zero and the like switch on the font's stylistic sets."),
@@ -111,12 +114,12 @@ public static class SettingsCatalog
             "Single colours on top of the scheme: foreground, background, cursor, selection, the 16 ANSI colours. They go in the file under [colors]."),
         Toggle(Colors, "bold_brightens_ansi_colors", "Bold uses bright colours", true,
             "Bold text in one of the 8 basic colours is drawn in its bright variant, as most terminals do."),
-        Number(Colors, "minimum_contrast", "Minimum contrast", 1, 1, 21, 0.5, "",
+        Number(Colors, "minimum_contrast", "Minimum contrast", 1, new(1, 21, 0.5, ""),
             "Moves text colours just far enough from their background to stay readable: 1 is off, 4.5 is WCAG AA, 7 is AAA. Box drawing and powerline glyphs are left alone."),
 
-        Number(Window, "window_background_opacity", "Background opacity", 1, 0, 1, 0.05, "",
+        Number(Window, "window_background_opacity", "Background opacity", 1, new(0, 1, 0.05, ""),
             "0 is fully clear, 1 is solid. The blur behind it comes from your compositor; on Windows, Backdrop asks for it."),
-        Number(Window, "text_background_opacity", "Text background opacity", 1, 0, 1, 0.05, "",
+        Number(Window, "text_background_opacity", "Text background opacity", 1, new(0, 1, 0.05, ""),
             "For cells a program paints with its own background, such as a CLI's input box. At 1 they stay solid on a see-through window; lower it to let the transparency through."),
         Choice(Window, "window_blur", "Backdrop", "auto", ["auto", "none", "acrylic", "mica"],
             "What Windows paints behind see-through pixels. auto: acrylic while the window is see-through, nothing when it's opaque.")
@@ -131,22 +134,22 @@ public static class SettingsCatalog
             with { Platforms = Borderless },
         InFile(Window, "window_padding", "Padding",
             "Space between the window's edge and the text, in pixels: one number, or { left, right, top, bottom }."),
-        Number(Window, "initial_cols", "Width of a new window", 120, 10, 1000, 1, "columns",
+        Number(Window, "initial_cols", "Width of a new window", 120, new(10, 1000, 1, "columns"),
             "Used when there's no saved session to bring back."),
-        Number(Window, "initial_rows", "Height of a new window", 32, 3, 500, 1, "rows",
+        Number(Window, "initial_rows", "Height of a new window", 32, new(3, 500, 1, "rows"),
             "Used when there's no saved session to bring back."),
 
         Choice(Cursor, "default_cursor_style", "Cursor shape", "SteadyBlock",
             ["SteadyBlock", "BlinkingBlock", "SteadyUnderline", "BlinkingUnderline", "SteadyBar", "BlinkingBar"],
             "Programs can still change it, as vim does with guicursor."),
-        Number(Cursor, "cursor_blink_rate", "Blink speed", 800, 0, 10_000, 50, "ms",
+        Number(Cursor, "cursor_blink_rate", "Blink speed", 800, new(0, 10_000, 50, "ms"),
             "Time between visible and invisible, for the blinking shapes. 0 never blinks."),
         Choice(Cursor, "cursor_blink_style", "Blink style", "fade", ["fade", "phase"],
             "fade: on and off with eased edges. phase: a continuous, breathing pulse."),
         Text(Cursor, "cursor_thickness", "Bar and underline thickness", null,
             "Points (1.5 or \"1.5px\", scaled with the display) or a part of the cell (\"0.1cell\", \"10%\").")
             with { DefaultLabel = "follows the font" },
-        Number(Cursor, "cursor_height", "Bar height", 1.19, 0.3, 2, 0.05, "× font size",
+        Number(Cursor, "cursor_height", "Bar height", 1.19, new(0.3, 2, 0.05, "× font size"),
             "The bar's height as a multiple of the font size, whatever the line height. \"cell\" in the file fills the whole line."),
         Toggle(Cursor, "cursor_animation", "Gliding cursor", true,
             "The cursor glides on short moves. Typing still moves it at once."),
@@ -170,17 +173,17 @@ public static class SettingsCatalog
         InFile(Tabs, "inactive_pane_hsb", "Dimming of unfocused panes",
             "Saturation and brightness of the panes you're not typing in, as { saturation = 0.9, brightness = 0.8 }."),
         Toggle(Tabs, "visual_bell", "Visual bell", true, "A bell flashes the pane."),
-        Number(Tabs, "animation_duration_ms", "Animation length", 160, 0, 2000, 20, "ms",
+        Number(Tabs, "animation_duration_ms", "Animation length", 160, new(0, 2000, 20, "ms"),
             "Length of splits, tab and menu animations. 0 turns them off."),
-        Number(Tabs, "pane_select_font_size", "Pane select letters", 36, 8, 200, 2, "pt",
+        Number(Tabs, "pane_select_font_size", "Pane select letters", 36, new(8, 200, 2, "pt"),
             "Size of the letters Pane Select (Ctrl+Shift+O) puts on each pane."),
         Text(Tabs, "pane_select_bg_color", "Pane select background", null, "A colour such as \"#b7bdf8\".")
             with { DefaultLabel = "the scheme's accent" },
         Text(Tabs, "pane_select_fg_color", "Pane select text", null, "A colour such as \"#1e2030\".")
             with { DefaultLabel = "from the scheme" },
 
-        Number(Palette, "command_palette_font_size", "Text size", 12, 6, 72, 1, "pt", "Text size in the command palette."),
-        Number(Palette, "command_palette_rows", "Rows", 12, 3, 50, 1, "rows", "How many results the palette shows at once."),
+        Number(Palette, "command_palette_font_size", "Text size", 12, new(6, 72, 1, "pt"), "Text size in the command palette."),
+        Number(Palette, "command_palette_rows", "Rows", 12, new(3, 50, 1, "rows"), "How many results the palette shows at once."),
         Text(Palette, "command_palette_bg_color", "Background", null, "A colour such as \"#1e2030\".")
             with { DefaultLabel = "a shade darker than the background" },
         Text(Palette, "command_palette_fg_color", "Text colour", null, "A colour such as \"#cad3f5\".")
@@ -200,7 +203,7 @@ public static class SettingsCatalog
             "auto: the zsh, bash, fish or PowerShell erikterm starts reports its prompts, commands and folder (OSC 133 and OSC 7), with no dotfile edits. Jumping between prompts and copying a command's output need it."),
         Choice(Shell, "exit_behavior", "When a program exits", "Close", ["Close", "Hold", "CloseOnCleanExit"],
             "Close: the pane closes. Hold: it stays, with Restart and Close. CloseOnCleanExit: it closes only when the program succeeded."),
-        Number(Shell, "scrollback_lines", "Scrollback", 10_000, 0, 1_000_000, 1000, "lines",
+        Number(Shell, "scrollback_lines", "Scrollback", 10_000, new(0, 1_000_000, 1000, "lines"),
             "Lines kept above the screen in each pane. Applies at once; making it smaller keeps the newest lines."),
 
         Choice(Safety, "osc52", "Programs setting the clipboard", "ask", ["ask", "allow", "deny"],
@@ -232,9 +235,9 @@ public static class SettingsCatalog
             "top: under the tab bar."),
         Choice(Notifications, "notification_bar_scope", "Bar shows", "tab", ["tab", "all"],
             "tab: the open tab's notifications, with a count for the other tabs. all: every window's."),
-        Number(Notifications, "notification_bar_timeout_ms", "Hide from the bar after", 10_000, 0, 3_600_000, 1000, "ms",
+        Number(Notifications, "notification_bar_timeout_ms", "Hide from the bar after", 10_000, new(0, 3_600_000, 1000, "ms"),
             "Only items that don't need you: an agent that waits stays. 0 keeps everything."),
-        Number(Notifications, "notify_command_duration", "Announce long commands", 10, 0, 86_400, 5, "s",
+        Number(Notifications, "notify_command_duration", "Announce long commands", 10, new(0, 86_400, 5, "s"),
             "A shell command that ran at least this long and finishes while you look elsewhere is announced: ✓ make finished in 1m 12s. 0 turns it off."),
 
         Toggle(Git, "git_status", "Git status on tabs", true,
@@ -262,7 +265,7 @@ public static class SettingsCatalog
             "Tabs, splits, folders, window sizes and zoom come back at the next start."),
         List(Session, "restore_programs", "Programs to start again", "nvim, btop, htop, less, man",
             "When one of these was running in a pane, it's started again on restore."),
-        Number(Session, "restore_scrollback_lines", "Scrollback to bring back", 0, 0, 100_000, 100, "lines",
+        Number(Session, "restore_scrollback_lines", "Scrollback to bring back", 0, new(0, 100_000, 100, "lines"),
             "The last lines of each pane are saved and shown again on restore. 0 saves none."),
 
         Choice(Closing, "window_close_confirmation", "Ask before closing", "AlwaysPrompt", ["AlwaysPrompt", "NeverPrompt"],

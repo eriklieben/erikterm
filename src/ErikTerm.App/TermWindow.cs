@@ -264,7 +264,7 @@ internal sealed unsafe class TermWindow
             _tabColors, _menu);
         _actions = new ActionDispatcher(this, _paneActions, _tabCtl, _tabs, _windowSearch, _closeConfirm, _exitHold, _broadcast, _themes, _aboutPanel,
             _commands, _tabSwitcher, _tabColors, _vim, _menu, _palette);
-        _chrome = new WindowChrome(this, _floating, _tabCtl, _windowSearch, _tabBar, _tabSwitcher, _paneSearch, _paneRenderer);
+        _chrome = new WindowChrome(this, _tabCtl, _windowSearch, _paneSearch, _paneRenderer);
         _script = new ScriptSteps(this, _lock, _tabBar, _tabSwitcher, _vim, _exitHold);
         _paneRenderer.Search = _search;
 
@@ -278,9 +278,10 @@ internal sealed unsafe class TermWindow
         _github = new WindowGitHub(this, _jobs, _tracks, _launches, _lock);
         _editor = new WindowEditor(this, _jobs, _tracks, git, _github, _launches, _lock);
         _repoPlans = new WindowRepoPlans(this, this, _jobs, _lock);
-        var gitOps = new WindowGitOperations(this, this, _jobs, _tracks, git, _infoBar, _repoPlans, _editor, _launches);
+        var scan = new RepoScan(_jobs, _tracks, git);
+        var gitOps = new WindowGitOperations(this, this, scan, _infoBar, _repoPlans, _editor, _launches);
         _containers = new WindowContainers(this, this, _jobs, _tracks);
-        _integrations = new WindowIntegrations(this, _jobs, _tracks, git, _github, gitOps, _containers, _editor);
+        _integrations = new WindowIntegrations(this, scan, _github, gitOps, _containers, _editor);
         _review = new WindowReview(this, _jobs, _tracks, gitOps, _launches, _lock);
         _links = new WindowLinks(this, this, _quickSelect, _editor, new WindowPrompts(this, this, _lock), _lock);
         _drop = new WindowDrop(this, this, this);
@@ -2507,6 +2508,6 @@ internal sealed unsafe class TermWindow
         if (PaneById(paneId) is not { } pane) return;
         bool seen = ReferenceEquals(_tabs.Items[tabIndex], _tabs.Active) && pane == _focused && _windowFocused;
         // From erikterm itself (the ask bar says "erikterm wants to send desktop notifications"); Jump goes to the pane.
-        _agents.Deliver(tabIndex, pane, NotificationSource.Program, NotificationPriority.Normal, "erikterm", title, body, AgentState.None, seen, now); // Agents/WindowAgents.cs
+        _agents.Deliver(tabIndex, pane, new PaneNotification(NotificationSource.Program, NotificationPriority.Normal, "erikterm", title, body), seen, now); // Agents/WindowAgents.cs
     }
 }

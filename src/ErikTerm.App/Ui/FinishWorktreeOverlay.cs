@@ -176,8 +176,12 @@ internal sealed class FinishWorktreeOverlay
         else if (_confirm is { } confirm) DrawConfirm(dl, th, confirm, window, v);
     }
 
-    private static void Header(DrawList dl, Theme th, RectF panel, float headerH, int icon, string title, string right, float v)
+    /// <summary>A header's icon and bold title on the left, and the muted <see cref="Detail"/> right-aligned.</summary>
+    private readonly record struct HeaderText(int Icon, string Title, string Detail);
+
+    private static void Header(DrawList dl, Theme th, RectF panel, float headerH, in HeaderText text, float v)
     {
+        var (icon, title, right) = text;
         float px = th.UiPx, pad = th.S(18), small = px * 0.85f;
         float hb = Widgets.Baseline(dl, px * 1.1f, panel.Y, headerH);
         float x = panel.X + pad;
@@ -227,7 +231,7 @@ internal sealed class FinishWorktreeOverlay
         var panel = new RectF(MathF.Round(window.X + (window.W - width) / 2), MathF.Round(window.Y + MathF.Max(th.S(12), window.H * 0.08f) + slide), width, panelH);
         _panel = panel;
         Widgets.FloatingPanel(dl, th, panel, th.S(14), v);
-        Header(dl, th, panel, headerH, RepoBadge.PullRequestIcon, "Finish Worktree", $"{f.Branch} → {f.Target}", v);
+        Header(dl, th, panel, headerH, new HeaderText(RepoBadge.PullRequestIcon, "Finish Worktree", $"{f.Branch} → {f.Target}"), v);
 
         var pen = new InfoPen { Dl = dl, Th = th, Left = panel.X + pad, TextW = textW, Small = small, LineH = lineH, Alpha = v, Y = panel.Y + headerH + th.S(8) };
         DrawFacts(ref pen, th, f, subjects);
@@ -240,7 +244,7 @@ internal sealed class FinishWorktreeOverlay
             _messageBox = box;
             bool focused = form.MessageFocused;
             dl.Panel(box, th.S(6), Colors.Mix(th.PanelBg, th.PanelFg, 0.05f), v, focused ? th.Accent : th.Border, v);
-            DrawMessage(dl, th, form, box.Inset(th.S(8)), lineH, focused, v, now);
+            DrawMessage(dl, th, form, box.Inset(th.S(8)), lineH, v, now);
             pen.Y += messageH + th.S(8);
         }
 
@@ -298,16 +302,18 @@ internal sealed class FinishWorktreeOverlay
     {
         float fy = panel.Bottom - footerH;
         dl.Rect(new RectF(panel.X + th.S(1), fy, panel.W - th.S(2), MathF.Max(1, th.S(1))), th.Border, v);
-        float fx = panel.X + pad, fb = Widgets.Baseline(dl, th.UiPx * 0.82f, fy, footerH);
-        if (form.MessageFocused) fx = WorktreesOverlay.Hint(dl, th, fx, fy, footerH, fb, ["Ctrl", "↵"], "run", v);
-        else fx = WorktreesOverlay.Hint(dl, th, fx, fy, footerH, fb, ["↵"], "run", v);
-        fx = WorktreesOverlay.Hint(dl, th, fx, fy, footerH, fb, ["←", "→"], "option", v);
-        if (form.UsesMessage) fx = WorktreesOverlay.Hint(dl, th, fx, fy, footerH, fb, ["Tab"], "message", v);
-        WorktreesOverlay.Hint(dl, th, fx, fy, footerH, fb, ["esc"], "cancel", v);
+        float fb = Widgets.Baseline(dl, th.UiPx * 0.82f, fy, footerH);
+        var hints = new FooterHints(dl, th, panel.X + pad, fy + footerH / 2, fb, v, th.S(16));
+        if (form.MessageFocused) hints.Add(["Ctrl", "↵"], "run");
+        else hints.Add(["↵"], "run");
+        hints.Add(["←", "→"], "option");
+        if (form.UsesMessage) hints.Add(["Tab"], "message");
+        hints.Add(["esc"], "cancel");
     }
 
-    private void DrawMessage(DrawList dl, Theme th, FinishForm form, RectF box, float lineH, bool focused, float v, long now)
+    private void DrawMessage(DrawList dl, Theme th, FinishForm form, RectF box, float lineH, float v, long now)
     {
+        bool focused = form.MessageFocused;
         float px = th.UiPx * 0.92f;
         string text = form.Message.Text;
         int caret = form.Message.Caret;
@@ -369,7 +375,8 @@ internal sealed class FinishWorktreeOverlay
         var panel = new RectF(MathF.Round(window.X + (window.W - width) / 2), MathF.Round(window.Y + window.H * 0.14f + slide), width, panelH);
         _panel = panel;
         Widgets.FloatingPanel(dl, th, panel, th.S(14), v);
-        Header(dl, th, panel, headerH, confirm.Danger ? Icons.Warning : Icons.Info, confirm.Title, confirm.Detail, v);
+        Header(dl, th, panel, headerH, new HeaderText(confirm.Danger ? Icons.Warning : Icons.Info, confirm.Title, confirm.Detail), v);
+
         float y = panel.Y + headerH + th.S(8), left = panel.X + pad;
         void Line(string text, uint color)
         {
@@ -381,8 +388,9 @@ internal sealed class FinishWorktreeOverlay
         if (status is not null) Line(status, confirm.Busy ? th.Muted : th.Danger);
         float fy = panel.Bottom - footerH;
         dl.Rect(new RectF(panel.X + th.S(1), fy, panel.W - th.S(2), MathF.Max(1, th.S(1))), th.Border, v);
-        float fx = panel.X + pad, fb = Widgets.Baseline(dl, px * 0.82f, fy, footerH);
-        fx = WorktreesOverlay.Hint(dl, th, fx, fy, footerH, fb, ["↵"], confirm.ConfirmLabel, v);
-        WorktreesOverlay.Hint(dl, th, fx, fy, footerH, fb, ["esc"], "keep everything", v);
+        float fb = Widgets.Baseline(dl, px * 0.82f, fy, footerH);
+        var hints = new FooterHints(dl, th, panel.X + pad, fy + footerH / 2, fb, v, th.S(16));
+        hints.Add(["↵"], confirm.ConfirmLabel);
+        hints.Add(["esc"], "keep everything");
     }
 }

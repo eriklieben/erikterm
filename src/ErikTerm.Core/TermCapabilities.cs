@@ -27,6 +27,8 @@ public readonly record struct TermCap(string Name, CapKind Kind, string Value, C
 /// </summary>
 public static class TermCapabilities
 {
+    private const string NoLeftRightMargins = "no left/right margins (DECSLRM)";
+
     public const string Name = "xterm-erikterm";
     public const string BaseEntry = "xterm-256color";
 
@@ -67,10 +69,10 @@ public static class TermCapabilities
         // ---- What xterm-256color has and erikterm doesn't
         new("smm", CapKind.Cancel, "", CapSource.Entry, "no meta mode (?1034)"),
         new("rmm", CapKind.Cancel, "", CapSource.Entry, "no meta mode (?1034)"),
-        new("smglp", CapKind.Cancel, "", CapSource.Entry, "no left/right margins (DECSLRM)"),
-        new("smglr", CapKind.Cancel, "", CapSource.Entry, "no left/right margins (DECSLRM)"),
-        new("smgrp", CapKind.Cancel, "", CapSource.Entry, "no left/right margins (DECSLRM)"),
-        new("mgc", CapKind.Cancel, "", CapSource.Entry, "no left/right margins (DECSLRM)"),
+        new("smglp", CapKind.Cancel, "", CapSource.Entry, NoLeftRightMargins),
+        new("smglr", CapKind.Cancel, "", CapSource.Entry, NoLeftRightMargins),
+        new("smgrp", CapKind.Cancel, "", CapSource.Entry, NoLeftRightMargins),
+        new("mgc", CapKind.Cancel, "", CapSource.Entry, NoLeftRightMargins),
         // ---- Keys (legacy encoding, application cursor mode), as in xterm-256color
         new("kcuu1", CapKind.String, @"\EOA", CapSource.Inherited, "up"),
         new("kcud1", CapKind.String, @"\EOB", CapSource.Inherited, "down"),

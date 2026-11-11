@@ -123,10 +123,26 @@ internal sealed class TabBar
         _liveCount = 0;
     }
 
-    /// <summary>Declares the next tab in order. Title strings should be cached by the caller.</summary>
-    public void Set(int id, string title, bool active, bool activity, long now, AgentState agent = AgentState.None, Integrations.RepoBadgeModel? badge = null,
-        uint? color = null, ProgressReport progress = default, bool attention = false, bool container = false)
+    /// <summary>What a tab shows, declared with <see cref="Set"/> every frame.</summary>
+    public readonly record struct TabState
     {
+        /// <summary>Should be cached by the caller (no per-frame strings).</summary>
+        public required string Title { get; init; }
+        public bool Active { get; init; }
+        public bool Activity { get; init; }
+        public AgentState Agent { get; init; }
+        public Integrations.RepoBadgeModel? Badge { get; init; }
+        public uint? Color { get; init; }
+        public ProgressReport Progress { get; init; }
+        public bool Attention { get; init; }
+        public bool Container { get; init; }
+    }
+
+    /// <summary>Declares the next tab in order.</summary>
+    public void Set(int id, in TabState tab, long now)
+    {
+        string title = tab.Title;
+        bool active = tab.Active;
         while (_cursor < _items.Count && _items[_cursor].Closing && _items[_cursor].Id != id) _cursor++;
         int index = -1;
         for (int i = _cursor; i < _items.Count; i++)
@@ -149,13 +165,13 @@ internal sealed class TabBar
         _liveCount++;
         if (active != it.Active || !it.Placed) it.Lit.Set(active ? 1 : 0, now, _animMs);
         it.Active = active;
-        it.Activity = activity;
-        it.Agent = agent;
-        it.Badge = badge;
-        it.Color = color;
-        it.Progress = progress;
-        it.Attention = attention;
-        it.Container = container;
+        it.Activity = tab.Activity;
+        it.Agent = tab.Agent;
+        it.Badge = tab.Badge;
+        it.Color = tab.Color;
+        it.Progress = tab.Progress;
+        it.Attention = tab.Attention;
+        it.Container = tab.Container;
     }
 
     public void EndSync(long now)
@@ -365,7 +381,7 @@ internal sealed class TabBar
         if (clip) dl.PopClip();
 
         if (_dropIndex >= 0) DrawDropIndicator(dl, th, v);
-        if (_detached && _items.Find(i => i.Id == _pressId) is { } ghost) DrawGhost(dl, th, ghost, px, m, v);
+        if (_detached && _items.Find(i => i.Id == _pressId) is { } ghost) DrawGhost(dl, th, ghost, px, v);
 
         DrawPlus(dl, th, px, m, v, now);
         DrawMore(dl, th, px, m, v, now);
@@ -406,7 +422,7 @@ internal sealed class TabBar
 
         if (dragged) dl.Shadow(r.Offset(0, th.S(4)), radius, th.S(12), 0.45f * a);
         uint accent = it.Color ?? th.Accent;
-        DrawTabPill(dl, th, it, radius, accent, lit, hover, a);
+        DrawTabPill(dl, th, it, radius, lit, hover, a);
 
         dl.PushClip(r);
         float baseline = MathF.Round(r.Y + (r.H - m.Height) / 2 + m.Ascender);
@@ -416,7 +432,7 @@ internal sealed class TabBar
             uint numberRgb = Colors.Mix(th.Muted, accent, it.Color is null ? lit : MathF.Max(lit, 0.8f));
             x += dl.Text(it.Number, x, baseline, px * 0.9f, numberRgb, a, FontStyle.Bold) + th.S(7);
         }
-        if (it.Container) x += ContainerIcon.Draw(dl, th, x, baseline, px, lit, hover, a) + th.S(6);
+        if (it.Container) x += ContainerIcon.Draw(dl, th, x, baseline, px, MathF.Max(lit, hover), a) + th.S(6);
         var paint = new TabPaint(px, m, x, baseline, accent, lit, hover, a, now);
         if (_editId == it.Id) DrawRenameField(dl, th, r, paint);
         else DrawTabTitle(dl, th, it, paint);
@@ -425,15 +441,16 @@ internal sealed class TabBar
             // OSC 9;4: a hairline along the bottom, inside the rounded corners.
             float barH = MathF.Max(1, MathF.Round(th.S(2)));
             var track = new RectF(r.X + radius, r.Bottom - barH - MathF.Round(th.S(1.5f)), r.W - 2 * radius, barH);
-            ProgressBar.Draw(dl, th, track, it.Progress, a, now, AnimateProgress, it.Color);
+            ProgressBar.Draw(dl, th, track, it.Progress, a, ProgressBar.Sweep(now, AnimateProgress), it.Color);
         }
         dl.PopClip();
     }
 
     /// <summary>Inactive: a faint pill that firms up on hover (tinted with its color, if it has one). Active: tinted with the accent (or its color) and outlined.</summary>
-    private static void DrawTabPill(DrawList dl, Theme th, Item it, float radius, uint accent, float lit, float hover, float a)
+    private static void DrawTabPill(DrawList dl, Theme th, Item it, float radius, float lit, float hover, float a)
     {
         var r = it.Rect;
+        uint accent = it.Color ?? th.Accent;
         if (it.Color is { } tint) dl.RoundRect(r, radius, tint, (0.13f + 0.07f * hover) * (1 - lit) * a);
         else dl.RoundRect(r, radius, th.Foreground, (0.045f + 0.06f * hover) * (1 - lit) * a);
         if (lit > 0.001f)
@@ -480,8 +497,8 @@ internal sealed class TabBar
     {
         float dot = it.Agent == AgentState.None && it.Activity && !it.Active && p.Hover <= 0.01f ? th.S(14) : 0; // the agent dot has its room in textRight
         float room = textRight - dot - p.X;
-        float used = RepoBadge.DrawCompact(dl, th, badge, textRight - dot, p.Baseline, p.Px * 0.92f, p.Alpha * (0.75f + 0.25f * MathF.Max(p.Lit, p.Hover)),
-            MathF.Max(room * 0.45f, room - dl.Measure(it.Title, p.Px) - th.S(12)), p.Now, animate: true);
+        var ink = new RepoBadge.BadgeInk(p.Baseline, p.Px * 0.92f, p.Alpha * (0.75f + 0.25f * MathF.Max(p.Lit, p.Hover)), p.Now);
+        float used = RepoBadge.DrawCompact(dl, th, badge, textRight - dot, MathF.Max(room * 0.45f, room - dl.Measure(it.Title, p.Px) - th.S(12)), in ink);
         return used > 0 ? textRight - (used + dot + th.S(8)) : textRight;
     }
 
@@ -502,7 +519,7 @@ internal sealed class TabBar
         {
             // An agent's state: waiting (red), working (pulsing yellow), done and unseen (blue), idle (green).
             float d = MathF.Round(th.S(7));
-            AgentBadge.Dot(dl, th, it.Agent, r.Right - th.S(12), r.Y + r.H / 2, d, p.Alpha, p.Now);
+            AgentBadge.Dot(dl, th, it.Agent, new AgentBadge.DotSpot(r.Right - th.S(12), r.Y + r.H / 2, d), p.Alpha, p.Now);
         }
         else if (it.Activity && !it.Active)
         {
@@ -544,16 +561,18 @@ internal sealed class TabBar
     }
 
     /// <summary>The detached tab, following the pointer (inside this window; App's popup ghost shows it outside).</summary>
-    private void DrawGhost(DrawList dl, Theme th, Item it, float px, FontSet.Metrics m, float v)
+    private void DrawGhost(DrawList dl, Theme th, Item it, float px, float v)
     {
         var r = new RectF(MathF.Round(_mouseX - _grabDx), MathF.Round(_mouseY - _grabDy), it.Rect.W, it.Rect.H);
-        DrawPill(dl, th, r, it.Number, it.Shown.Length > 0 ? it.Shown : it.Title, px, m, v);
+        DrawPill(dl, th, r, it.Number, it.Shown.Length > 0 ? it.Shown : it.Title, px, v);
     }
 
     /// <summary>A lifted tab: the ghost while dragging (here, and in the popup that follows the pointer outside the window).</summary>
-    public static void DrawPill(DrawList dl, Theme th, RectF r, string number, string title, float px, FontSet.Metrics m, float v)
+    public static void DrawPill(DrawList dl, Theme th, RectF r, string number, string title, float px, float v)
     {
+        var m = dl.MetricsFor(px);
         float radius = th.S(8);
+
         dl.Shadow(r.Offset(0, th.S(6)), radius, th.S(16), 0.5f * v);
         dl.Panel(r, radius, Colors.Mix(th.PanelBg, th.Accent, 0.20f), 0.95f * v, th.Accent, 0.8f * v);
         dl.PushClip(r);

@@ -104,17 +104,20 @@ internal sealed record ContainerInfo(
         {
             using var doc = JsonDocument.Parse(metadata);
             string? remote = null, container = null;
-            void Take(JsonElement e)
-            {
-                if (e.ValueKind != JsonValueKind.Object) return;
-                remote = Str(e, "remoteUser") ?? remote;
-                container = Str(e, "containerUser") ?? container;
-            }
-            if (doc.RootElement.ValueKind == JsonValueKind.Array) foreach (var e in doc.RootElement.EnumerateArray()) Take(e);
-            else Take(doc.RootElement);
+            if (doc.RootElement.ValueKind == JsonValueKind.Array)
+                foreach (var e in doc.RootElement.EnumerateArray()) TakeUsers(e, ref remote, ref container);
+            else TakeUsers(doc.RootElement, ref remote, ref container);
             return remote ?? container;
         }
         catch (JsonException) { return null; }
+    }
+
+    /// <summary>The users one metadata entry sets, over the ones of the entries before it.</summary>
+    private static void TakeUsers(JsonElement e, ref string? remote, ref string? container)
+    {
+        if (e.ValueKind != JsonValueKind.Object) return;
+        remote = Str(e, "remoteUser") ?? remote;
+        container = Str(e, "containerUser") ?? container;
     }
 
     private static List<ContainerMount> MountsOf(JsonElement root)

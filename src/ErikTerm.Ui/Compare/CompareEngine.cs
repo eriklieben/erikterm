@@ -43,28 +43,18 @@ public static class CompareEngine
         var (idsB, mapB) = Significant(normB, interner);
         var hunks = SequenceDiff.Diff(idsA, idsB, interner);
 
-        var rows = new List<CompareRow>(Math.Max(a.RawLines.Length, b.RawLines.Length));
-        int budget = LineAligner.NewBudget();
-        int ka = 0, kb = 0, prevA = -1, prevB = -1;
-
-        void Anchor(int ia, int ib)
-        {
-            AddRegion(a.RawLines, b.RawLines, normA, normB, prevA + 1, ia, prevB + 1, ib, rows, ref budget, interner);
-            rows.Add(new CompareRow(ia, ib, a.RawLines[ia] == b.RawLines[ib] ? RowKind.Equal : RowKind.Unimportant, -1));
-            prevA = ia;
-            prevB = ib;
-        }
-
+        var rows = new RowBuilder(a.RawLines, b.RawLines, normA, normB, interner);
+        int ka = 0, kb = 0;
         foreach (var h in hunks)
         {
-            while (ka < h.AStart && kb < h.BStart) Anchor(mapA[ka++], mapB[kb++]);
+            while (ka < h.AStart && kb < h.BStart) rows.Anchor(mapA[ka++], mapB[kb++]);
             ka = h.AEnd;
             kb = h.BEnd;
         }
-        while (ka < mapA.Length && kb < mapB.Length) Anchor(mapA[ka++], mapB[kb++]);
-        AddRegion(a.RawLines, b.RawLines, normA, normB, prevA + 1, a.RawLines.Length, prevB + 1, b.RawLines.Length, rows, ref budget, interner);
+        while (ka < mapA.Length && kb < mapB.Length) rows.Anchor(mapA[ka++], mapB[kb++]);
+        rows.Finish();
 
-        return Blocked(rows);
+        return Blocked(rows.Rows);
     }
 
     private static NormalizedLine[] Normalize(string[] lines, NoiseRules rules, LanguageSyntax? syntax)
@@ -89,28 +79,53 @@ public static class CompareEngine
         return ([.. ids], [.. map]);
     }
 
-    /// <summary>Aligns the unmatched lines between two anchors and classifies each row.</summary>
-    private static void AddRegion(string[] a, string[] b, NormalizedLine[] normA, NormalizedLine[] normB, int aFrom, int aTo, int bFrom, int bTo, List<CompareRow> rows, ref int budget, LineInterner interner)
+    /// <summary>
+    /// The rows of a comparison, built front to back: each anchor (a matched significant line) after the unmatched
+    /// lines between it and the previous one, aligned line by line and classified.
+    /// </summary>
+    private sealed class RowBuilder(string[] a, string[] b, NormalizedLine[] normA, NormalizedLine[] normB, LineInterner interner)
     {
-        if (aFrom >= aTo && bFrom >= bTo) return;
-        string[] left = a[aFrom..aTo], right = b[bFrom..bTo];
-        foreach (var (l, r) in LineAligner.Align(left, right, ref budget, interner))
-        {
-            int ia = l < 0 ? -1 : aFrom + l, ib = r < 0 ? -1 : bFrom + r;
-            rows.Add(new CompareRow(ia, ib, Classify(a, b, normA, normB, ia, ib), -1));
-        }
-    }
+        private int _budget = LineAligner.NewBudget();
+        private int _prevA = -1, _prevB = -1;
 
-    private static RowKind Classify(string[] a, string[] b, NormalizedLine[] normA, NormalizedLine[] normB, int ia, int ib)
-    {
-        if (ia >= 0 && ib >= 0)
+        public List<CompareRow> Rows { get; } = new(Math.Max(a.Length, b.Length));
+
+        /// <summary>The lines since the previous anchor, then <paramref name="ia"/> and <paramref name="ib"/> on one row.</summary>
+        public void Anchor(int ia, int ib)
         {
-            if (a[ia] == b[ib]) return RowKind.Equal;
-            if (normA[ia].Key == normB[ib].Key) return RowKind.Unimportant;
-            return normA[ia].Ignorable && normB[ib].Ignorable ? RowKind.Unimportant : RowKind.Important;
+            AddRegion(ia, ib);
+            Rows.Add(new CompareRow(ia, ib, a[ia] == b[ib] ? RowKind.Equal : RowKind.Unimportant, -1));
+            _prevA = ia;
+            _prevB = ib;
         }
-        var present = ia >= 0 ? normA[ia] : normB[ib];
-        return present.Ignorable ? RowKind.Unimportant : RowKind.Important;
+
+        /// <summary>The lines after the last anchor.</summary>
+        public void Finish() => AddRegion(a.Length, b.Length);
+
+        /// <summary>Aligns the unmatched lines between the previous anchor and <paramref name="aTo"/>/<paramref name="bTo"/> and classifies each row.</summary>
+        private void AddRegion(int aTo, int bTo)
+        {
+            int aFrom = _prevA + 1, bFrom = _prevB + 1;
+            if (aFrom >= aTo && bFrom >= bTo) return;
+            string[] left = a[aFrom..aTo], right = b[bFrom..bTo];
+            foreach (var (l, r) in LineAligner.Align(left, right, ref _budget, interner))
+            {
+                int ia = l < 0 ? -1 : aFrom + l, ib = r < 0 ? -1 : bFrom + r;
+                Rows.Add(new CompareRow(ia, ib, Classify(ia, ib), -1));
+            }
+        }
+
+        private RowKind Classify(int ia, int ib)
+        {
+            if (ia >= 0 && ib >= 0)
+            {
+                if (a[ia] == b[ib]) return RowKind.Equal;
+                if (normA[ia].Key == normB[ib].Key) return RowKind.Unimportant;
+                return normA[ia].Ignorable && normB[ib].Ignorable ? RowKind.Unimportant : RowKind.Important;
+            }
+            var present = ia >= 0 ? normA[ia] : normB[ib];
+            return present.Ignorable ? RowKind.Unimportant : RowKind.Important;
+        }
     }
 
     private static CompareResult Blocked(List<CompareRow> list)

@@ -11,6 +11,8 @@ namespace ErikTerm.App.Cli;
 /// </summary>
 internal static class CliMain
 {
+    private const string WaitForState = "wait-for-state";
+
     public static int Run(IReadOnlyList<string> args) =>
         Run(args, Console.In, Console.Out, Console.Error, Environment.GetEnvironmentVariable);
 
@@ -63,8 +65,8 @@ internal static class CliMain
     /// <summary>How long to wait for the reply: the commands that are answered late wait for what they asked for.</summary>
     private static TimeSpan? ReplyTimeout(IpcRequest request, TimeSpan? general) => request.Command switch
     {
-        "wait-for-state" when request.TimeoutMs is { } ms => TimeSpan.FromMilliseconds(ms) + WaitGrace,
-        "wait-for-state" => Timeout.InfiniteTimeSpan,
+        WaitForState when request.TimeoutMs is { } ms => TimeSpan.FromMilliseconds(ms) + WaitGrace,
+        WaitForState => Timeout.InfiniteTimeSpan,
         "new-worktree" => NewWorktreeTimeout,
         _ => general,
     };
@@ -77,12 +79,12 @@ internal static class CliMain
 
     private static int ReportSendFailure(IpcRequest request, string socket, Exception ex, TextWriter stdout, TextWriter stderr)
     {
-        if (request.Command == "wait-for-state" && ex is TimeoutException)
+        if (request.Command == WaitForState && ex is TimeoutException)
         {
             stderr.WriteLine("erikterm cli: timed out waiting for erikterm");
             return CliExit.TimedOut;
         }
-        if (request.Command == "wait-for-state" && ex is IOException) // the instance quit mid-wait, and its panes with it
+        if (request.Command == WaitForState && ex is IOException) // the instance quit mid-wait, and its panes with it
         {
             if (WaitStates.Parse(request.State)?.Contains(WaitStates.Exit) == true)
             {
@@ -134,7 +136,7 @@ internal static class CliMain
             case "split-pane" or "spawn" or "get-pane-direction" or "new-worktree":
                 if (response.PaneId is { } id) stdout.WriteLine(id);
                 break;
-            case "get-text" or "wait-for-state":
+            case "get-text" or WaitForState:
                 stdout.Write(response.Output ?? "");
                 break;
             case "agents":

@@ -176,36 +176,39 @@ internal sealed class WorktreesOverlay
             float hy = list.Y + (_highlight.Value(now) - _firstShown) * rowH;
             dl.RoundRect(new RectF(list.X + th.S(8), hy + th.S(2), list.W - th.S(16), rowH - th.S(4)), th.S(8), th.Accent, 0.14f * v);
             for (int i = _firstShown; i < Math.Min(_rows.Count, _firstShown + shown); i++)
-                DrawRow(dl, th, _rows[i], list, list.Y + (i - _firstShown) * rowH, rowH, pad, v, now);
+                DrawRow(dl, th, _rows[i], new RectF(list.X, list.Y + (i - _firstShown) * rowH, list.W, rowH), pad, v, now);
         }
         dl.PopClip();
 
         float fy = panel.Bottom - footerH;
         dl.Rect(new RectF(panel.X + th.S(1), fy, panel.W - th.S(2), MathF.Max(1, th.S(1))), th.Border, v);
-        float fx = panel.X + pad, fb = Widgets.Baseline(dl, px * 0.82f, fy, footerH);
+        float fb = Widgets.Baseline(dl, px * 0.82f, fy, footerH);
+        var hints = new FooterHints(dl, th, panel.X + pad, fy + footerH / 2, fb, v, th.S(16));
         if (_cleanup)
         {
-            fx = Hint(dl, th, fx, fy, footerH, fb, ["Space"], "pick", v);
-            fx = Hint(dl, th, fx, fy, footerH, fb, ["↵"], "remove…", v);
-            Hint(dl, th, fx, fy, footerH, fb, ["esc"], "close", v);
+            hints.Add(["Space"], "pick");
+            hints.Add(["↵"], "remove…");
+            hints.Add(["esc"], "close");
         }
         else
         {
-            fx = Hint(dl, th, fx, fy, footerH, fb, ["↵"], "open", v);
-            fx = Hint(dl, th, fx, fy, footerH, fb, ["n"], "new agent", v);
-            fx = Hint(dl, th, fx, fy, footerH, fb, ["f"], "finish", v);
-            fx = Hint(dl, th, fx, fy, footerH, fb, ["c"], "clean up", v);
-            fx = Hint(dl, th, fx, fy, footerH, fb, ["r"], "refresh", v);
-            if (SelectedHasDashboard) fx = Hint(dl, th, fx, fy, footerH, fb, ["d"], "dashboard", v);
-            Hint(dl, th, fx, fy, footerH, fb, ["esc"], "close", v);
+            hints.Add(["↵"], "open");
+            hints.Add(["n"], "new agent");
+            hints.Add(["f"], "finish");
+            hints.Add(["c"], "clean up");
+            hints.Add(["r"], "refresh");
+            if (SelectedHasDashboard) hints.Add(["d"], "dashboard");
+            hints.Add(["esc"], "close");
         }
     }
 
-    private void DrawRow(DrawList dl, Theme th, WorktreeRow row, RectF list, float top, float rowH, float pad, float v, long now)
+    /// <summary>One worktree in <paramref name="rect"/> (the list's width): its checkbox, agent dot or branch icon, title, branch and status.</summary>
+    private void DrawRow(DrawList dl, Theme th, WorktreeRow row, RectF rect, float pad, float v, long now)
     {
-        float px = th.UiPx, small = px * 0.85f;
+        float px = th.UiPx, small = px * 0.85f, top = rect.Y, rowH = rect.H;
         float l1 = MathF.Round(top + rowH * 0.42f), l2 = MathF.Round(top + rowH * 0.80f);
-        float x = list.X + pad + th.S(6), right = list.Right - pad;
+        float x = rect.X + pad + th.S(6), right = rect.Right - pad;
+
         float a = row.Selectable ? v : v * 0.55f;
         if (_cleanup)
         {
@@ -217,7 +220,7 @@ internal sealed class WorktreesOverlay
         }
         else if (row.Agent != AgentState.None)
         {
-            AgentBadge.Dot(dl, th, row.Agent, x + th.S(4), top + rowH * 0.34f, MathF.Round(th.S(9)), v, now);
+            AgentBadge.Dot(dl, th, row.Agent, new AgentBadge.DotSpot(x + th.S(4), top + rowH * 0.34f, MathF.Round(th.S(9))), v, now);
             x += th.S(18);
         }
         else
@@ -253,16 +256,5 @@ internal sealed class WorktreesOverlay
             right = r.X - th.S(6);
         }
         return right - th.S(4);
-    }
-
-    internal static float Hint(DrawList dl, Theme th, float x, float top, float h, float baseline, string[] keys, string label, float a)
-    {
-        float keysWidth = 0, keyH = MathF.Round(dl.MetricsFor(th.UiPx * 0.78f).Height + th.S(6));
-        foreach (var k in keys) keysWidth += MathF.Max(keyH, dl.Measure(k, th.UiPx * 0.78f) + 2 * th.S(5)) + th.S(3);
-        keysWidth -= th.S(3);
-        Widgets.Keycaps(dl, th, keys, x + keysWidth, top + h / 2, a);
-        x += keysWidth + th.S(6);
-        x += dl.Text(label, x, baseline, th.UiPx * 0.82f, th.Muted, a);
-        return x + th.S(16);
     }
 }

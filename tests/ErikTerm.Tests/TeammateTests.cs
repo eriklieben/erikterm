@@ -96,7 +96,7 @@ public class TeammateDetectionTests
     public async Task ControlCharactersAreDroppedFromNames()
     {
         // Act
-        var args = TmuxTeammates.Parse(["claude", "--agent-name", "ev\u001b[31mil‮"]);
+        var args = TmuxTeammates.Parse(["claude", "--agent-name", "ev\u001b[31mil\u202e"]);
 
         // Assert
         await Assert.That(args?.Name).IsEqualTo("ev[31mil");

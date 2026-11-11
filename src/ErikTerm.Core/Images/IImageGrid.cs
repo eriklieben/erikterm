@@ -25,10 +25,10 @@ internal interface IImageGrid
     bool AllowImageFiles { get; }
 
     /// <summary>
-    /// Writes an image into the grid at the cursor as a box of <paramref name="cols"/>×<paramref name="rows"/> cells
-    /// (clipped at the right edge). The picture fills the content rectangle (cell units) inside the box.
+    /// Writes an image into the grid at the cursor as a box of <see cref="InlineImage.Columns"/>×<see cref="InlineImage.Rows"/>
+    /// cells (clipped at the right edge). The picture fills the content rectangle (cell units) inside the box.
     /// </summary>
-    void PlaceCellImage(TerminalImage image, int cols, int rows, float cx, float cy, float cw, float ch, ImageCursor cursor);
+    void PlaceCellImage(in InlineImage placement, ImageCursor cursor);
 
     /// <summary>A pending wrap happens now: an image placed at the cursor starts on the next line.</summary>
     void WrapPendingCursor();

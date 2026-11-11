@@ -58,7 +58,7 @@ internal sealed class PaneSelect
         {
             var chosen = _targets.Where(t => _picked.Contains(t.Pane)).Select(t => t.Pane).ToList();
             Close(now);
-            done?.Invoke(chosen);
+            done(chosen);
             return true;
         }
         foreach (var (pane, label) in _targets)
@@ -126,7 +126,7 @@ internal sealed class PaneSelect
             var cm = dl.MetricsFor(th.UiPx);
             float cb = badge.Bottom + th.S(14) + cm.Ascender;
             float cx = r.X + (r.W - cw) / 2;
-            if (dotW > 0) AgentBadge.Dot(dl, th, agent, cx + th.S(5), MathF.Round(cb - cm.Ascender + cm.Height / 2), MathF.Round(th.S(8)), v, now);
+            if (dotW > 0) AgentBadge.Dot(dl, th, agent, new AgentBadge.DotSpot(cx + th.S(5), MathF.Round(cb - cm.Ascender + cm.Height / 2), MathF.Round(th.S(8))), v, now);
             dl.Text(caption, cx + dotW, MathF.Round(cb), th.UiPx, th.Foreground, 0.85f * v);
         }
     }

@@ -28,6 +28,12 @@ internal sealed partial class GhMergedJsonContext : JsonSerializerContext;
 /// </summary>
 internal static class WorktreeManagerGit
 {
+    private const string RevParse = "rev-parse";
+    private const string Verify = "--verify";
+    private const string Quiet = "--quiet";
+    private const string BranchRefPrefix = "refs/heads/";
+    private const string TreeOf = "^{tree}";
+
     private const int QuickMs = 3000, SlowMs = 8000;
 
     private static ToolResult Git(string cwd, int timeoutMs, params string[] arguments) =>
@@ -36,7 +42,7 @@ internal static class WorktreeManagerGit
     private static string? Oid(ToolResult r) => r.Ok && r.Stdout.Trim() is { Length: >= 40 } oid ? oid : null;
 
     private static string? ResolveCommit(string cwd, string @ref) =>
-        Oid(Git(cwd, QuickMs, "rev-parse", "--verify", "--quiet", "--end-of-options", @ref + "^{commit}"));
+        Oid(Git(cwd, QuickMs, RevParse, Verify, Quiet, "--end-of-options", @ref + "^{commit}"));
 
     public static bool HasWriteTree() => ToolRunner.Run(["git", "version"], null, QuickMs) is { Ok: true } v && GitVersion.SupportsWriteTree(v.Stdout);
 
@@ -50,7 +56,7 @@ internal static class WorktreeManagerGit
         var entries = WorktreeList.Parse(list.Stdout);
         if (entries.Count == 0) { error = "git listed no worktrees"; return null; }
         string? target = WorktreeList.LocalBranch(repo.DefaultBase);
-        string? targetOid = target is null ? null : ResolveCommit(repo.MainRoot, "refs/heads/" + target);
+        string? targetOid = target is null ? null : ResolveCommit(repo.MainRoot, BranchRefPrefix + target);
         return new WorktreeInventory(repo.MainRoot, repo.Name, entries, targetOid is null ? null : target, targetOid, HasWriteTree());
     }
 
@@ -124,12 +130,12 @@ internal static class WorktreeManagerGit
     private static LandedEvidence WithMergeResult(LandedEvidence e, string root, string headOid, string targetOid)
     {
         if (Predict(root, targetOid, headOid, hasWriteTree: true) is { Known: true, Clean: true, Tree: { } merged }
-            && Git(root, QuickMs, "rev-parse", "--verify", "--quiet", targetOid + "^{tree}") is { Ok: true } treeOfTarget
+            && Git(root, QuickMs, RevParse, Verify, Quiet, targetOid + TreeOf) is { Ok: true } treeOfTarget
             && Git(root, QuickMs, "merge-base", targetOid, headOid) is { Ok: true } baseOut)
         {
             string @base = baseOut.Stdout.Trim().Split('\n')[0];
-            var trees = Git(root, QuickMs, "rev-parse", "--verify", "--quiet", @base + "^{tree}");
-            var headTree = Git(root, QuickMs, "rev-parse", "--verify", "--quiet", headOid + "^{tree}");
+            var trees = Git(root, QuickMs, RevParse, Verify, Quiet, @base + TreeOf);
+            var headTree = Git(root, QuickMs, RevParse, Verify, Quiet, headOid + TreeOf);
             bool net = trees.Ok && headTree.Ok && trees.Stdout.Trim() != headTree.Stdout.Trim();
             e = e with { MergeUnchanged = merged == treeOfTarget.Stdout.Trim(), NetChange = trees.Ok && headTree.Ok ? net : null };
         }
@@ -143,7 +149,7 @@ internal static class WorktreeManagerGit
     public static LandedVerdict Landed(string root, string headOid, string? branch, string target, bool hasWriteTree, bool useGh)
     {
         var evidence = new List<LandedEvidence>();
-        if (ResolveCommit(root, "refs/heads/" + target) is { } local)
+        if (ResolveCommit(root, BranchRefPrefix + target) is { } local)
             evidence.Add(Evidence(root, headOid, target, local, hasWriteTree));
         if (ResolveCommit(root, "refs/remotes/origin/" + target) is { } remote)
             evidence.Add(Evidence(root, headOid, "origin/" + target, remote, hasWriteTree));
@@ -193,7 +199,7 @@ internal static class WorktreeManagerGit
         // "Would change anything": the merge's tree differs from the target's (a squash-landed branch doesn't).
         bool hasDiff = files.Count > 0;
         if (prediction is { Known: true, Clean: true, Tree: { } merged }
-            && Git(inv.MainRoot, QuickMs, "rev-parse", "--verify", "--quiet", targetOid + "^{tree}") is { Ok: true } t && t.Stdout.Trim() == merged)
+            && Git(inv.MainRoot, QuickMs, RevParse, Verify, Quiet, targetOid + TreeOf) is { Ok: true } t && t.Stdout.Trim() == merged)
             hasDiff = false;
 
         var remotes = Git(inv.MainRoot, QuickMs, "remote");
@@ -216,9 +222,9 @@ internal static class WorktreeManagerGit
     /// <summary>Re-checks what the dialog showed, right before anything runs: null when it all still holds, else why not (nothing ran).</summary>
     public static string? VerifyFinish(FinishFacts f, FinishOption option, bool afterRebase = false)
     {
-        if (!afterRebase && ResolveCommit(f.MainRoot, "refs/heads/" + f.Branch) != f.HeadOid) return $"{f.Branch} moved since this dialog opened: nothing was touched";
+        if (!afterRebase && ResolveCommit(f.MainRoot, BranchRefPrefix + f.Branch) != f.HeadOid) return $"{f.Branch} moved since this dialog opened: nothing was touched";
         if (option == FinishOption.PullRequest) return null;
-        if (ResolveCommit(f.MainRoot, "refs/heads/" + f.Target) != f.TargetOid) return $"{f.Target} moved since this dialog opened: nothing was touched";
+        if (ResolveCommit(f.MainRoot, BranchRefPrefix + f.Target) != f.TargetOid) return $"{f.Target} moved since this dialog opened: nothing was touched";
         if (StatusOf(f.MainRoot) is not { } main) return "git status of the main worktree didn't answer: nothing was touched";
         if (main.Detached || main.Branch != f.Target) return $"The main worktree isn't on {f.Target} any more: nothing was touched";
         if (main.Changes > 0) return $"{Counted.Of(main.Changes, "uncommitted change")} appeared in the main worktree: nothing was touched";
@@ -241,7 +247,7 @@ internal static class WorktreeManagerGit
     /// <summary>Right before <c>git branch -D</c>: the branch is exactly the commit that was checked, and it still counts as landed. Null, or why not.</summary>
     public static string? VerifyBranchDelete(string mainRoot, string branch, string head, string target, bool hasWriteTree, bool useGh)
     {
-        if (ResolveCommit(mainRoot, "refs/heads/" + branch) != head) return $"{branch} isn't at {head[..7]} any more: it wasn't deleted";
+        if (ResolveCommit(mainRoot, BranchRefPrefix + branch) != head) return $"{branch} isn't at {head[..7]} any more: it wasn't deleted";
         return Landed(mainRoot, head, branch, target, hasWriteTree, useGh) is { Landed: true } ? null : $"{branch} no longer counts as landed: it wasn't deleted";
     }
 
@@ -250,7 +256,7 @@ internal static class WorktreeManagerGit
     /// <summary>Where this worktree keeps its state files (<c>git rev-parse --git-path</c>): per worktree, resolved once.</summary>
     public static Dictionary<string, string>? StatePaths(string root)
     {
-        var argv = new List<string> { "rev-parse" };
+        var argv = new List<string> { RevParse };
         foreach (string name in GitOperationDetector.StatePaths) { argv.Add("--git-path"); argv.Add(name); }
         var r = ToolRunner.Run(["git", "-C", root, .. argv], null, QuickMs);
         if (!r.Ok) return null;
@@ -304,7 +310,7 @@ internal static class WorktreeManagerGit
     /// <summary>The default branch's commit and the prediction for <paramref name="head"/> (the tab warning): null when there is nothing to compare.</summary>
     public static (string TargetOid, ConflictPrediction Prediction)? ConflictCheck(string root, string target, string head, string? knownTarget)
     {
-        if (ResolveCommit(root, "refs/heads/" + target) is not { } targetOid) return null;
+        if (ResolveCommit(root, BranchRefPrefix + target) is not { } targetOid) return null;
         if (targetOid == knownTarget) return (targetOid, ConflictPrediction.Unknown("unchanged"));
         return (targetOid, Predict(root, targetOid, head, HasWriteTree()));
     }

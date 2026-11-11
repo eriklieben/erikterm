@@ -8,6 +8,8 @@ namespace ErikTerm.Config;
 /// </summary>
 public static class ColorSchemeFiles
 {
+    private const string Colors = "colors";
+
     /// <summary>
     /// Where scheme files are looked for, most important first: the config file's directory's
     /// <c>colors/</c>, erikterm's default config directory's <c>colors/</c>
@@ -33,8 +35,8 @@ public static class ColorSchemeFiles
         string configHome = Environment.GetEnvironmentVariable("XDG_CONFIG_HOME") is { Length: > 0 } x ? x : Path.Combine(home, ".config");
         Add(ErikColorsDirectory());
         Add(Path.Combine(ErikColorsDirectory(), CatalogFolderName));
-        Add(Path.Combine(configHome, "wezterm", "colors"));
-        if (!OperatingSystem.IsWindows()) Add(Path.Combine(home, ".config", "wezterm", "colors"));
+        Add(Path.Combine(configHome, "wezterm", Colors));
+        if (!OperatingSystem.IsWindows()) Add(Path.Combine(home, ".config", "wezterm", Colors));
         return dirs;
     }
 
@@ -43,16 +45,16 @@ public static class ColorSchemeFiles
 
     /// <summary>The <c>colors/</c> directory next to a config file.</summary>
     private static string ColorsNextTo(string configPath) =>
-        Path.Combine(Path.GetDirectoryName(Path.GetFullPath(configPath)) ?? ".", "colors");
+        Path.Combine(Path.GetDirectoryName(Path.GetFullPath(configPath)) ?? ".", Colors);
 
     /// <summary>erikterm's own colors directory: <c>$XDG_CONFIG_HOME/erikterm/colors</c> (Windows: <c>%APPDATA%\erikterm\colors</c>).</summary>
     public static string ErikColorsDirectory()
     {
         if (OperatingSystem.IsWindows())
-            return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "erikterm", "colors");
+            return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "erikterm", Colors);
         string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         string configHome = Environment.GetEnvironmentVariable("XDG_CONFIG_HOME") is { Length: > 0 } x ? x : Path.Combine(home, ".config");
-        return Path.GetFullPath(Path.Combine(configHome, "erikterm", "colors"));
+        return Path.GetFullPath(Path.Combine(configHome, "erikterm", Colors));
     }
 
     /// <summary>
@@ -116,7 +118,7 @@ public static class ColorSchemeFiles
 
         string name = SchemeName(root, path, diagnostics);
 
-        if (!root.TryGet("colors", out var colorsValue, out int colorsLine) || colorsValue is not TomlTable colors)
+        if (!root.TryGet(Colors, out var colorsValue, out int colorsLine) || colorsValue is not TomlTable colors)
         {
             diagnostics.Add(colorsLine > 0 ? $"{path}:{colorsLine}: colors: expected a table" : $"{path}: expected a [colors] table");
             return null;

@@ -35,8 +35,8 @@ public class NotificationRoutingTests
         // Assert
         await Assert.That(modeBefore).IsEqualTo(OsNotificationMode.Ask);
         await Assert.That(d.Sent).IsEmpty();
-        await Assert.That(route).HasFlag(NotificationRoute.Ask);
-        await Assert.That(route).HasFlag(NotificationRoute.Bar);
+        await Assert.That(route).HasFlag(NotificationRoutes.Ask);
+        await Assert.That(route).HasFlag(NotificationRoutes.Bar);
         await Assert.That(c.AskVisible).IsTrue();
         await Assert.That(c.AskApp).IsEqualTo("make");
         await Assert.That(c.UnreadCount).IsEqualTo(1);
@@ -116,7 +116,7 @@ public class NotificationRoutingTests
 
         // Assert
         await Assert.That(d.Sent).IsEmpty();
-        await Assert.That(route).DoesNotHaveFlag(NotificationRoute.Ask);
+        await Assert.That(route).DoesNotHaveFlag(NotificationRoutes.Ask);
         await Assert.That(barItem).IsSameReferenceAs(c.Items[0]);
     }
 
@@ -161,7 +161,7 @@ public class NotificationRoutingTests
         var route = c.Post(Req(1), new NotificationContext(PaneSeen: true, WindowFocused: true, 1000));
 
         // Assert
-        await Assert.That(route).IsEqualTo(NotificationRoute.None);
+        await Assert.That(route).IsEqualTo(NotificationRoutes.None);
         await Assert.That(c.Items).IsEmpty();
         await Assert.That(d.Sent).IsEmpty();
     }
@@ -178,8 +178,8 @@ public class NotificationRoutingTests
 
         // Assert
         await Assert.That(d.Sent).IsEmpty();
-        await Assert.That(route).HasFlag(NotificationRoute.Bar);
-        await Assert.That(route).DoesNotHaveFlag(NotificationRoute.Toast); // the bar replaces toasts
+        await Assert.That(route).HasFlag(NotificationRoutes.Bar);
+        await Assert.That(route).DoesNotHaveFlag(NotificationRoutes.Toast); // the bar replaces toasts
     }
 
     [Test]
@@ -194,7 +194,7 @@ public class NotificationRoutingTests
         var route = c.Post(Req(2, "x"), Here(2000));
 
         // Assert
-        await Assert.That(route).HasFlag(NotificationRoute.Toast);
+        await Assert.That(route).HasFlag(NotificationRoutes.Toast);
     }
 
     [Test]
@@ -209,7 +209,7 @@ public class NotificationRoutingTests
 
         // Assert
         await Assert.That(d.Sent).IsEmpty();
-        await Assert.That(route).HasFlag(NotificationRoute.Bar); // still in erikterm
+        await Assert.That(route).HasFlag(NotificationRoutes.Bar); // still in erikterm
     }
 
     [Test]

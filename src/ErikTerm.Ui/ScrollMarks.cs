@@ -4,7 +4,7 @@ namespace ErikTerm.Ui;
 
 /// <summary>What a tick on the scrollbar stands for (several can share a pixel).</summary>
 [Flags]
-public enum ScrollMarkKind : byte
+public enum ScrollMarkKinds : byte
 {
     None = 0,
     /// <summary>A shell prompt (OSC 133;A).</summary>
@@ -16,6 +16,9 @@ public enum ScrollMarkKind : byte
     /// <summary>A vim-mode mark (m{a-z}).</summary>
     Mark = 8,
 }
+
+/// <summary>A tick <see cref="ScrollMarks.Find"/> found: the line it marks and what kind of mark it is (one kind).</summary>
+public readonly record struct ScrollMarkHit(long Line, ScrollMarkKinds Kind);
 
 /// <summary>
 /// Scrollbar marks for one pane (ghostty / iTerm2 / VS Code style): where its prompts and failed commands are, as
@@ -187,7 +190,7 @@ public sealed class ScrollMarks
         AddPromptTicks(b, first, total);
         AddSearchTicks(b, first, total, search);
         foreach (long m in marks)
-            if (Bucket(m, first, total, height) is var y and >= 0) b[y] |= (byte)ScrollMarkKind.Mark;
+            if (Bucket(m, first, total, height) is var y and >= 0) b[y] |= (byte)ScrollMarkKinds.Mark;
         return b;
     }
 
@@ -195,7 +198,7 @@ public sealed class ScrollMarks
     {
         for (int i = _start; i < _start + _count; i++)
             if (Bucket(_lines[i], first, total, b.Length) is var y and >= 0)
-                b[y] |= (byte)(_failed[i] ? ScrollMarkKind.Failed : ScrollMarkKind.Prompt);
+                b[y] |= (byte)(_failed[i] ? ScrollMarkKinds.Failed : ScrollMarkKinds.Prompt);
     }
 
     private static void AddSearchTicks(Span<byte> b, long first, long total, IReadOnlyList<SearchMatch> search)
@@ -204,7 +207,7 @@ public sealed class ScrollMarks
         if (search.Count <= height * 2)
         {
             for (int i = 0; i < search.Count; i++)
-                if (Bucket(search[i].StartLine, first, total, height) is var y and >= 0) b[y] |= (byte)ScrollMarkKind.Search;
+                if (Bucket(search[i].StartLine, first, total, height) is var y and >= 0) b[y] |= (byte)ScrollMarkKinds.Search;
             return;
         }
         // Many matches: per pixel row, is there one in its lines (a binary search each)?
@@ -212,7 +215,7 @@ public sealed class ScrollMarks
         {
             var (from, to) = LinesOfRow(y, first, total, height);
             int k = SearchLowerBound(search, from);
-            if (k < search.Count && search[k].StartLine < to) b[y] |= (byte)ScrollMarkKind.Search;
+            if (k < search.Count && search[k].StartLine < to) b[y] |= (byte)ScrollMarkKinds.Search;
         }
     }
 
@@ -230,49 +233,44 @@ public sealed class ScrollMarks
     /// <summary>
     /// The mark nearest to pixel row <paramref name="y"/> (within <paramref name="slop"/> rows) of the last
     /// <see cref="Ticks"/> call: its line and kind. Failed commands win over search matches, vim marks and prompts at
-    /// the same distance. False when there's no tick there.
+    /// the same distance; at the same distance the row above wins over the row below. False when there's no tick there.
     /// </summary>
     public bool Find(int y, int slop, long first, long total, IReadOnlyList<SearchMatch> search, ReadOnlySpan<long> marks,
-        out long line, out ScrollMarkKind kind)
+        out ScrollMarkHit hit)
     {
-        line = 0;
-        kind = ScrollMarkKind.None;
+        hit = default;
         if (_bucketCount <= 0 || total <= 0) return false;
         for (int d = 0; d <= slop; d++)
         {
-            for (int side = 0; side < (d == 0 ? 1 : 2); side++)
-            {
-                int row = side == 0 ? y - d : y + d;
-                if (FindInRow(row, first, total, search, marks, out line, out kind)) return true;
-            }
+            if (FindInRow(y - d, first, total, search, marks, out hit)) return true;
+            if (d > 0 && FindInRow(y + d, first, total, search, marks, out hit)) return true;
         }
         return false;
     }
 
     private bool FindInRow(int row, long first, long total, IReadOnlyList<SearchMatch> search, ReadOnlySpan<long> marks,
-        out long line, out ScrollMarkKind kind)
+        out ScrollMarkHit hit)
     {
-        line = 0;
-        kind = ScrollMarkKind.None;
+        hit = default;
         int height = _bucketCount;
         if (row < 0 || row >= height || _buckets[row] == 0) return false;
-        var flags = (ScrollMarkKind)_buckets[row];
+        var flags = (ScrollMarkKinds)_buckets[row];
         var (from, to) = LinesOfRow(row, first, total, height);
-        foreach (var k in (ReadOnlySpan<ScrollMarkKind>)[ScrollMarkKind.Failed, ScrollMarkKind.Search, ScrollMarkKind.Mark, ScrollMarkKind.Prompt])
+        foreach (var k in (ReadOnlySpan<ScrollMarkKinds>)[ScrollMarkKinds.Failed, ScrollMarkKinds.Search, ScrollMarkKinds.Mark, ScrollMarkKinds.Prompt])
         {
             if ((flags & k) == 0) continue;
-            if (FindIn(k, from, to, search, marks) is { } l) { line = l; kind = k; return true; }
+            if (FindIn(k, from, to, search, marks) is { } l) { hit = new ScrollMarkHit(l, k); return true; }
         }
         return false;
     }
 
-    private long? FindIn(ScrollMarkKind kind, long from, long to, IReadOnlyList<SearchMatch> search, ReadOnlySpan<long> marks)
+    private long? FindIn(ScrollMarkKinds kind, long from, long to, IReadOnlyList<SearchMatch> search, ReadOnlySpan<long> marks)
     {
         switch (kind)
         {
-            case ScrollMarkKind.Prompt or ScrollMarkKind.Failed:
-                return FirstPrompt(kind == ScrollMarkKind.Failed, from, to);
-            case ScrollMarkKind.Search:
+            case ScrollMarkKinds.Prompt or ScrollMarkKinds.Failed:
+                return FirstPrompt(kind == ScrollMarkKinds.Failed, from, to);
+            case ScrollMarkKinds.Search:
                 int k = SearchLowerBound(search, from);
                 return k < search.Count && search[k].StartLine < to ? search[k].StartLine : null;
             default:

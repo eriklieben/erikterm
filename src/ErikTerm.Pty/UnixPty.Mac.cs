@@ -88,13 +88,7 @@ internal sealed unsafe partial class UnixPty
     private static int SpawnWithStdio(string program, IReadOnlyList<string> argv, IReadOnlyList<string> env, int stdio, string? cwd,
         short flags, bool searchPath)
     {
-        var allocations = new List<nint>();
-        nint Utf8(string s)
-        {
-            nint p = Marshal.StringToCoTaskMemUTF8(s);
-            allocations.Add(p);
-            return p;
-        }
+        var strings = new NativeUtf8Strings();
 
         byte* actions = (byte*)NativeMemory.AllocZeroed(FileActionsSize);
         byte* attr = (byte*)NativeMemory.AllocZeroed(SpawnAttrSize);
@@ -104,13 +98,13 @@ internal sealed unsafe partial class UnixPty
         bool actionsReady = false, attrReady = false;
         try
         {
-            for (int i = 0; i < argv.Count; i++) argvPtr[i] = (byte*)Utf8(argv[i]);
-            for (int i = 0; i < env.Count; i++) envPtr[i] = (byte*)Utf8(env[i]);
+            for (int i = 0; i < argv.Count; i++) argvPtr[i] = strings.Add(argv[i]);
+            for (int i = 0; i < env.Count; i++) envPtr[i] = strings.Add(env[i]);
 
             Check(posix_spawn_file_actions_init(actions), "posix_spawn_file_actions_init");
             actionsReady = true;
             for (int fd = 0; fd <= 2; fd++) Check(posix_spawn_file_actions_adddup2(actions, stdio, fd), "adddup2");
-            if (cwd is not null) Check(posix_spawn_file_actions_addchdir_np(actions, (byte*)Utf8(cwd)), "addchdir");
+            if (cwd is not null) Check(posix_spawn_file_actions_addchdir_np(actions, strings.Add(cwd)), "addchdir");
 
             Check(posix_spawnattr_init(attr), "posix_spawnattr_init");
             attrReady = true;
@@ -122,8 +116,8 @@ internal sealed unsafe partial class UnixPty
 
             int pid;
             int rc = searchPath
-                ? posix_spawnp(&pid, (byte*)Utf8(program), actions, attr, argvPtr, envPtr)
-                : posix_spawn(&pid, (byte*)Utf8(program), actions, attr, argvPtr, envPtr);
+                ? posix_spawnp(&pid, strings.Add(program), actions, attr, argvPtr, envPtr)
+                : posix_spawn(&pid, strings.Add(program), actions, attr, argvPtr, envPtr);
             if (rc != 0) throw new IOException($"posix_spawn('{program}') failed: errno {rc}");
             return pid;
         }
@@ -136,7 +130,7 @@ internal sealed unsafe partial class UnixPty
             NativeMemory.Free(sigs);
             NativeMemory.Free(argvPtr);
             NativeMemory.Free(envPtr);
-            foreach (var p in allocations) Marshal.FreeCoTaskMem(p);
+            strings.Dispose();
         }
     }
 
@@ -156,7 +150,7 @@ internal sealed unsafe partial class UnixPty
         // Not fatal if it fails (e.g. run by hand from another terminal): the program still runs, without job control.
         ioctl(0, PtyConstants.Current.TIOCSCTTY, null);
 
-        var allocations = new List<nint>();
+        var strings = new NativeUtf8Strings();
         byte* actions = (byte*)NativeMemory.AllocZeroed(FileActionsSize);
         byte* attr = (byte*)NativeMemory.AllocZeroed(SpawnAttrSize);
         byte* sigs = (byte*)NativeMemory.AllocZeroed(SigSetSize);
@@ -164,23 +158,12 @@ internal sealed unsafe partial class UnixPty
         int rc;
         try
         {
-            for (int i = 2; i < args.Length; i++)
-            {
-                nint p = Marshal.StringToCoTaskMemUTF8(args[i]);
-                allocations.Add(p);
-                argvPtr[i - 2] = (byte*)p;
-            }
-            nint file = Marshal.StringToCoTaskMemUTF8(program);
-            allocations.Add(file);
+            for (int i = 2; i < args.Length; i++) argvPtr[i - 2] = strings.Add(args[i]);
+            byte* file = strings.Add(program);
 
             posix_spawn_file_actions_init(actions);
             for (int fd = 0; fd <= 2; fd++) posix_spawn_file_actions_addinherit_np(actions, fd);
-            if (cwd.Length > 0)
-            {
-                nint dir = Marshal.StringToCoTaskMemUTF8(cwd);
-                allocations.Add(dir);
-                posix_spawn_file_actions_addchdir_np(actions, (byte*)dir);
-            }
+            if (cwd.Length > 0) posix_spawn_file_actions_addchdir_np(actions, strings.Add(cwd));
             posix_spawnattr_init(attr);
             sigemptyset(sigs);
             posix_spawnattr_setsigmask(attr, sigs);
@@ -191,7 +174,7 @@ internal sealed unsafe partial class UnixPty
 
             // The environment is ours as the parent built it; posix_spawnp searches its PATH.
             int pid;
-            rc = posix_spawnp(&pid, (byte*)file, actions, attr, argvPtr, *_NSGetEnviron());
+            rc = posix_spawnp(&pid, file, actions, attr, argvPtr, *_NSGetEnviron());
         }
         finally
         {
@@ -199,7 +182,7 @@ internal sealed unsafe partial class UnixPty
             NativeMemory.Free(attr);
             NativeMemory.Free(sigs);
             NativeMemory.Free(argvPtr);
-            foreach (var p in allocations) Marshal.FreeCoTaskMem(p);
+            strings.Dispose();
         }
         // Still here: the exec failed.
         Console.Error.WriteLine($"erikterm: couldn't start {program}: {Marshal.GetPInvokeErrorMessage(rc)}" +

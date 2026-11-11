@@ -1,6 +1,7 @@
 using ErikTerm.App.Native;
 using ErikTerm.Core;
 using ErikTerm.Core.Images;
+using ErikTerm.Ui;
 
 namespace ErikTerm.App.Rendering;
 
@@ -43,25 +44,32 @@ internal sealed unsafe class ImageRenderer
     private int _upscaleMode = -1; // pixel art if this SDL supports it, else nearest
 
     /// <summary>Draws the images below the text (<paramref name="below"/>: kitty z &lt; 0) or above it.</summary>
-    public void Draw(DrawList dl, Terminal t, float ox, float oy, ColorTransformCache dim, float alpha, long now, bool below)
+    public void Draw(in PaneFrame frame, bool below)
     {
+        long now = frame.Now;
         if (now != _frame) { _frame = now; Sweep(now); NextAnimationAt = long.MaxValue; }
+        var dl = frame.Dl;
+        var t = frame.Pane.Term;
         var images = t.Images;
-        int cw = dl.Fonts.CellWidth, ch = dl.Fonts.CellHeight;
-        uint tint = dim.Apply(0xFFFFFF);
+        var pass = new PlacementPass(dl, t, dl.Fonts.CellWidth, dl.Fonts.CellHeight, frame.Dim.Apply(0xFFFFFF), frame.Appear, now);
 
         var placements = images.Placements(t.IsAlternateScreen);
         if (!below) _hasVirtualChildren = false;
-        if (placements.Count > 0) DrawPlacements(dl, t, placements, ox, oy, cw, ch, tint, alpha, now, below);
+        if (placements.Count > 0) DrawPlacements(in pass, placements, frame.Ox, frame.Oy, below);
         if (below) return;
         _virtualOrigins.Clear();
-        if (images.HasInlineImages || images.HasVirtualPlacements) DrawCells(dl, t, ox, oy, cw, ch, tint, alpha, now);
-        if (_hasVirtualChildren) DrawVirtualChildren(dl, t, placements, cw, ch, tint, alpha, now);
+        if (images.HasInlineImages || images.HasVirtualPlacements) DrawCells(in pass, frame.Ox, frame.Oy);
+        if (_hasVirtualChildren) DrawVirtualChildren(in pass, placements);
     }
 
+    /// <summary>What every kitty placement of a <see cref="Draw"/> call is drawn with; cells are Cw×Ch pixels.</summary>
+    private readonly record struct PlacementPass(DrawList Dl, Terminal Term, int Cw, int Ch, uint Tint, float Alpha, long Now);
+
     /// <summary>Placements relative to a virtual placement, positioned from where its placeholders were drawn.</summary>
-    private void DrawVirtualChildren(DrawList dl, Terminal t, List<KittyPlacement> placements, int cw, int ch, uint tint, float alpha, long now)
+    private void DrawVirtualChildren(in PlacementPass pass, List<KittyPlacement> placements)
     {
+        var t = pass.Term;
+        int cw = pass.Cw, ch = pass.Ch;
         bool alt = t.IsAlternateScreen;
         foreach (var p in placements)
         {
@@ -69,28 +77,29 @@ internal sealed unsafe class ImageRenderer
             var root = p;
             for (int i = 0; i < 16 && root is { Virtual: false }; i++) root = t.Images.ParentOf(root, alt);
             if (root is null || !_virtualOrigins.TryGetValue(root, out var origin)) continue;
-            DrawPlacement(dl, t, p, origin.X + p.Column * cw, origin.Y + p.Line * ch, cw, ch, tint, alpha, now);
+            DrawPlacement(in pass, p, origin.X + p.Column * cw, origin.Y + p.Line * ch);
         }
     }
 
-    private void DrawPlacement(DrawList dl, Terminal t, KittyPlacement p, float x0, float y0, int cw, int ch, uint tint, float alpha, long now)
+    private void DrawPlacement(in PlacementPass pass, KittyPlacement p, float x0, float y0)
     {
         var img = p.Image;
-        var (w, h) = p.DisplaySize(cw, ch);
+        var (w, h) = p.DisplaySize(pass.Cw, pass.Ch);
         x0 += p.OffsetX;
         y0 += p.OffsetY;
-        nint tex = TextureFor(dl, img, now);
+        nint tex = TextureFor(pass.Dl, img, pass.Now);
         if (tex == 0) return;
-        t.Images.Touch(img);
-        dl.Image(tex, x0, y0, x0 + w, y0 + h,
-            p.SourceX / (float)img.Width, p.SourceY / (float)img.Height,
-            (p.SourceX + p.SourceWidth) / (float)img.Width, (p.SourceY + p.SourceHeight) / (float)img.Height,
-            tint, alpha, ScaleMode(w / p.SourceWidth));
+        pass.Term.Images.Touch(img);
+        pass.Dl.Image(tex, new QuadCorners(x0, y0, x0 + w, y0 + h),
+            new QuadUv(p.SourceX / (float)img.Width, p.SourceY / (float)img.Height,
+                (p.SourceX + p.SourceWidth) / (float)img.Width, (p.SourceY + p.SourceHeight) / (float)img.Height),
+            pass.Tint, pass.Alpha, ScaleMode(w / p.SourceWidth));
     }
 
-    private void DrawPlacements(DrawList dl, Terminal t, List<KittyPlacement> placements, float ox, float oy, int cw, int ch,
-        uint tint, float alpha, long now, bool below)
+    private void DrawPlacements(in PlacementPass pass, List<KittyPlacement> placements, float ox, float oy, bool below)
     {
+        var t = pass.Term;
+        int cw = pass.Cw, ch = pass.Ch;
         _sorted.Clear();
         foreach (var p in placements)
         {
@@ -113,7 +122,7 @@ internal sealed unsafe class ImageRenderer
             var (_, h) = p.DisplaySize(cw, ch);
             float x0 = ox + p.Column * cw, y0 = oy + (p.Line - viewTop) * ch;
             if (y0 + p.OffsetY >= paneBottom || y0 + p.OffsetY + h <= oy) continue;
-            DrawPlacement(dl, t, p, x0, y0, cw, ch, tint, alpha, now);
+            DrawPlacement(in pass, p, x0, y0);
         }
     }
 
@@ -129,10 +138,13 @@ internal sealed unsafe class ImageRenderer
     }
 
     /// <summary>Cell tiles (iTerm2, sixel) and kitty placeholders, merged into one quad per run of adjacent cells.</summary>
-    private void DrawCells(DrawList dl, Terminal t, float ox, float oy, int cw, int ch, uint tint, float alpha, long now)
+    private void DrawCells(in PlacementPass placements, float ox, float oy)
     {
+        var t = placements.Term;
         var images = t.Images;
-        var pass = new CellPass(dl, images, ox, cw, ch, tint, alpha, now, t.IsAlternateScreen, images.HasInlineImages, images.HasVirtualPlacements);
+        int ch = placements.Ch;
+        var pass = new CellPass(placements.Dl, images, ox, placements.Cw, ch, placements.Tint, placements.Alpha, placements.Now,
+            t.IsAlternateScreen, images.HasInlineImages, images.HasVirtualPlacements);
         int rows = t.Rows, cols = t.Columns;
         for (int y = 0; y < rows; y++)
         {
@@ -178,9 +190,9 @@ internal sealed unsafe class ImageRenderer
             nextCol++;
         }
         if (pass.Images.GetSlot(slot) is { } inline)
-            DrawRun(pass.Dl, inline.Image, 0, 0, inline.Image.Width, inline.Image.Height,
-                inline.ContentX, inline.ContentY, inline.ContentW, inline.ContentH,
-                r, col, nextCol, pass.Ox + x * pass.Cw, py, pass.Cw, pass.Ch, pass.Tint, pass.Alpha, pass.Now, pass.Images);
+            DrawRun(in pass, inline.Image, new RectI(0, 0, inline.Image.Width, inline.Image.Height),
+                new RectF(inline.ContentX, inline.ContentY, inline.ContentW, inline.ContentH),
+                new CellSpan(r, col, nextCol, pass.Ox + x * pass.Cw, py));
         return end;
     }
 
@@ -230,19 +242,27 @@ internal sealed unsafe class ImageRenderer
         float boxW = vp.Columns * cw, boxH = vp.Rows * ch;
         float scale = MathF.Min(boxW / vp.SourceWidth, boxH / vp.SourceHeight);
         float cwCells = vp.SourceWidth * scale / cw, chCells = vp.SourceHeight * scale / ch;
-        DrawRun(pass.Dl, vp.Image, vp.SourceX, vp.SourceY, vp.SourceWidth, vp.SourceHeight,
-            (vp.Columns - cwCells) / 2, (vp.Rows - chCells) / 2, cwCells, chCells,
-            runRow, runCol, runCol + count, pass.Ox + start * cw, py, cw, ch, pass.Tint, pass.Alpha, pass.Now, pass.Images);
+        DrawRun(in pass, vp.Image, new RectI(vp.SourceX, vp.SourceY, vp.SourceWidth, vp.SourceHeight),
+            new RectF((vp.Columns - cwCells) / 2, (vp.Rows - chCells) / 2, cwCells, chCells),
+            new CellSpan(runRow, runCol, runCol + count, pass.Ox + start * cw, py));
     }
 
+    /// <summary>Image row <see cref="Row"/>, columns [<see cref="Col0"/>, <see cref="Col1"/>) of a box: cells from screen pixel (X, Y).</summary>
+    private readonly record struct CellSpan(int Row, int Col0, int Col1, float X, float Y);
+
     /// <summary>
-    /// Draws image row <paramref name="r"/>, columns [<paramref name="c0"/>, <paramref name="c1"/>) of a box whose
-    /// picture fills the content rectangle (cell units) — the cells start at screen pixel (sx, sy).
+    /// Draws one <paramref name="span"/> of the cells of a box whose picture, the <paramref name="source"/> rectangle of
+    /// <paramref name="img"/> (pixels), fills the <paramref name="content"/> rectangle (cell units).
     /// </summary>
-    private void DrawRun(DrawList dl, TerminalImage img, int srcX, int srcY, int srcW, int srcH,
-        float cx, float cy, float cwCells, float chCells, int r, int c0, int c1, float sx, float sy, int cw, int ch,
-        uint tint, float alpha, long now, ImageStore store)
+    private void DrawRun(in CellPass pass, TerminalImage img, RectI source, RectF content, CellSpan span)
     {
+        var dl = pass.Dl;
+        int srcX = source.X, srcY = source.Y, srcW = source.W, srcH = source.H;
+        float cx = content.X, cy = content.Y, cwCells = content.W, chCells = content.H;
+        int r = span.Row, c0 = span.Col0, c1 = span.Col1, cw = pass.Cw, ch = pass.Ch;
+        float sx = span.X, sy = span.Y;
+        long now = pass.Now;
+        var store = pass.Images;
         if (cwCells <= 0 || chCells <= 0) return;
         float ix0 = MathF.Max(c0, cx), ix1 = MathF.Min(c1, cx + cwCells);
         float iy0 = MathF.Max(r, cy), iy1 = MathF.Min(r + 1, cy + chCells);
@@ -254,7 +274,7 @@ internal sealed unsafe class ImageRenderer
         float v0 = (srcY + (iy0 - cy) / chCells * srcH) / img.Height, v1 = (srcY + (iy1 - cy) / chCells * srcH) / img.Height;
         float x0 = sx + (ix0 - c0) * cw, x1 = sx + (ix1 - c0) * cw;
         float y0 = sy + (iy0 - r) * ch, y1 = sy + (iy1 - r) * ch;
-        dl.Image(tex, x0, y0, x1, y1, u0, v0, u1, v1, tint, alpha, ScaleMode(cwCells * cw / srcW));
+        dl.Image(tex, new QuadCorners(x0, y0, x1, y1), new QuadUv(u0, v0, u1, v1), pass.Tint, pass.Alpha, ScaleMode(cwCells * cw / srcW));
     }
 
     private int ScaleMode(float scale)

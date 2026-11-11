@@ -39,6 +39,9 @@ internal static class DevcontainerCommand
           --no-shell-integration   don't load erikterm's shell integration inside
         """;
 
+    /// <summary>The shell every POSIX image has: runs the setup and launch scripts, and is the fallback shell.</summary>
+    private const string PosixShell = "/bin/sh";
+
     public enum Mode { Shell, Up, Help }
 
     public sealed record Options(
@@ -272,13 +275,21 @@ internal static class DevcontainerCommand
         ShellIntegration.OrigXdgDataDirsVariable + " " + ShellIntegration.UnexportHistfileVariable + "; " +
         "exec \"$s\"";
 
+    /// <summary>Where an exec runs: the container, as whom (null: the engine's default) and in which directory.</summary>
+    public readonly record struct ExecTarget(ContainerInfo Container, string? User, string Workdir);
+
+    /// <summary>The shell an exec starts: what <see cref="SetUp"/> found, and the integration staged at <c>Root</c> when <c>Integration</c> is on.</summary>
+    public readonly record struct ExecShell(Setup Setup, string? Root, bool Integration);
+
     /// <summary>
     /// The engine's exec: environment through <c>-e</c> (TERM, the terminal's variables, the integration's), then a
     /// <paramref name="command"/> as given, or the shell through <see cref="LaunchScript"/>.
     /// </summary>
-    public static List<string> ExecArgv(ContainerEngine engine, ContainerInfo c, string? user, string workdir, Setup setup, string? root,
-        bool integration, IReadOnlyDictionary<string, string> terminalEnv, IReadOnlyList<string> command, bool tty)
+    public static List<string> ExecArgv(ContainerEngine engine, ExecTarget target, ExecShell shellSetup,
+        IReadOnlyDictionary<string, string> terminalEnv, IReadOnlyList<string> command, bool tty)
     {
+        var (c, user, workdir) = target;
+        var (setup, root, integration) = shellSetup;
         var env = new Dictionary<string, string>(terminalEnv, StringComparer.Ordinal);
         var argv = engine.Argv("exec", tty ? "-it" : "-i");
         if (user is { Length: > 0 }) argv.AddRange(["-u", user]);
@@ -291,7 +302,7 @@ internal static class DevcontainerCommand
             return argv;
         }
 
-        string shell = setup.Shell ?? "/bin/sh";
+        string shell = setup.Shell ?? PosixShell;
         string[] shellArgv = [shell];
         string marker = "";
         if (integration && root is not null && setup.Integration)
@@ -309,7 +320,7 @@ internal static class DevcontainerCommand
         }
         AddEnvironment(argv, env);
         argv.Add(c.Id);
-        argv.AddRange(["/bin/sh", "-c", LaunchScript, "erikterm-shell", marker, workdir, c.WorkspaceFolder, shell]);
+        argv.AddRange([PosixShell, "-c", LaunchScript, "erikterm-shell", marker, workdir, c.WorkspaceFolder, shell]);
         argv.AddRange(shellArgv);
         return argv;
     }
@@ -393,7 +404,7 @@ internal static class DevcontainerCommand
 
         var terminalEnv = TerminalEnvironment(Environment.GetEnvironmentVariable, setup.Terminfo);
         bool tty = !Console.IsInputRedirected && !Console.IsOutputRedirected;
-        var argv = ExecArgv(engine, c, user, ShellWorkdir(o, c, cwd), setup, root, o.ShellIntegration, terminalEnv, o.Command, tty);
+        var argv = ExecArgv(engine, new ExecTarget(c, user, ShellWorkdir(o, c, cwd)), new ExecShell(setup, root, o.ShellIntegration), terminalEnv, o.Command, tty);
         return Exec(argv, out problem);
     }
 
@@ -442,7 +453,7 @@ internal static class DevcontainerCommand
             ToolRunner.Run(engine.Argv("cp", Path.Combine(stage, "."), c.Id + ":" + root), null, ContainerEngine.TimeoutMs);
         var argv = engine.Argv("exec", "-i");
         if (user is { Length: > 0 }) argv.AddRange(["-u", user]);
-        argv.AddRange([c.Id, "/bin/sh", "-c", SetupScript, "erikterm-setup", root]);
+        argv.AddRange([c.Id, PosixShell, "-c", SetupScript, "erikterm-setup", root]);
         var r = ToolRunner.Run(argv, null, ContainerEngine.TimeoutMs);
         return r.StartError is null && !r.TimedOut ? ParseSetupOutput(r.Stdout) : new Setup(false, false, null, null);
     }
@@ -484,7 +495,7 @@ internal static class DevcontainerCommand
     private static int HostShell()
     {
         if (OperatingSystem.IsWindows()) return 1;
-        string shell = Environment.GetEnvironmentVariable("SHELL") is { Length: > 0 } s && File.Exists(s) ? s : "/bin/sh";
+        string shell = Environment.GetEnvironmentVariable("SHELL") is { Length: > 0 } s && File.Exists(s) ? s : PosixShell;
         Console.Error.WriteLine($"erikterm devcontainer: opening {Path.GetFileName(shell)} on this machine instead");
         var env = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (System.Collections.DictionaryEntry e in Environment.GetEnvironmentVariables())

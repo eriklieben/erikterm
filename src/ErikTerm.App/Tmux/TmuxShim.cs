@@ -15,6 +15,8 @@ namespace ErikTerm.App.Tmux;
 /// </summary>
 internal sealed partial class TmuxShim
 {
+    private const string KillPaneCommand = "kill-pane";
+
     private readonly IReadOnlyList<string> _args;
     private readonly TextReader _stdin;
     private readonly TextWriter _out, _err;
@@ -263,7 +265,7 @@ internal sealed partial class TmuxShim
         "list-sessions" => ListSessions(c),
         "list-clients" => ListClients(c),
         "select-pane" => SelectPane(c),
-        "kill-pane" => KillPane(c),
+        KillPaneCommand => KillPane(c),
         "kill-window" => KillWindow(c),
         "kill-session" => KillSession(c),
         "resize-pane" => ResizePane(c),
@@ -536,11 +538,11 @@ internal sealed partial class TmuxShim
         if (c.Has('a'))
         {
             foreach (var other in Session.WindowOf(pane).Panes.Where(p => p.PaneId != pane.PaneId).ToList())
-                Send(new IpcRequest { Command = "kill-pane", PaneId = other.PaneId });
+                Send(new IpcRequest { Command = KillPaneCommand, PaneId = other.PaneId });
             return 0;
         }
         ForwardIfRealPane(pane, c.Target ?? "");
-        Send(new IpcRequest { Command = "kill-pane", PaneId = pane.PaneId });
+        Send(new IpcRequest { Command = KillPaneCommand, PaneId = pane.PaneId });
         return 0;
     }
 
@@ -550,7 +552,7 @@ internal sealed partial class TmuxShim
         var windows = c.Has('a') ? Session.Windows.Where(w => w != window).ToList() : [window];
         foreach (var w in windows)
             foreach (var p in w.Panes.ToList())
-                Send(new IpcRequest { Command = "kill-pane", PaneId = p.PaneId });
+                Send(new IpcRequest { Command = KillPaneCommand, PaneId = p.PaneId });
         return 0;
     }
 

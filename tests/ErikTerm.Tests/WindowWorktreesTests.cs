@@ -562,8 +562,9 @@ public class WindowWorktreesTests
 
     private static (WorktreeRequest? Request, string? Error) Plan(IpcRequest r)
     {
-        var request = WindowWorktrees<FakePane>.PlanCliWorktree(r, PlanRepo, "/src/repo", [Agent, Promptless], ["sh", "-l"],
-            command => command == "gone" ? null : "/bin/" + command, "../{repo}.worktrees/{name}", "make setup", out string? error);
+        var context = new CliWorktreeContext([Agent, Promptless], ["sh", "-l"],
+            command => command == "gone" ? null : "/bin/" + command, "../{repo}.worktrees/{name}", "make setup");
+        var request = WindowWorktrees<FakePane>.PlanCliWorktree(r, PlanRepo, "/src/repo", in context, out string? error);
         return (request, error);
     }
 
@@ -631,10 +632,10 @@ public class WindowWorktreesTests
     {
         // Arrange
         var gone = new WorktreeAgent("g", "Gone", "gone", [], []);
+        var context = new CliWorktreeContext([gone], ["sh"], _ => null, "../w/{name}", null);
 
         // Act
-        var request = WindowWorktrees<FakePane>.PlanCliWorktree(new IpcRequest { Agent = "g" }, PlanRepo, "/src/repo", [gone], ["sh"],
-            _ => null, "../w/{name}", null, out string? error);
+        var request = WindowWorktrees<FakePane>.PlanCliWorktree(new IpcRequest { Agent = "g" }, PlanRepo, "/src/repo", in context, out string? error);
 
         // Assert
         await Assert.That(request).IsNull();

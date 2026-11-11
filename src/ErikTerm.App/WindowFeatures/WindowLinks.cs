@@ -182,9 +182,9 @@ internal sealed class WindowLinks(ILinkWindow window, IPaneInput input, QuickSel
         string how = tracking ? "Ctrl+Shift+click to open" : "Ctrl+click to open";
         // OSC 8 targets are invisible, so they always get the pill; detected URLs only once Ctrl is down.
         if (links.HoveredSmart is { } smart && armed)
-            _linkHint.Show(pane, WindowEditor.SmartLinkIcon(smart), smart.Display, editor.SmartLinkAction(smart), armed, nearBottom, window.Theme, now);
+            _linkHint.Show(pane, new LinkHint.Message(WindowEditor.SmartLinkIcon(smart), smart.Display, editor.SmartLinkAction(smart)), armed, nearBottom, window.Theme, now);
         else if (links.HoveredExplicit || armed)
-            _linkHint.Show(pane, armed ? ShellIcons.LinkExternal : ShellIcons.Link, target, armed ? "Click to open" : how, armed, nearBottom, window.Theme, now);
+            _linkHint.Show(pane, new LinkHint.Message(armed ? ShellIcons.LinkExternal : ShellIcons.Link, target, armed ? "Click to open" : how), armed, nearBottom, window.Theme, now);
         else _linkHint.Hide(now);
         return armed;
     }
@@ -367,8 +367,7 @@ internal sealed class WindowLinks(ILinkWindow window, IPaneInput input, QuickSel
         links.GutterFade.Set(1, now, anim);
         bool failed = b.ExitCode is not (Row.NoExitCode or 0);
         var th = window.Theme;
-        _linkHint.Show(pane, failed ? ShellIcons.Error : ShellIcons.Output, WindowPrompts.DescribeBlock(b), "Click to select output", true,
-            line - pane.Term.ViewTopLine >= pane.Term.Rows - 2, th, now, failed ? th.Danger : null);
+        _linkHint.Show(pane, new LinkHint.Message(failed ? ShellIcons.Error : ShellIcons.Output, WindowPrompts.DescribeBlock(b), "Click to select output", failed ? th.Danger : null), true, line - pane.Term.ViewTopLine >= pane.Term.Rows - 2, th, now);
         return true;
     }
 

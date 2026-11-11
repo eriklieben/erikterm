@@ -92,6 +92,7 @@ internal static class AboutFormat
     public const string MetaCommit = "ErikTerm.Commit";
     public const string MetaDirty = "ErikTerm.Dirty";
     public const string MetaBuildDate = "ErikTerm.BuildDate";
+    private const string Unknown = "unknown";
 
     /// <summary>
     /// Version, commit, dirty flag and build date from the assembly's informational version
@@ -118,7 +119,7 @@ internal static class AboutFormat
 
     public static string CommitText(string? commit, bool dirty)
     {
-        if (commit is null) return "unknown";
+        if (commit is null) return Unknown;
         return dirty ? commit + " (modified)" : commit;
     }
 
@@ -136,7 +137,7 @@ internal static class AboutFormat
 
     /// <summary>SDL_GetVersion's packed major*1000000 + minor*1000 + micro.</summary>
     public static string SdlVersion(int packed) =>
-        packed <= 0 ? "unknown" : $"{packed / 1000000}.{packed / 1000 % 1000}.{packed % 1000}";
+        packed <= 0 ? Unknown : $"{packed / 1000000}.{packed / 1000 % 1000}.{packed % 1000}";
 
     public static string Bytes(long bytes)
     {
@@ -200,8 +201,8 @@ internal static class AboutFormat
 
     public static List<AboutSection> Sections(AboutInfo i)
     {
-        string fontFile = i.FontPath.Length > 0 ? Path.GetFileName(i.FontPath) : "unknown";
-        string display = "unknown";
+        string fontFile = i.FontPath.Length > 0 ? Path.GetFileName(i.FontPath) : Unknown;
+        string display = Unknown;
         if (i.DisplayWidth > 0) display = $"{i.DisplayWidth} × {i.DisplayHeight}" + (i.RefreshHz > 0 ? " @ " + Refresh(i.RefreshHz) : "");
         string vsync = i.VSync switch
         {
@@ -209,7 +210,7 @@ internal static class AboutFormat
             false => " · no vsync",
             null => "",
         };
-        string renderer = (i.Renderer ?? "unknown") + vsync;
+        string renderer = (i.Renderer ?? Unknown) + vsync;
         string density = Number(i.PixelDensity) + "×" + (MathF.Abs(i.DisplayScale - i.PixelDensity) > 0.01f ? " · scale " + Number(i.DisplayScale) : "");
 
         return
@@ -218,14 +219,14 @@ internal static class AboutFormat
             [
                 new("Version", i.Version),
                 new("Commit", i.CommitText, i.Dirty ? AboutValueKind.Warning : AboutValueKind.Normal),
-                new("Built", i.BuildDate ?? "unknown"),
+                new("Built", i.BuildDate ?? Unknown),
                 new("Compiled", i.NativeAot ? "Native AOT" : "JIT (dotnet)"),
                 new("Runtime", i.Runtime),
             ]),
             new(AboutSectionKind.Display, "Display",
             [
-                new("SDL", i.SdlVersion ?? "unknown"),
-                new("Video", i.VideoDriver ?? "unknown"),
+                new("SDL", i.SdlVersion ?? Unknown),
+                new("Video", i.VideoDriver ?? Unknown),
                 new("Renderer", renderer),
                 new("Display", display),
                 new("Density", density),
@@ -241,7 +242,7 @@ internal static class AboutFormat
             ]),
             new(AboutSectionKind.Text, "Text",
             [
-                new("FreeType", i.FreeTypeVersion ?? "unknown"),
+                new("FreeType", i.FreeTypeVersion ?? Unknown),
                 new("HarfBuzz", i.HarfBuzzVersion ?? "not available (no ligatures)", i.HarfBuzzVersion is null ? AboutValueKind.Warning : AboutValueKind.Normal),
                 new("Font", fontFile),
                 new("Size", $"{Number(i.FontPoints)} pt · {MathF.Round(i.FontPixels):0} px"),

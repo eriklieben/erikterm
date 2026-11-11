@@ -11,7 +11,7 @@ namespace ErikTerm.App.WindowFeatures;
 /// merge-tree prediction against the default branch, re-run only when HEAD or the target moved (at most every 30 s).
 /// </summary>
 internal sealed class WindowGitOperations(
-    IFeatureWindow window, IPaneLauncher launcher, BackgroundJobs jobs, PaneTracks tracks, WindowGit git, InfoBar infoBar,
+    IFeatureWindow window, IPaneLauncher launcher, RepoScan scan, InfoBar infoBar,
     WindowRepoPlans repoPlans, WindowEditor editor, WindowLaunches launches)
 {
     private const string GitOpBarKey = "git-operation", GitOpAbortKey = "git-operation-abort";
@@ -36,7 +36,7 @@ internal sealed class WindowGitOperations(
     public void Tick(long now)
     {
         var focused = window.Focused;
-        var repo = tracks.Of(focused)?.Repo;
+        var repo = scan.Tracks.Of(focused)?.Repo;
         string? root = window.Settings.GitStatus && repo is { Status: not null } ? repo.Root : null;
         if (root != _gitOpRoot) { _gitOpRoot = root; _gitOpAt = 0; _gitOpQuiet = default; ClearGitOperation(now); } // the bar's buttons act on one repository
         if (root is null) { ClearGitOperation(now); return; }
@@ -47,7 +47,7 @@ internal sealed class WindowGitOperations(
         _gitOpAt = now + GitOpPollMs;
         _gitOpInFlight = true;
         _gitStatePaths.TryGetValue(root, out var paths);
-        jobs.Run(() =>
+        scan.Jobs.Run(() =>
         {
             var p = paths ?? WorktreeManagerGit.StatePaths(root);
             if (p is null) return new GitOpResult(root, GitOperationState.None, [], null);
@@ -107,7 +107,7 @@ internal sealed class WindowGitOperations(
     {
         if (GitOperationDetector.NextConflict(_gitOpConflicts, _gitOpLastConflict) is not { } next) return;
         _gitOpLastConflict = next;
-        jobs.Run<object>(() => WorktreeManagerGit.OpenAtMarker(root, next), r =>
+        scan.Jobs.Run<object>(() => WorktreeManagerGit.OpenAtMarker(root, next), r =>
         {
             if (r is ValueTuple<string, int> at) editor.OpenFile(at.Item1, at.Item2, 1, forceSplit: editor.Mode == EditorOpenMode.None);
             else window.Toast(ToastKind.Error, "Couldn't open the conflicted file", next);
@@ -177,7 +177,7 @@ internal sealed class WindowGitOperations(
     {
         var settings = window.Settings;
         if (!settings.GitConflictCheck || !settings.GitStatus) return;
-        foreach (var repo in git.Repos.Values)
+        foreach (var repo in scan.Git.Repos.Values)
         {
             if (repo is not { Root: { } root, Status: { Detached: false, Oid: { Length: 40 } head } status }) continue;
             if (!_conflictChecks.TryGetValue(root, out var check)) _conflictChecks[root] = check = new ConflictCheckState();
@@ -195,7 +195,7 @@ internal sealed class WindowGitOperations(
         check.PolledAt = now;
         string? known = headMoved ? null : check.TargetOid;
         string? target = check.Target;
-        jobs.Run(() =>
+        scan.Jobs.Run(() =>
         {
             if (target is null && WorktreeManagerGit.Inventory(repoRoot, out _) is { Target: { } t } ) target = t;
             if (target is null || target == branch) return new ConflictJob(head, null, null);
@@ -218,7 +218,7 @@ internal sealed class WindowGitOperations(
         bool conflict = !prediction.Clean;
         if (conflict == check.Conflict) return;
         check.Conflict = conflict;
-        foreach (var repo in git.Repos.Values) if (repo.Root == root) repo.Version++;
+        foreach (var repo in scan.Git.Repos.Values) if (repo.Root == root) repo.Version++;
         window.Redraw();
     }
 

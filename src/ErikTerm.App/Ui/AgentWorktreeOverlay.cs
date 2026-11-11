@@ -14,6 +14,18 @@ internal sealed class AgentWorktreeOverlay
 {
     private static readonly WorktreeField[] Fields = [WorktreeField.Prompt, WorktreeField.Arguments, WorktreeField.Branch, WorktreeField.Base];
 
+    /// <summary>Each of <see cref="Fields"/>' label and the placeholder its empty box shows.</summary>
+    private static readonly (string Label, string Placeholder)[] FieldTexts =
+    [
+        ("Prompt", "What should the agent do? (empty: it just opens)"),
+        ("Arguments", "Extra arguments for this launch"),
+        ("Branch", "Branch name"),
+        ("Base", "Base branch or commit"),
+    ];
+
+    /// <summary>The form's rows: inside <see cref="Panel"/>, <see cref="RowH"/> high, the boxes after a <see cref="LabelW"/> label column.</summary>
+    private readonly record struct FormRows(RectF Panel, float RowH, float LabelW, float Pad, float Alpha);
+
     private WorktreeForm? _form;
     private bool _open;
     private Tween _visible = new(0);
@@ -181,15 +193,16 @@ internal sealed class AgentWorktreeOverlay
 
         // Fields and the agent picker, in reading order.
         float y = panel.Y + headerH + th.S(4);
-        DrawField(dl, th, form, 0, "Prompt", "What should the agent do? (empty: it just opens)", panel, y, rowH, labelW, pad, v, now);
+        var rows = new FormRows(panel, rowH, labelW, pad, v);
+        DrawField(dl, th, form, 0, in rows, y, now);
         y += rowH;
-        DrawAgents(dl, th, form, panel, y, rowH, labelW, pad, v);
+        DrawAgents(dl, th, form, in rows, y);
         y += rowH;
-        DrawField(dl, th, form, 1, "Arguments", "Extra arguments for this launch", panel, y, rowH, labelW, pad, v, now);
+        DrawField(dl, th, form, 1, in rows, y, now);
         y += rowH;
-        DrawField(dl, th, form, 2, "Branch", "Branch name", panel, y, rowH, labelW, pad, v, now);
+        DrawField(dl, th, form, 2, in rows, y, now);
         y += rowH;
-        DrawField(dl, th, form, 3, "Base", "Base branch or commit", panel, y, rowH, labelW, pad, v, now);
+        DrawField(dl, th, form, 3, in rows, y, now);
         y += rowH + th.S(6);
 
         // What will happen, in full.
@@ -234,17 +247,20 @@ internal sealed class AgentWorktreeOverlay
     {
         float fy = panel.Bottom - footerH;
         dl.Rect(new RectF(panel.X + th.S(1), fy, panel.W - th.S(2), MathF.Max(1, th.S(1))), th.Border, v);
-        float fx = panel.X + pad, fb = Widgets.Baseline(dl, th.UiPx * 0.82f, fy, footerH);
-        fx = Hint(dl, th, fx, fy, footerH, fb, ["↵"], "create", v);
-        fx = Hint(dl, th, fx, fy, footerH, fb, ["Ctrl", "↵"], "in background", v);
-        fx = Hint(dl, th, fx, fy, footerH, fb, ["Alt", "↵"], form.Placement == WorktreePlacement.Tab ? "in a split" : "in a tab", v);
-        fx = Hint(dl, th, fx, fy, footerH, fb, ["Tab"], "agent", v);
-        fx = Hint(dl, th, fx, fy, footerH, fb, ["↑", "↓"], "field", v);
-        Hint(dl, th, fx, fy, footerH, fb, ["esc"], "cancel", v);
+        float fb = Widgets.Baseline(dl, th.UiPx * 0.82f, fy, footerH);
+        var hints = new FooterHints(dl, th, panel.X + pad, fy + footerH / 2, fb, v, th.S(16));
+        hints.Add(["↵"], "create");
+        hints.Add(["Ctrl", "↵"], "in background");
+        hints.Add(["Alt", "↵"], form.Placement == WorktreePlacement.Tab ? "in a split" : "in a tab");
+        hints.Add(["Tab"], "agent");
+        hints.Add(["↑", "↓"], "field");
+        hints.Add(["esc"], "cancel");
     }
 
-    private void DrawField(DrawList dl, Theme th, WorktreeForm form, int index, string label, string placeholder, RectF panel, float y, float rowH, float labelW, float pad, float v, long now)
+    private void DrawField(DrawList dl, Theme th, WorktreeForm form, int index, in FormRows rows, float y, long now)
     {
+        var (panel, rowH, labelW, pad, v) = rows;
+        var (label, placeholder) = FieldTexts[index];
         float px = th.UiPx;
         var kind = Fields[index];
         var field = form.Field(kind);
@@ -279,8 +295,10 @@ internal sealed class AgentWorktreeOverlay
         dl.PopClip();
     }
 
-    private void DrawAgents(DrawList dl, Theme th, WorktreeForm form, RectF panel, float y, float rowH, float labelW, float pad, float v)
+    private void DrawAgents(DrawList dl, Theme th, WorktreeForm form, in FormRows rows, float y)
     {
+        var (panel, rowH, labelW, pad, v) = rows;
+
         float px = th.UiPx, chipPad = px * 0.7f;
         float baseline = Widgets.Baseline(dl, px, y, rowH);
         dl.Text("Agent", panel.X + pad, baseline, px * 0.92f, th.Muted, v);
@@ -340,16 +358,5 @@ internal sealed class AgentWorktreeOverlay
         if (end < text.Length && lastSpace > start) end = lastSpace + 1;
         if (end == start) end = start + 1; // a glyph wider than the line
         return end;
-    }
-
-    private static float Hint(DrawList dl, Theme th, float x, float top, float h, float baseline, string[] keys, string label, float a)
-    {
-        float keysWidth = 0, keyH = MathF.Round(dl.MetricsFor(th.UiPx * 0.78f).Height + th.S(6));
-        foreach (var k in keys) keysWidth += MathF.Max(keyH, dl.Measure(k, th.UiPx * 0.78f) + 2 * th.S(5)) + th.S(3);
-        keysWidth -= th.S(3);
-        Widgets.Keycaps(dl, th, keys, x + keysWidth, top + h / 2, a);
-        x += keysWidth + th.S(6);
-        x += dl.Text(label, x, baseline, th.UiPx * 0.82f, th.Muted, a);
-        return x + th.S(16);
     }
 }

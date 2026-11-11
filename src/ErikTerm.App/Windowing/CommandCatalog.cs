@@ -12,10 +12,14 @@ namespace ErikTerm.App.Windowing;
 /// What the command palette and the pane's context menu offer, the shortcut shown next to an entry, and the few
 /// entries that open something of their own (settings, the config file, the key bindings).
 /// </summary>
+#pragma warning disable S107 // TermWindow's wiring: each part takes the peers it calls, so its dependencies stay visible; a bundle of them would only hide that
 internal sealed class CommandCatalog(
     IWindowHost window, TabBarController tabBar, TabTearOff tearOff, WindowThemes themes, WindowBroadcast broadcast, ExitHoldFlow exitHold,
     CloseConfirmFlow closeConfirm, PaneActions paneActions, AboutPanel about, WindowVim<Pane> vim, WindowTabColors<Tab> tabColors, ContextMenu menu)
+#pragma warning restore S107
 {
+    private const string WindowCategory = "Window";
+
     /// <summary>The palette's Execute: an entry's own run, else its action.</summary>
     public void RunCommand(Command cmd, RunModifiers mods = RunModifiers.None)
     {
@@ -73,10 +77,10 @@ internal sealed class CommandCatalog(
         Add("Theme", "Browse Themes…", Icons.Color, "BrowseThemes"); // Windowing/WindowThemes.cs
         foreach (var scheme in window.AllSchemes()) list.Add(themes.ThemeCommand(scheme, "Theme"));
 
-        Add("Window", "New Window", Icons.Add, "SpawnWindow");
-        Add("Window", "Reload Configuration", Icons.Refresh, "ReloadConfiguration");
-        Add("Window", "Settings", Icons.Gear, "OpenSettings");
-        list.Add(new Command { Id = "open-config", Category = "Window", Title = "Open Configuration File", Icon = Icons.Gear, Run = OpenConfigFile });
+        Add(WindowCategory, "New Window", Icons.Add, "SpawnWindow");
+        Add(WindowCategory, "Reload Configuration", Icons.Refresh, "ReloadConfiguration");
+        Add(WindowCategory, "Settings", Icons.Gear, "OpenSettings");
+        list.Add(new Command { Id = "open-config", Category = WindowCategory, Title = "Open Configuration File", Icon = Icons.Gear, Run = OpenConfigFile });
         list.Add(new Command { Id = "reset-terminal", Category = "Terminal", Title = "Reset Terminal", Icon = Icons.Terminal, Run = paneActions.ResetTerminal });
         window.AddShellCommands(Add); // quick select, prompts (WindowFeatures/WindowLinks.cs)
         vim.AddCommands(Add); // vim mode, pane arrangement (Vim/WindowVim.cs)

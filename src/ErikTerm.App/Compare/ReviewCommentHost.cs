@@ -168,7 +168,7 @@ internal sealed class ReviewCommentHost(
             }
             catch (Exception ex) when (ex is SocketException or IOException or TimeoutException) { /* an instance that went away has no agents */ }
         }
-        (string, int)? own = running.Count > 0 && int.TryParse(Environment.GetEnvironmentVariable(IpcPaths.PaneVariable), out int id) ? (running[0], id) : null;
+        (string, int)? own = int.TryParse(Environment.GetEnvironmentVariable(IpcPaths.PaneVariable), out int id) ? (running[0], id) : null;
         return new ReviewAgentSearch(ReviewAgentFinder.Targets(panes, root, _topLevel, own, OperatingSystem.IsWindows()));
     }
 

@@ -515,16 +515,15 @@ internal sealed class SearchBar : IVimSearch<Pane>
         _prevButton = _closeButton with { X = right - btn };
         right -= btn + th.S(8);
         bool hasMatches = Engine.Matches.Count > 0;
-        IconButton(dl, th, _closeButton, Icons.Close, px * 0.95f, _hover == Hit.Close, true, v);
-        IconButton(dl, th, _nextButton, Icons.ArrowDown, px * 0.95f, _hover == Hit.Next, hasMatches, v);
-        IconButton(dl, th, _prevButton, Icons.ArrowUp, px * 0.95f, _hover == Hit.Previous, hasMatches, v);
+        IconButton(dl, th, _closeButton, Icons.Close, _hover == Hit.Close, true, v);
+        IconButton(dl, th, _nextButton, Icons.ArrowDown, _hover == Hit.Next, hasMatches, v);
+        IconButton(dl, th, _prevButton, Icons.ArrowUp, _hover == Hit.Previous, hasMatches, v);
         dl.Rect(new RectF(right, panel.Y + th.S(10), MathF.Max(1, th.S(1)), h - th.S(20)), th.Border, v);
         right -= th.S(8);
 
-        float chipPx = px * 0.82f;
-        _regexChip = Chip(dl, th, ".*", right, panel.Y, h, chipPx, _regex, _hover == Hit.Regex, v);
+        _regexChip = Chip(dl, th, Hit.Regex, right, panel, v);
         right = _regexChip.X - th.S(4);
-        _caseChip = Chip(dl, th, "Aa", right, panel.Y, h, chipPx, _caseSensitive, _hover == Hit.Case, v);
+        _caseChip = Chip(dl, th, Hit.Case, right, panel, v);
         right = _caseChip.X - th.S(10);
 
         // Counter.
@@ -573,8 +572,12 @@ internal sealed class SearchBar : IVimSearch<Pane>
         return _counter;
     }
 
-    private static RectF Chip(DrawList dl, Theme th, string label, float right, float top, float h, float px, bool on, bool hover, float v)
+    /// <summary>The regex (".*") or case ("Aa") toggle, right-aligned at <paramref name="right"/> and centred in the bar's height.</summary>
+    private RectF Chip(DrawList dl, Theme th, Hit which, float right, RectF bar, float v)
     {
+        string label = which == Hit.Regex ? ".*" : "Aa";
+        bool on = which == Hit.Regex ? _regex : _caseSensitive, hover = _hover == which;
+        float px = th.UiPx * 0.95f * 0.82f, top = bar.Y, h = bar.H;
         float tw = dl.Measure(label, px, FontStyle.Bold);
         float ch = MathF.Round(h - th.S(16));
         float w = MathF.Round(MathF.Max(ch * 1.25f, tw + th.S(12)));
@@ -588,9 +591,11 @@ internal sealed class SearchBar : IVimSearch<Pane>
         return r;
     }
 
-    private static void IconButton(DrawList dl, Theme th, RectF r, int icon, float px, bool hover, bool enabled, float v)
+    private static void IconButton(DrawList dl, Theme th, RectF r, int icon, bool hover, bool enabled, float v)
     {
-        float a = v * (enabled ? 1 : 0.4f);
+        float px = th.UiPx * 0.95f * 0.95f;
+        float a
+ = v * (enabled ? 1 : 0.4f);
         if (hover && enabled) dl.RoundRect(r, th.S(6), th.PanelFg, 0.10f * v);
         var g = dl.Atlas.Get(icon, FontStyle.Regular, px);
         var m = dl.MetricsFor(px);

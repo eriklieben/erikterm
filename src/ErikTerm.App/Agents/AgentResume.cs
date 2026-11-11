@@ -3,6 +3,8 @@ namespace ErikTerm.App.Agents;
 /// <summary>How each coding agent resumes one saved session (the rules; the offer is <see cref="WindowAgentResume{TPane}"/>).</summary>
 internal static class AgentResume
 {
+    private const string ResumeFlag = "--resume";
+
     private const int MaxSessionIdChars = 128;
 
     /// <summary>
@@ -22,14 +24,14 @@ internal static class AgentResume
         string id = sessionId!;
         return agentId switch
         {
-            "claude-code" => ["claude", "--resume", id],
+            "claude-code" => ["claude", ResumeFlag, id],
             "codex" => ["codex", "resume", id],
-            "gemini-cli" => ["gemini", "--resume", id],
+            "gemini-cli" => ["gemini", ResumeFlag, id],
             "opencode" => ["opencode", "--session", id],
             "amp" => ["amp", "threads", "continue", id],
-            "cursor-agent" => ["cursor-agent", "--resume", id],
+            "cursor-agent" => ["cursor-agent", ResumeFlag, id],
             "copilot-cli" => ["copilot", "--resume=" + id],
-            "droid" => ["droid", "--resume", id],
+            "droid" => ["droid", ResumeFlag, id],
             _ => null,
         };
     }

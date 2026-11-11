@@ -24,6 +24,10 @@ internal sealed record ContainerExecTarget(
 /// <summary>Recognising <see cref="ContainerExecTarget"/>s in argv (pure: tested without any engine).</summary>
 internal static class ContainerExec
 {
+    private const string Docker = "docker";
+    private const string UserFlag = "--user";
+    private const string WorkdirFlag = "--workdir";
+
     /// <summary>The engines whose <c>exec</c> is recognised, by argv[0]'s file name.</summary>
     public static bool IsEngine(string program) => EngineName(program) is not null;
 
@@ -34,7 +38,7 @@ internal static class ContainerExec
         if (name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) name = name[..^4];
         return name.ToLowerInvariant() switch
         {
-            "docker" => "docker",
+            Docker => Docker,
             "podman" => "podman",
             _ => null,
         };
@@ -57,7 +61,7 @@ internal static class ContainerExec
     // exec's options that take a value. Single letters may also come clustered (-it, -itu root, -uroot).
     private static readonly HashSet<string> ExecWithValue = new(StringComparer.Ordinal)
     {
-        "-e", "--env", "--env-file", "-u", "--user", "-w", "--workdir", "--detach-keys", "--preserve-fds", "--preserve-fd",
+        "-e", "--env", "--env-file", "-u", UserFlag, "-w", WorkdirFlag, "--detach-keys", "--preserve-fds", "--preserve-fd",
     };
 
     private const string ExecShortWithValue = "euw";
@@ -70,7 +74,7 @@ internal static class ContainerExec
 
     private static readonly HashSet<string> ComposeExecWithValue = new(StringComparer.Ordinal)
     {
-        "-e", "--env", "-u", "--user", "-w", "--workdir", "--index",
+        "-e", "--env", "-u", UserFlag, "-w", WorkdirFlag, "--index",
     };
 
     /// <summary>
@@ -132,8 +136,8 @@ internal static class ContainerExec
     {
         string key = OptionName(argv[i]);
         string? value = OptionValue(argv, ref i, ExecWithValue.Contains(key));
-        if (key == "--user") user = value;
-        else if (key == "--workdir") workdir = value;
+        if (key == UserFlag) user = value;
+        else if (key == WorkdirFlag) workdir = value;
         i++;
     }
 
@@ -146,7 +150,7 @@ internal static class ContainerExec
         for (int k = 0; k < Math.Min(2, argv.Count); k++)
         {
             string name = FileName(argv[k]);
-            if (name is "docker-compose" or "docker-compose.exe") return ("docker", k + 1);
+            if (name is "docker-compose" or "docker-compose.exe") return (Docker, k + 1);
             if (name is "podman-compose") return ("podman", k + 1);
         }
         return null;
@@ -190,8 +194,8 @@ internal static class ContainerExec
             string key = OptionName(argv[i]);
             if (key is "-d" or "--detach") return false;
             string? value = OptionValue(argv, ref i, ComposeExecWithValue.Contains(key));
-            if (key is "-u" or "--user") user = value;
-            else if (key is "-w" or "--workdir") workdir = value;
+            if (key is "-u" or UserFlag) user = value;
+            else if (key is "-w" or WorkdirFlag) workdir = value;
             i++;
         }
         return true;
@@ -272,7 +276,7 @@ internal static class ContainerExec
                 case "--docker-path": dockerPath = value; break;
             }
         }
-        return new ContainerExecTarget(dockerPath ?? "docker", [], container, container is null ? folder : null, null, null, true);
+        return new ContainerExecTarget(dockerPath ?? Docker, [], container, container is null ? folder : null, null, null, true);
     }
 
     /// <summary>Where the devcontainer CLI's script is in the first three words, or -1.</summary>

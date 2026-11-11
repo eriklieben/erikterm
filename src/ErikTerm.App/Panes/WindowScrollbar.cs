@@ -70,8 +70,7 @@ internal sealed class WindowScrollbar(IWindowHost window, Lock gate, PaneRendere
     public bool MouseDown(float x, float y, long now)
     {
         if (window.PaneAt(x, y) is not { } pane || !InStrip(pane, x, y) || pane.Scrollbar.Value(now) < 0.2f) return false;
-        ScrollMarkKind kind;
-        long line;
+        ScrollMarkHit hit;
         bool onTick;
         ScrollbarGeometry g;
         lock (gate)
@@ -82,7 +81,7 @@ internal sealed class WindowScrollbar(IWindowHost window, Lock gate, PaneRendere
             Span<long> marks = stackalloc long[PaneRenderer.ScrollbarMarkCapacity];
             var (matches, _, markCount) = renderer.TickSources(pane, marks);
             int row = (int)MathF.Floor(y - g.TrackY), slop = (int)MathF.Round(window.Theme.S(4));
-            onTick = pane.ScrollMarks.Find(row, slop, t.FirstLine, t.EndLine - t.FirstLine, matches, marks[..markCount], out line, out kind);
+            onTick = pane.ScrollMarks.Find(row, slop, t.FirstLine, t.EndLine - t.FirstLine, matches, marks[..markCount], out hit);
             if (!onTick)
             {
                 // On the thumb it keeps its place under the pointer; elsewhere on the track it jumps there, centred.
@@ -92,7 +91,7 @@ internal sealed class WindowScrollbar(IWindowHost window, Lock gate, PaneRendere
         }
         pane.ScrollActivityAt = now;
         window.Focus(pane);
-        if (onTick) ScrollToMark(pane, line, kind, now);
+        if (onTick) ScrollToMark(pane, hit.Line, hit.Kind, now);
         else _drag = pane;
         window.Redraw();
         return true;
@@ -114,9 +113,9 @@ internal sealed class WindowScrollbar(IWindowHost window, Lock gate, PaneRendere
     }
 
     /// <summary>A prompt comes to the top and flashes; a search match becomes the current match, centred; a vim mark goes a third down.</summary>
-    private void ScrollToMark(Pane pane, long line, ScrollMarkKind kind, long now)
+    private void ScrollToMark(Pane pane, long line, ScrollMarkKinds kind, long now)
     {
-        if (kind == ScrollMarkKind.Search)
+        if (kind == ScrollMarkKinds.Search)
         {
             SearchMatch? match;
             var bar = search.Bar;
@@ -136,7 +135,7 @@ internal sealed class WindowScrollbar(IWindowHost window, Lock gate, PaneRendere
         lock (gate)
         {
             var t = pane.Term;
-            t.ScrollViewToLine(kind == ScrollMarkKind.Mark ? line - t.Rows / 3 : line);
+            t.ScrollViewToLine(kind == ScrollMarkKinds.Mark ? line - t.Rows / 3 : line);
         }
         pane.Scroll.Snap();
         pane.Links.FlashLine = line;

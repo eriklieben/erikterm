@@ -51,10 +51,10 @@ internal static class ScrollbarRenderer
 
         float x = g.X - 2 * theme.Scale, w = g.Width + 2 * theme.Scale;
         float thin = MathF.Max(1, MathF.Round(theme.Scale)), bold = MathF.Max(2, MathF.Round(theme.Scale * 2));
-        DrawTicks(dl, ticks, ScrollMarkKind.Prompt, g.TrackY, x + w * 0.45f, w * 0.55f, thin, theme.Foreground, 0.55f * alpha);
-        DrawTicks(dl, ticks, ScrollMarkKind.Mark, g.TrackY, x, w, bold, theme.Info, 0.95f * alpha);
-        DrawTicks(dl, ticks, ScrollMarkKind.Search, g.TrackY, x, w, bold, theme.Accent, 0.9f * alpha);
-        DrawTicks(dl, ticks, ScrollMarkKind.Failed, g.TrackY, x, w, bold, theme.Danger, alpha);
+        DrawTicks(dl, ticks, ScrollMarkKinds.Prompt, g.TrackY, new TickLane(x + w * 0.45f, w * 0.55f, thin, theme.Foreground, 0.55f * alpha));
+        DrawTicks(dl, ticks, ScrollMarkKinds.Mark, g.TrackY, new TickLane(x, w, bold, theme.Info, 0.95f * alpha));
+        DrawTicks(dl, ticks, ScrollMarkKinds.Search, g.TrackY, new TickLane(x, w, bold, theme.Accent, 0.9f * alpha));
+        DrawTicks(dl, ticks, ScrollMarkKinds.Failed, g.TrackY, new TickLane(x, w, bold, theme.Danger, alpha));
 
         // The search's current match, a little larger.
         if (search is { IsActive: true, Current: { } current } s && ReferenceEquals(s.Pane, pane)
@@ -62,9 +62,14 @@ internal static class ScrollbarRenderer
             dl.RoundRect(new RectF(x - theme.S(1), MathF.Round(g.TrackY + row - bold), w + theme.S(1), bold * 2), bold, theme.Foreground, alpha);
     }
 
+    /// <summary>Where and how one kind of tick is drawn: from X, W wide, at least MinH high, in Rgb at opacity A.</summary>
+    private readonly record struct TickLane(float X, float W, float MinH, uint Rgb, float A);
+
     /// <summary>One quad per run of pixel rows that carry <paramref name="kind"/>; a lone row still gets a visible height.</summary>
-    private static void DrawTicks(DrawList dl, ReadOnlySpan<byte> ticks, ScrollMarkKind kind, float top, float x, float w, float minH, uint rgb, float a)
+    private static void DrawTicks(DrawList dl, ReadOnlySpan<byte> ticks, ScrollMarkKinds kind, float top, in TickLane lane)
     {
+        float x = lane.X, w = lane.W, minH = lane.MinH, a = lane.A;
+        uint rgb = lane.Rgb;
         byte bit = (byte)kind;
         for (int y = 0; y < ticks.Length; y++)
         {

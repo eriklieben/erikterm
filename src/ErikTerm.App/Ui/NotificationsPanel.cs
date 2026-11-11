@@ -248,7 +248,7 @@ internal sealed class NotificationsPanel
         float sp = px * 0.85f;
         float ch = MathF.Round(dl.MetricsFor(sp).Height * 1.5f), cy = MathF.Round(panel.Y + (headerH - ch) / 2);
         float headRight = DrawClearButton(dl, th, panel.Right - pad, cy, ch, sp, v);
-        DrawScopeControl(dl, th, x, headRight, cy, ch, sp, v);
+        DrawScopeControl(dl, th, x, headRight, cy, ch, v);
         dl.Rect(new RectF(panel.X + th.S(1), panel.Y + headerH - 1, panel.W - th.S(2), MathF.Max(1, th.S(1))), th.Border, v);
     }
 
@@ -268,9 +268,10 @@ internal sealed class NotificationsPanel
         return _clearRect.X - th.S(10);
     }
 
-    private void DrawScopeControl(DrawList dl, Theme th, float x, float headRight, float cy, float ch, float sp, float v)
+    /// <summary>The All / This tab segments, right-aligned at <paramref name="headRight"/> when they fit after the count at <paramref name="x"/>.</summary>
+    private void DrawScopeControl(DrawList dl, Theme th, float x, float headRight, float cy, float ch, float v)
     {
-        float px = th.UiPx;
+        float px = th.UiPx, sp = px * 0.85f;
         float tabW = MathF.Round(dl.Measure(ThisTab, sp) + th.S(20)), allW = MathF.Round(dl.Measure(All, sp) + th.S(20));
         if (headRight - tabW - allW <= x + dl.Measure(_count, px * 0.85f) + th.S(12))
         {
@@ -281,8 +282,8 @@ internal sealed class NotificationsPanel
         _allRect = new RectF(_tabRect.X - allW, cy, allW, ch);
         var whole = new RectF(_allRect.X, cy, allW + tabW, ch);
         dl.Panel(whole, th.S(6), Colors.Mix(th.PanelBg, th.PanelFg, 0.05f), v, th.Border, v);
-        ScopeSegment(dl, th, _allRect, All, sp, !_thisTabOnly, _scopeHover == 1, v);
-        ScopeSegment(dl, th, _tabRect, ThisTab, sp, _thisTabOnly, _scopeHover == 2, v);
+        ScopeSegment(dl, th, _allRect, All, !_thisTabOnly, _scopeHover == 1, v);
+        ScopeSegment(dl, th, _tabRect, ThisTab, _thisTabOnly, _scopeHover == 2, v);
     }
 
     private void DrawEmpty(DrawList dl, Theme th, RectF list, float rowH, float v)
@@ -299,23 +300,24 @@ internal sealed class NotificationsPanel
         float hy = list.Y + (_highlight.Value(now) - first) * rowH;
         dl.RoundRect(new RectF(list.X + th.S(8), hy + th.S(2), list.W - th.S(16), rowH - th.S(4)), th.S(8), th.Accent, 0.14f * v);
         for (int i = first; i < Math.Min(_rows.Count, first + _shown); i++)
-            DrawRow(dl, th, _rows[i], list, list.Y + (i - first) * rowH, rowH, pad, v, now);
+            DrawRow(dl, th, _rows[i], new RectF(list.X, list.Y + (i - first) * rowH, list.W, rowH), pad, v, now);
     }
 
-    private static void DrawRow(DrawList dl, Theme th, Row row, RectF list, float top, float rowH, float pad, float v, long now)
+    /// <summary>One notification in <paramref name="rect"/> (the list's width): its dot or bell, title and age, then where and what.</summary>
+    private static void DrawRow(DrawList dl, Theme th, Row row, RectF rect, float pad, float v, long now)
     {
-        float px = th.UiPx;
+        float px = th.UiPx, top = rect.Y, rowH = rect.H;
         float l1 = MathF.Round(top + rowH * 0.40f), l2 = MathF.Round(top + rowH * 0.78f);
-        float dx = list.X + pad + th.S(6);
+        float dx = rect.X + pad + th.S(6);
         float fade = row.Unread ? 1 : 0.6f;
         if (row.Item.AgentState != AgentState.None)
-            AgentBadge.Dot(dl, th, row.Item.AgentState, dx, top + rowH * 0.32f, MathF.Round(th.S(9)), v * fade, now);
+            AgentBadge.Dot(dl, th, row.Item.AgentState, new AgentBadge.DotSpot(dx, top + rowH * 0.32f, MathF.Round(th.S(9))), v * fade, now);
         else
             dl.Glyph(Icons.Bell, dx - px * 0.3f, l1, px * 0.9f, row.Unread ? th.Accent : th.Muted, v);
-        if (row.Unread) dl.RoundRect(new RectF(list.X + th.S(9), top + rowH * 0.32f - th.S(3), th.S(6), th.S(6)), th.S(3), th.Accent, v);
+        if (row.Unread) dl.RoundRect(new RectF(rect.X + th.S(9), top + rowH * 0.32f - th.S(3), th.S(6), th.S(6)), th.S(3), th.Accent, v);
         float tx = dx + th.S(18);
         float ageW = dl.Measure(row.Age, px * 0.85f);
-        float right = list.Right - pad;
+        float right = rect.Right - pad;
         dl.Text(row.Age, right - ageW, l1, px * 0.85f, th.Muted, v);
         string title = dl.Ellipsize(row.Title, px, right - ageW - th.S(16) - tx, FontStyle.Bold);
         dl.Text(title, tx, l1, px, row.Unread ? th.PanelFg : Colors.Mix(th.PanelFg, th.Muted, 0.45f), v,
@@ -345,33 +347,24 @@ internal sealed class NotificationsPanel
         float fy = panel.Bottom - footerH;
         dl.Rect(new RectF(panel.X + th.S(1), fy, panel.W - th.S(2), MathF.Max(1, th.S(1))), th.Border, v);
         float fb = Widgets.Baseline(dl, th.UiPx * 0.82f, fy, footerH);
-        float fx = panel.X + pad;
-        fx = Hint(dl, th, fx, fy + footerH / 2, fb, Arrows, "navigate", v);
-        fx = Hint(dl, th, fx, fy + footerH / 2, fb, Enter, "jump to pane", v);
-        fx = Hint(dl, th, fx, fy + footerH / 2, fb, Del, "dismiss", v);
-        fx = Hint(dl, th, fx, fy + footerH / 2, fb, ToggleKey, _thisTabOnly ? "all tabs" : "this tab", v);
-        Hint(dl, th, fx, fy + footerH / 2, fb, Esc, "close", v);
+        var hints = new FooterHints(dl, th, panel.X + pad, fy + footerH / 2, fb, v, th.S(18));
+        hints.Add(Arrows, "navigate");
+        hints.Add(Enter, "jump to pane");
+        hints.Add(Del, "dismiss");
+        hints.Add(ToggleKey, _thisTabOnly ? "all tabs" : "this tab");
+        hints.Add(Esc, "close");
     }
 
     private const string All = "All", ThisTab = "This tab";
     private static readonly string[] Arrows = ["↑", "↓"], Enter = ["↵"], Del = ["del"], Esc = ["esc"], ToggleKey = ["t"];
 
-    private static void ScopeSegment(DrawList dl, Theme th, RectF r, string label, float px, bool on, bool hover, float a)
+    /// <summary>One segment of the scope control: filled when <paramref name="on"/>, lighter on <paramref name="hover"/>.</summary>
+    private static void ScopeSegment(DrawList dl, Theme th, RectF r, string label, bool on, bool hover, float a)
     {
+        float px = th.UiPx * 0.85f;
+
         if (on) dl.RoundRect(r, th.S(6), Colors.Mix(th.PanelBg, th.Accent, 0.32f), a);
         else if (hover) dl.RoundRect(r, th.S(6), Colors.Mix(th.PanelBg, th.PanelFg, 0.12f), a);
         dl.Text(label, r.X + th.S(10), Widgets.Baseline(dl, px, r.Y, r.H), px, on ? th.PanelFg : th.Muted, a);
-    }
-
-    private static float Hint(DrawList dl, Theme th, float x, float centerY, float baseline, string[] keys, string label, float a)
-    {
-        float kpx = th.UiPx * 0.78f;
-        float h = MathF.Round(dl.MetricsFor(kpx).Height + th.S(6)), w = 0;
-        foreach (var k in keys) w += MathF.Max(h, dl.Measure(k, kpx) + 2 * th.S(5)) + th.S(3);
-        w -= th.S(3);
-        Widgets.Keycaps(dl, th, keys, x + w, centerY, a);
-        x += w + th.S(6);
-        x += dl.Text(label, x, baseline, th.UiPx * 0.82f, th.Muted, a);
-        return x + th.S(18);
     }
 }

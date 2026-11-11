@@ -342,7 +342,7 @@ internal sealed class ReviewCommentController(IBackground background, IReviewSou
         int height = textRows + 4;
         int x = Math.Max(0, (f.Width - width) / 2), y = Math.Max(0, (f.Height - height) / 2);
         f.Fill(x, y, width, height, theme.Text, theme.Surface0);
-        f.Text(x + 2, y + 1, inner, $"{(_draft!.EditingId is null ? "Comment on" : "Edit comment on")} {_draft.Title}", theme.Subtext, theme.Surface0, CellAttr.Bold);
+        f.Text(x + 2, y + 1, inner, $"{(_draft!.EditingId is null ? "Comment on" : "Edit comment on")} {_draft.Title}", theme.Subtext, theme.Surface0, CellAttrs.Bold);
 
         int caretRow = editor.RowOfCaret(_editorTextWidth);
         int top = Math.Clamp(caretRow - textRows + 1, 0, Math.Max(0, rows.Count - textRows));
@@ -368,7 +368,7 @@ internal sealed class ReviewCommentController(IBackground background, IReviewSou
         int height = plan.Targets.Count + previewRows + 7;
         int x = Math.Max(0, (f.Width - width) / 2), y = Math.Max(0, (f.Height - height) / 2);
         f.Fill(x, y, width, height, theme.Text, theme.Surface0);
-        f.Text(x + 2, y + 1, inner, $"Send {Counted.Of(plan.Count, "comment")} to:", theme.Text, theme.Surface0, CellAttr.Bold);
+        f.Text(x + 2, y + 1, inner, $"Send {Counted.Of(plan.Count, "comment")} to:", theme.Text, theme.Surface0, CellAttrs.Bold);
 
         int row = y + 2;
         for (int i = 0; i < plan.Targets.Count; i++) DrawTarget(f, x, row++, width, plan.Targets[i], i == _targetCursor);
@@ -391,7 +391,7 @@ internal sealed class ReviewCommentController(IBackground background, IReviewSou
         uint bg = selected ? theme.Surface1 : theme.Surface0;
         f.Fill(x + 1, y, width - 2, 1, theme.Text, bg);
         if (selected) f.Put(x + 1, y, "▌", theme.Lavender, bg);
-        int nx = f.Text(x + 2, y, width - 4, target.Agent, theme.Text, bg, CellAttr.Bold);
+        int nx = f.Text(x + 2, y, width - 4, target.Agent, theme.Text, bg, CellAttrs.Bold);
         nx = f.Text(nx + 2, y, Math.Max(0, x + width - nx - 4), target.State, theme.Subtext, bg);
         f.Text(nx + 2, y, Math.Max(0, x + width - nx - 4), target.Place, theme.Subtext, bg);
     }

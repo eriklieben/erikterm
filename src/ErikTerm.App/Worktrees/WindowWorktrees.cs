@@ -749,8 +749,9 @@ internal sealed class WindowWorktrees<TPane>(IWorktreeWindow<TPane> window, IWor
         var repo = WorktreeGit.Probe(cwd, out string? error);
         if (repo is null) return new CliWorktree(null, error ?? $"Couldn't read the repository at {cwd}");
         string? path = Environment.GetEnvironmentVariable("PATH");
-        var request = PlanCliWorktree(r, repo, cwd, agents, shell, command => ToolRunner.Search(command, path), settings.GitWorktreeDir,
-            WorktreeLauncher.SetupFor(settings.GitWorktreeSetup, repo.Name), out error);
+        var context = new CliWorktreeContext(agents, shell, command => ToolRunner.Search(command, path), settings.GitWorktreeDir,
+            WorktreeLauncher.SetupFor(settings.GitWorktreeSetup, repo.Name));
+        var request = PlanCliWorktree(r, repo, cwd, in context, out error);
         if (request is null) return new CliWorktree(null, error);
         return new CliWorktree(request, WorktreeGit.Create(request));
     }
@@ -759,10 +760,11 @@ internal sealed class WindowWorktrees<TPane>(IWorktreeWindow<TPane> window, IWor
     /// What a <c>new-worktree</c> request launches, decided by the form itself so its names and checks are the same. Without an
     /// agent the form gets the shell as one, and <see cref="WorktreeRequest.AgentArgv"/> comes back empty.
     /// </summary>
-    internal static WorktreeRequest? PlanCliWorktree(IpcRequest r, WorktreeRepo repo, string cwd, IReadOnlyList<WorktreeAgent> agents, string[] shell,
-        Func<string, string?> findOnPath, string dirTemplate, string? setup, out string? error)
+    internal static WorktreeRequest? PlanCliWorktree(IpcRequest r, WorktreeRepo repo, string cwd, in CliWorktreeContext context, out string? error)
     {
+        var (agents, shell, findOnPath, dirTemplate, setup) = context;
         error = null;
+
         var agent = r.Agent is null ? new WorktreeAgent("", "A shell", shell[0], shell[1..], []) : ChooseCliAgent(r, agents, findOnPath, out error);
         if (agent is null) return null;
         var form = new WorktreeForm(new WorktreeFormOptions
@@ -859,3 +861,9 @@ internal sealed class WindowWorktrees<TPane>(IWorktreeWindow<TPane> window, IWor
         }
     }
 }
+
+/// <summary>
+/// What a <c>new-worktree</c> request is planned with, besides the request and its repository: the agents erikterm knows,
+/// the shell for a request without one, how to find a command on PATH, and the settings' directory template and setup.
+/// </summary>
+internal readonly record struct CliWorktreeContext(IReadOnlyList<WorktreeAgent> Agents, string[] Shell, Func<string, string?> FindOnPath, string DirTemplate, string? Setup);

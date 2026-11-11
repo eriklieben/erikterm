@@ -362,7 +362,7 @@ internal sealed class WindowAgents<TPane>(IAgentWindow<TPane> window, IAgentProc
             ? $"{who} {AgentStateText.Describe(t.To, t.Kind)}"
             : $"{who} finished";
         var priority = t.To == AgentState.Waiting ? NotificationPriority.Waiting : NotificationPriority.Normal;
-        Deliver(tabIndex, pane, NotificationSource.Agent, priority, a.Name, title, t.Message ?? "", t.To, seen, now);
+        Deliver(tabIndex, pane, new PaneNotification(NotificationSource.Agent, priority, a.Name, title, t.Message ?? "", t.To), seen, now);
     }
 
     /// <summary>A program asked for a desktop notification (OSC 9 / 777 / 99).</summary>
@@ -377,23 +377,23 @@ internal sealed class WindowAgents<TPane>(IAgentWindow<TPane> window, IAgentProc
         }
         bool seen = activeTab && pane == window.Focused && window.IsFocused;
         string app = pane.ForegroundName ?? "";
-        Deliver(tabIndex, pane, NotificationSource.Program, NotificationPriority.Normal, app, n.Title ?? "", n.Body, // untitled: the body is the title
-            AgentState.None, seen, now);
+        Deliver(tabIndex, pane, new PaneNotification(NotificationSource.Program, NotificationPriority.Normal, app, n.Title ?? "", n.Body), // untitled: the body is the title
+            seen, now);
     }
 
     /// <summary>
     /// Everything goes through the process's NotificationCenter (Host/ProcessNotifications.cs), which records it for the bar and
     /// the panel and decides on the desktop; a toast only when the bar is off. Urgent + unfocused: the taskbar flashes.
     /// </summary>
-    public void Deliver(int tabIndex, TPane pane, NotificationSource source, NotificationPriority priority, string app, string title, string body,
-        AgentState state, bool seen, long now)
+    public void Deliver(int tabIndex, TPane pane, in PaneNotification notification, bool seen, long now)
     {
+        var (source, priority, app, title, body, state) = notification;
         bool urgent = priority == NotificationPriority.Waiting;
         var request = new NotificationRequest(pane.Id, source, priority, app, title, body, window.Id, window.TabCount > 1 ? $"Tab {tabIndex + 1}" : "",
             PaneDirName(pane), state);
         var route = process.Notifications.Post(request, new NotificationContext(seen, process.AnyWindowFocused, now));
-        if (route == NotificationRoute.None) return;
-        if ((route & NotificationRoute.Toast) != 0) // in the window you're in
+        if (route == NotificationRoutes.None) return;
+        if ((route & NotificationRoutes.Toast) != 0) // in the window you're in
             window.ToastInFocusedWindow(urgent ? ToastKind.Error : ToastKind.Success, title.Length > 0 ? title : body, title.Length > 0 && body.Length > 0 ? body : request.Place);
         if (urgent && !window.IsFocused && process.Settings.AgentUrgency) window.FlashTaskbar(untilFocused: true);
         window.Redraw();
@@ -722,7 +722,14 @@ internal sealed class WindowAgents<TPane>(IAgentWindow<TPane> window, IAgentProc
     }
 }
 
+/// <summary>What a pane's notification says, before <see cref="WindowAgents{TPane}.Deliver"/> adds where it comes from.</summary>
+/// <param name="App">Who sent it (the agent, the pane's program, "erikterm").</param>
+/// <param name="State">The agent state it reports; None for a program's notification.</param>
+internal readonly record struct PaneNotification(
+    NotificationSource Source, NotificationPriority Priority, string App, string Title, string Body, AgentState State = AgentState.None);
+
 /// <summary>Key hints of the Send-to-Agent palette; outside the generic class so there is one instance of each.</summary>
+
 internal static class AgentPaletteHints
 {
     public static readonly (string[] Keys, string Label)[] Picker = [(["↵"], "paste, go there"), (["ctrl", "↵"], "paste + send")];

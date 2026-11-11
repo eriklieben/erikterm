@@ -9,6 +9,8 @@ namespace ErikTerm.App.Containers;
 /// </summary>
 internal sealed class ContainerEngine(string program, IReadOnlyList<string> options)
 {
+    private const string FilterFlag = "--filter";
+
     public const int TimeoutMs = 10_000;
 
     public string Program { get; } = program;
@@ -55,7 +57,7 @@ internal sealed class ContainerEngine(string program, IReadOnlyList<string> opti
         foreach (bool all in (ReadOnlySpan<bool>)[false, true])
         {
             string filter = $"label={ContainerInfo.LocalFolderLabel}={localFolder}";
-            var argv = all ? Argv("ps", "-a", "-q", "--no-trunc", "--filter", filter) : Argv("ps", "-q", "--no-trunc", "--filter", filter);
+            var argv = all ? Argv("ps", "-a", "-q", "--no-trunc", FilterFlag, filter) : Argv("ps", "-q", "--no-trunc", FilterFlag, filter);
             var r = ToolRunner.Run(argv, null, TimeoutMs);
             if (!r.Ok) return null;
             foreach (var line in r.Stdout.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
@@ -67,8 +69,8 @@ internal sealed class ContainerEngine(string program, IReadOnlyList<string> opti
     /// <summary>The running container of a compose service (in <paramref name="project"/> when given) a compose exec started in <paramref name="cwd"/> talks to.</summary>
     public ContainerInfo? FindComposeContainer(string service, string? project, string? cwd)
     {
-        var argv = Argv("ps", "-q", "--no-trunc", "--filter", $"label={ContainerInfo.ComposeServiceLabel}={service}");
-        if (project is { Length: > 0 }) argv.AddRange(["--filter", $"label={ContainerInfo.ComposeProjectLabel}={project}"]);
+        var argv = Argv("ps", "-q", "--no-trunc", FilterFlag, $"label={ContainerInfo.ComposeServiceLabel}={service}");
+        if (project is { Length: > 0 }) argv.AddRange([FilterFlag, $"label={ContainerInfo.ComposeProjectLabel}={project}"]);
         var r = ToolRunner.Run(argv, null, TimeoutMs);
         if (!r.Ok) return null;
         var candidates = new List<ContainerInfo>();

@@ -29,7 +29,7 @@ internal sealed unsafe class GlyphAtlas : IDisposable
         public bool Color;
         public int Left, Top, Width, Height;
         public float Advance;
-        public float U0, V0, U1, V1;
+        public QuadUv Uv;
     }
 
     /// <summary>A rounded-rect mask: <see cref="Corner"/> px corner cells around a 2px stretchable middle.</summary>
@@ -51,6 +51,8 @@ internal sealed unsafe class GlyphAtlas : IDisposable
     public nint Texture { get; }
     public static float SolidU => 1f / Size;
     public static float SolidV => 1f / Size;
+    /// <summary>The UVs of a solid quad: every corner on the atlas's opaque white texel.</summary>
+    public static readonly QuadUv SolidUv = new(SolidU, SolidV, SolidU, SolidV);
 
     /// <summary>Cached glyphs and masks (for the About screen).</summary>
     public int Entries => _glyphs.Count + _masks.Count;
@@ -284,10 +286,7 @@ internal sealed unsafe class GlyphAtlas : IDisposable
     {
         Width = w,
         Height = h,
-        U0 = (float)x / Size,
-        V0 = (float)y / Size,
-        U1 = (float)(x + w) / Size,
-        V1 = (float)(y + h) / Size,
+        Uv = new QuadUv((float)x / Size, (float)y / Size, (float)(x + w) / Size, (float)(y + h) / Size),
     };
 
     /// <summary>

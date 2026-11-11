@@ -15,7 +15,7 @@ internal enum NotificationSource { Program, Agent }
 
 /// <summary>What happened to a posted notification (flags).</summary>
 [Flags]
-internal enum NotificationRoute
+internal enum NotificationRoutes
 {
     None = 0,
     /// <summary>Recorded in the history (the Notifications panel, the bar's unread count).</summary>

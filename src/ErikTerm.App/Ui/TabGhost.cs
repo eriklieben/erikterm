@@ -57,7 +57,7 @@ internal sealed class TabGhost : IDisposable
         if (_dl is null) return;
         _dl.Begin();
         float m = MarginPoints * _scale, px = theme.UiPx * 0.88f;
-        TabBar.DrawPill(_dl, theme, new RectF(m, m, _w, _h), number, title, px, _dl.MetricsFor(px), 1);
+        TabBar.DrawPill(_dl, theme, new RectF(m, m, _w, _h), number, title, px, 1);
         _dl.Present(0, 0);
     }
 

@@ -7,6 +7,8 @@ namespace ErikTerm.Config;
 /// </summary>
 public static class TabColors
 {
+    private const string BrightPrefix = "bright-";
+
     /// <summary>The names the palette and menus offer, in palette order (the ANSI colors that read as a tab color).</summary>
     public static readonly string[] Offered = ["red", "yellow", "green", "cyan", "blue", "magenta"];
 
@@ -32,7 +34,7 @@ public static class TabColors
             return true;
         }
         bool bright = false;
-        foreach (string prefix in (ReadOnlySpan<string>)["bright-", "bright_", "bright"])
+        foreach (string prefix in (ReadOnlySpan<string>)[BrightPrefix, "bright_", "bright"])
         {
             if (!t.StartsWith(prefix, StringComparison.Ordinal)) continue;
             bright = true;
@@ -42,7 +44,7 @@ public static class TabColors
         if (t is "purple" or "violet") t = "magenta";
         if (t is "grey" or "gray") { t = "black"; bright = true; } // the scheme's gray is bright black
         if (Array.IndexOf(AnsiNames, t) < 0) return false;
-        canonical = bright ? "bright-" + t : t;
+        canonical = bright ? BrightPrefix + t : t;
         return true;
     }
 
@@ -51,8 +53,8 @@ public static class TabColors
     {
         if (string.IsNullOrEmpty(canonical)) return null;
         if (canonical[0] == '#') return SettingsLoader.TryParseColor(canonical, out uint rgb) ? rgb : null;
-        bool bright = canonical.StartsWith("bright-", StringComparison.Ordinal);
-        int i = Array.IndexOf(AnsiNames, bright ? canonical["bright-".Length..] : canonical);
+        bool bright = canonical.StartsWith(BrightPrefix, StringComparison.Ordinal);
+        int i = Array.IndexOf(AnsiNames, bright ? canonical[BrightPrefix.Length..] : canonical);
         if (i < 0) return null;
         return bright ? scheme.Brights[i] : scheme.Ansi[i];
     }
@@ -61,8 +63,8 @@ public static class TabColors
     public static string DisplayName(string canonical)
     {
         if (canonical.StartsWith('#')) return canonical;
-        bool bright = canonical.StartsWith("bright-", StringComparison.Ordinal);
-        string name = bright ? canonical["bright-".Length..] : canonical;
+        bool bright = canonical.StartsWith(BrightPrefix, StringComparison.Ordinal);
+        string name = bright ? canonical[BrightPrefix.Length..] : canonical;
         name = char.ToUpperInvariant(name[0]) + name[1..];
         return bright ? "Bright " + name : name;
     }

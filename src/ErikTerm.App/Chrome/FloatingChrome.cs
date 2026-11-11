@@ -506,7 +506,7 @@ internal sealed class FloatingChrome
         if (AppIconTexture() is var icon && icon != 0)
         {
             float y = MathF.Round(top + (height - size) / 2);
-            dl.Image(icon, x, y, x + size, y + size, 0, 0, 1, 1, 0xFFFFFF, alpha, Sdl.SCALEMODE_LINEAR);
+            dl.Image(icon, new QuadCorners(x, y, x + size, y + size), new QuadUv(0, 0, 1, 1), 0xFFFFFF, alpha, Sdl.SCALEMODE_LINEAR);
             x += size + theme.S(8);
         }
         float px = theme.UiPx * 0.8f;

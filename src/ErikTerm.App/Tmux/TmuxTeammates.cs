@@ -80,7 +80,7 @@ internal static class TmuxTeammates
         var sb = new StringBuilder(Math.Min(s.Length, 40));
         foreach (char c in s.Trim())
         {
-            if (char.IsControl(c) || c is '‪' or '‫' or '‬' or '‭' or '‮' or '⁦' or '⁧' or '⁨' or '⁩') continue;
+            if (char.IsControl(c) || c is '\u202a' or '\u202b' or '\u202c' or '\u202d' or '\u202e' or '\u2066' or '\u2067' or '\u2068' or '\u2069') continue;
             if (sb.Length == 40) break;
             sb.Append(c);
         }

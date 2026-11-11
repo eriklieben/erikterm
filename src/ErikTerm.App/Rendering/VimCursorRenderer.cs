@@ -13,10 +13,12 @@ namespace ErikTerm.App.Rendering;
 /// </summary>
 internal static class VimCursorRenderer
 {
-    /// <param name="dim">The pane's inactive-pane dimming, as the grid used it.</param>
-    /// <param name="text">The renderer's glyph drawing, for the character under the block.</param>
-    public static void Draw(DrawList dl, Pane pane, float ox, float oy, Theme theme, bool active, float appear, ColorTransformCache dim, GridText text)
+    /// <param name="frame">The pane, its dimming as the grid used it and the renderer's glyph drawing, for the character under the block.</param>
+    public static void Draw(in PaneFrame frame, Theme theme, bool active)
     {
+        var dl = frame.Dl;
+        var pane = frame.Pane;
+        float ox = frame.Ox, oy = frame.Oy, appear = frame.Appear;
         var vim = pane.Vim!;
         var t = pane.Term;
         var p = vim.Cursor;
@@ -27,7 +29,7 @@ internal static class VimCursorRenderer
         int width = VimBuffer.CellWidth(t, p.Line, p.Col);
         float px = MathF.Round(ox + p.Col * cw), py = MathF.Round(oy + row * ch);
         var box = new RectF(px, py, cw * width, ch);
-        uint accent = dim.Apply(theme.Accent);
+        uint accent = frame.Dim.Apply(theme.Accent);
         if (!active)
         {
             float line = MathF.Max(1, MathF.Round(theme.S(1.5f)));
@@ -41,8 +43,8 @@ internal static class VimCursorRenderer
         int n = Math.Min(cells.Cells.Length, t.Columns);
         if (p.Col >= n) return;
         dl.PushClip(box);
-        text.DrawCells(dl, theme.HarfbuzzFeatures, cells, n, p.Col, Math.Max(0, p.Col - 1), Math.Min(n - 1, p.Col + width), ox, py,
-            Colors.Mix(theme.Background, 0x000000, 0.15f), appear);
+        frame.Text.DrawCells(dl, new GridText.RowShape(theme.HarfbuzzFeatures, cells, n, p.Col), Math.Max(0, p.Col - 1), Math.Min(n - 1, p.Col + width),
+            ox, py, new GridText.CellInk(Colors.Mix(theme.Background, 0x000000, 0.15f), appear));
         dl.PopClip();
     }
 }

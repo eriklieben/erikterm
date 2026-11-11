@@ -115,10 +115,23 @@ internal static class CursorRenderer
     private static bool CellChanged(Cell? before, Cell? after) =>
         before is { } b && after is { } a && (a.Rune != b.Rune || a.Fg != b.Fg || a.Bg != b.Bg || a.Flags != b.Flags);
 
-    public static void Draw(DrawList dl, Pane pane, float ox, float oy, bool focused, bool windowFocused,
-        int blinkRateMs, ColorTransformCache dim, float appear, long now, GridText text, IReadOnlyList<string> features,
-        uint? border = null, bool phase = false, float thicknessPoints = 0, float thicknessCells = 0, float scale = 1, float barHeightEm = 0)
+    /// <summary>
+    /// The cursor settings: <see cref="BlinkRateMs"/> (0: steady), the shaping <see cref="Features"/> of the text under a
+    /// block, cursor_border (<see cref="Border"/>), the blink <see cref="Phase"/>, cursor_thickness (window points × Scale
+    /// or a fraction of the cell; both 0: automatic) and cursor_height (<see cref="BarHeightEm"/>, 0 fills the cell).
+    /// </summary>
+    public readonly record struct Look(int BlinkRateMs, IReadOnlyList<string> Features, uint? Border = null, bool Phase = false,
+        float ThicknessPoints = 0, float ThicknessCells = 0, float Scale = 1, float BarHeightEm = 0);
+
+    public static void Draw(in PaneFrame frame, bool focused, bool windowFocused, in Look look)
     {
+        var dl = frame.Dl;
+        var pane = frame.Pane;
+        float ox = frame.Ox, oy = frame.Oy, appear = frame.Appear;
+        long now = frame.Now;
+        int blinkRateMs = look.BlinkRateMs;
+        bool phase = look.Phase;
+        float thicknessPoints = look.ThicknessPoints, thicknessCells = look.ThicknessCells, scale = look.Scale;
         var t = pane.Term;
         var s = pane.Cursor;
         var fonts = dl.Fonts;
@@ -140,13 +153,13 @@ internal static class CursorRenderer
 
         // A bar hugs the text instead of filling the cell (line_height makes cells tall).
         var (barTop, barBottom) = t.CursorShape == CursorShape.Bar
-            ? CursorMotion.BarSpan(ch, fonts.Baseline, fonts.PixelSize, barHeightEm)
+            ? CursorMotion.BarSpan(ch, fonts.Baseline, fonts.PixelSize, look.BarHeightEm)
             : (0f, ch);
         float top = py + barTop, bottom = py + barBottom;
 
         if (!active)
         {
-            DrawOutline(dl, dim.Apply(border ?? pal.Cursor), px, top, bottom, w, appear);
+            DrawOutline(dl, frame.Dim.Apply(look.Border ?? pal.Cursor), px, top, bottom, w, appear);
             return;
         }
         if (a <= 0.002f) return;
@@ -158,12 +171,12 @@ internal static class CursorRenderer
                     Thickness(fonts.LineThickness, thicknessPoints, thicknessCells, scale, cw) + (now < s.SettleUntil ? MathF.Max(1, MathF.Round(scale)) : 0));
                 break;
             case CursorShape.Underline:
-                DrawUnderline(dl, pal.Cursor, a, px, py, w, ch, Thickness(fonts.LineThickness, thicknessPoints, thicknessCells, scale, ch));
+                DrawUnderline(dl, pal.Cursor, a, new RectF(px, py, w, ch), Thickness(fonts.LineThickness, thicknessPoints, thicknessCells, scale, ch));
                 break;
             default:
                 var box = new RectF(px, py, w, ch);
                 dl.Rect(box, pal.Cursor, a);
-                if (cellRow is not null) DrawCellsUnderBlock(dl, box, t, cellRow, text, features, col, cx, ox, py, pal.CursorText, a);
+                if (cellRow is not null) DrawCellsUnderBlock(in frame, box, cellRow, look.Features, col, cx, a);
                 break;
         }
     }
@@ -200,25 +213,30 @@ internal static class CursorRenderer
         if (frac > 0.02f) dl.Rect(px + whole, top, px + whole + 1, bottom, color, a * frac);
     }
 
-    private static void DrawUnderline(DrawList dl, uint color, float a, float px, float py, float w, int ch, float bar)
+    /// <summary>An underline <paramref name="bar"/> pixels high along the bottom of <paramref name="cell"/>.</summary>
+    private static void DrawUnderline(DrawList dl, uint color, float a, RectF cell, float bar)
     {
         float whole = MathF.Floor(bar), frac = bar - whole;
-        if (whole > 0) dl.Rect(px, py + ch - whole, px + w, py + ch, color, a);
-        if (frac > 0.02f) dl.Rect(px, py + ch - whole - 1, px + w, py + ch - whole, color, a * frac);
+        float px = cell.X, right = cell.Right, bottom = cell.Bottom;
+        if (whole > 0) dl.Rect(px, bottom - whole, right, bottom, color, a);
+        if (frac > 0.02f) dl.Rect(px, bottom - whole - 1, right, bottom - whole, color, a * frac);
     }
 
     /// <summary>
-    /// Re-draws the glyphs the block covers in the cursor text color, clipped to the block, so the text stays readable
-    /// mid-glide and cross-fades with the blink.
+    /// Re-draws the glyphs the block <paramref name="box"/> covers in the cursor text color, clipped to the block, so the
+    /// text stays readable mid-glide (at column <paramref name="col"/>, on its way to <paramref name="cx"/>) and
+    /// cross-fades with the blink.
     /// </summary>
-    private static void DrawCellsUnderBlock(DrawList dl, RectF box, Terminal t, Row cellRow, GridText text, IReadOnlyList<string> features,
-        float col, int cx, float ox, float py, uint color, float a)
+    private static void DrawCellsUnderBlock(in PaneFrame frame, RectF box, Row cellRow, IReadOnlyList<string> features, float col, int cx, float a)
     {
+        var dl = frame.Dl;
+        var t = frame.Pane.Term;
         dl.PushClip(box);
         int first = Math.Max(0, (int)MathF.Floor(col) - 1), last = Math.Min(cellRow.Cells.Length - 1, (int)MathF.Ceiling(col) + 1);
         // Shaped like the row itself (the cursor cell is its own run), so clusters and emoji come out right.
         int n = Math.Min(cellRow.Cells.Length, t.Columns);
-        text.DrawCells(dl, features, cellRow, n, cx, first, last, ox, py, color, a);
+        frame.Text.DrawCells(dl, new GridText.RowShape(features, cellRow, n, cx), first, last, frame.Ox, box.Y,
+            new GridText.CellInk(t.Palette.CursorText, a));
         dl.PopClip();
     }
 }

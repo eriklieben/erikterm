@@ -56,7 +56,7 @@ public static class Png
         int width = info.Width, height = info.Height;
         var rgba = new byte[(long)width * height * 4];
         var ctx = new Context(width, info.Depth, info.ColorType, info.Palette, info.PaletteAlpha, info.TransGray, info.TransR, info.TransG, info.TransB, rgba);
-        if (info.Interlace == 0) Unfilter(raw, 0, width, height, bitsPerPixel, bpp, 0, 0, 1, 1, ctx);
+        if (info.Interlace == 0) Unfilter(raw, 0, new Pass(0, 0, 1, 1, width, height), bitsPerPixel, bpp, ctx);
         else UnfilterInterlaced(raw, width, height, bitsPerPixel, bpp, ctx);
         return new DecodedImage(width, height, rgba);
     }
@@ -143,8 +143,8 @@ public static class Png
         long expected = 0;
         for (int p = 0; p < 7; p++)
         {
-            var (pw, ph) = PassSize(p, info.Width, info.Height);
-            if (pw > 0 && ph > 0) expected += (long)ph * (1 + RowBytes(pw, bitsPerPixel));
+            var pass = PassOf(p, info.Width, info.Height);
+            if (pass.W > 0 && pass.H > 0) expected += (long)pass.H * (1 + RowBytes(pass.W, bitsPerPixel));
         }
         return expected;
     }
@@ -174,22 +174,24 @@ public static class Png
         int offset = 0;
         for (int p = 0; p < 7; p++)
         {
-            var (pw, ph) = PassSize(p, width, height);
-            if (pw == 0 || ph == 0) continue;
-            int x0 = Adam7[p * 4], y0 = Adam7[p * 4 + 1], dx = Adam7[p * 4 + 2], dy = Adam7[p * 4 + 3];
-            offset = Unfilter(raw, offset, pw, ph, bitsPerPixel, bpp, x0, y0, dx, dy, ctx);
+            var pass = PassOf(p, width, height);
+            if (pass.W == 0 || pass.H == 0) continue;
+            offset = Unfilter(raw, offset, pass, bitsPerPixel, bpp, ctx);
         }
     }
 
     // Adam7 passes: x start, y start, x step, y step.
     private static ReadOnlySpan<int> Adam7 => [0, 0, 8, 8, 4, 0, 8, 8, 0, 4, 4, 8, 2, 0, 4, 4, 0, 2, 2, 4, 1, 0, 2, 2, 0, 1, 1, 2];
 
-    private static (int W, int H) PassSize(int pass, int width, int height)
+    /// <summary>A (sub)image of the pixel grid: the pixels (X0 + x·Dx, Y0 + y·Dy) for x &lt; W, y &lt; H.</summary>
+    private readonly record struct Pass(int X0, int Y0, int Dx, int Dy, int W, int H);
+
+    private static Pass PassOf(int pass, int width, int height)
     {
         int x0 = Adam7[pass * 4], y0 = Adam7[pass * 4 + 1], dx = Adam7[pass * 4 + 2], dy = Adam7[pass * 4 + 3];
         int w = width > x0 ? (width - x0 + dx - 1) / dx : 0;
         int h = height > y0 ? (height - y0 + dy - 1) / dy : 0;
-        return (w, h);
+        return new Pass(x0, y0, dx, dy, w, h);
     }
 
     private static long RowBytes(int width, int bitsPerPixel) => ((long)width * bitsPerPixel + 7) / 8;
@@ -198,8 +200,9 @@ public static class Png
         int TransGray, int TransR, int TransG, int TransB, byte[] Rgba);
 
     /// <summary>Reverses the scanline filters of one (sub)image in place and writes its pixels; returns the end offset.</summary>
-    private static int Unfilter(byte[] raw, int offset, int w, int h, int bitsPerPixel, int bpp, int x0, int y0, int dx, int dy, Context ctx)
+    private static int Unfilter(byte[] raw, int offset, in Pass pass, int bitsPerPixel, int bpp, Context ctx)
     {
+        int w = pass.W, h = pass.H, x0 = pass.X0, y0 = pass.Y0, dx = pass.Dx, dy = pass.Dy;
         int stride = (int)RowBytes(w, bitsPerPixel);
         int prev = -1;
         for (int y = 0; y < h; y++)
