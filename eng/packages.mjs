@@ -37,9 +37,26 @@ export class PackagesError extends Error {}
 export const pkgver = (version) => version.replace("-", "");
 export const isPrerelease = (version) => version.includes("-");
 // The beta markers of the descriptions ("... status (beta)") and of the erikterm row of the packages README
-// ("... status. **Beta**"): dropped for a normal version, left alone for a prerelease.
-const withoutBetaMarker = (text) => text.replace(/\s*\(beta\)/gi, "");
-const README_ROW_BETA = /^(\| `erikterm` \|[^\n]*?)\s*\*\*Beta\*\*/gim;
+// ("... status. **Beta**"): dropped for a normal version, left alone for a prerelease. Plain string searches, not
+// regular expressions: a "\s*" in front of the marker backtracks over every run of white space it meets.
+const withoutBetaMarker = (text) =>
+  text
+    .split(/\(beta\)/i)
+    .map((part, i, parts) => (i < parts.length - 1 ? part.trimEnd() : part))
+    .join("");
+const README_ROW = "| `erikterm` |";
+const README_BETA = "**beta**";
+function withoutReadmeRowBeta(text) {
+  return text
+    .split("\n")
+    .map((line) => {
+      const lower = line.toLowerCase();
+      if (!lower.startsWith(README_ROW)) return line;
+      const at = lower.indexOf(README_BETA, README_ROW.length);
+      return at < 0 ? line : line.slice(0, at).trimEnd() + line.slice(at + README_BETA.length);
+    })
+    .join("\n");
+}
 export const releaseTag = (version) => `erikterm-v${version}`;
 const downloadUrl = (version, file) => `https://github.com/${PACKAGES_REPOSITORY}/releases/download/${releaseTag(version)}/${file}`;
 
@@ -68,7 +85,7 @@ export function updateScoop(text, version, zipSha256) {
 }
 
 export function updateReadme(text, version) {
-  const out = isPrerelease(version) ? text : text.replace(README_ROW_BETA, "$1");
+  const out = isPrerelease(version) ? text : withoutReadmeRowBeta(text);
   return replaceLine(
     out,
     /https:\/\/github\.com\/eriklieben\/packages\/releases\/download\/erikterm-v[^/\s)]+\/erikterm-win-x64-setup\.exe/g,
@@ -84,7 +101,7 @@ export function plainNotes(markdown) {
     .replace(/ \(\[[0-9a-f]{7,40}\]\([^)]*\)\)/g, "") // " ([abc1234](commit link))"
     .replace(/ \(\[#\d+\]\([^)]*\)\)/g, "") // " ([#12](pull link))"
     .replace(/, closes \[[^\]]*\]\([^)]*\)(?:, \[[^\]]*\]\([^)]*\))*/g, "")
-    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+    .replace(/\[([^[\]]+)\]\([^)]*\)/g, "$1") // the text holds no "[": a run of "[" doesn't make each one scan the line
     .trim();
 }
 
@@ -107,7 +124,9 @@ export function update(dir, version, dist) {
   return changed;
 }
 
-const git = (dir, ...args) => execFileSync("git", ["-C", dir, ...args], { encoding: "utf8" }).trim();
+// The Arch Linux container's git, by its full path: nothing found through PATH runs with the packages token around.
+const GIT = "/usr/bin/git";
+const git = (dir, ...args) => execFileSync(GIT, ["-C", dir, ...args], { encoding: "utf8" }).trim();
 
 export async function commit(dir, version, env, { fetch = globalThis.fetch, run = git } = {}) {
   const files = run(dir, "diff", "--name-only", "HEAD").split("\n").filter(Boolean);
@@ -135,7 +154,8 @@ async function main([command, ...args]) {
     console.log(result.committed ? `[packages] committed ${result.files.join(", ")}: ${result.url ?? result.oid}` : "[packages] nothing to commit");
   } else if (command === "notes" && args.length === 1) {
     const notes = plainNotes(readFileSync(0, "utf8"));
-    process.stdout.write(`${notes || `erikterm ${args[0]}.`}\n`);
+    const text = notes || `erikterm ${args[0]}.`;
+    process.stdout.write(`${text}\n`);
   } else {
     console.error("usage: node eng/packages.mjs update <dir> <version> <dist> | commit <dir> <version> | notes <version> < notes.md");
     process.exit(2);
@@ -147,7 +167,8 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     await main(process.argv.slice(2));
   } catch (error) {
     if (!(error instanceof PackagesError) && error?.name !== "ReleaseCommitError") throw error;
-    console.error(`[packages] error: ${error.message}${error.details ? `\n${error.details}` : ""}`);
+    const details = error.details ? "\n" + error.details : "";
+    console.error(`[packages] error: ${error.message}${details}`);
     process.exit(1);
   }
 }

@@ -106,6 +106,18 @@ describe("file updates", () => {
     assert.match(out, /Something else\. \*\*Beta\*\*/);
   });
 
+  it("drops every beta marker with the white space in front of it, in any case", () => {
+    const out = updatePkgbuild(PKGBUILD.replace("GPU terminal (beta)", "GPU terminal \t (BETA) (beta)"), NEW, "a".repeat(64));
+    assert.match(out, /^pkgdesc="GPU terminal"$/m);
+    const readme = README.replace("| `erikterm` | GPU terminal with tabs. **Beta**", "| `ERIKTERM` | GPU terminal with tabs.   **beta** and **Beta**");
+    assert.match(updateReadme(readme, NEW), /^\| `ERIKTERM` \| GPU terminal with tabs\. and \*\*Beta\*\* \|/m);
+  });
+
+  it("strips a link after a run of brackets, leaving the brackets", () => {
+    const brackets = "[".repeat(1000);
+    assert.equal(plainNotes(`${brackets}[a](b) [c] [d]`), `${brackets}a [c] [d]`);
+  });
+
   it("fails on a file it doesn't recognise instead of guessing", () => {
     assert.throws(() => updatePkgbuild("pkgname=x\n", "1.2.0", "c"), /no line matching/);
     assert.throws(() => updateReadme("no link", "1.2.0"), /README\.md: no line matching/);

@@ -6,7 +6,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { after, describe, it } from "node:test";
-import { buildSbom, conptyVersion, dotnetComponents } from "./sbom.mjs";
+import { buildSbom, conptyVersion, dotnetComponents, pathInside } from "./sbom.mjs";
 
 const tmp = mkdtempSync(path.join(tmpdir(), "sbom-"));
 after(() => rmSync(tmp, { recursive: true, force: true }));
@@ -205,5 +205,15 @@ describe("helpers", () => {
     const assets = assetsFor("linux-x64");
     assets.project.frameworks["net10.0"].downloadDependencies = [];
     assert.throws(() => dotnetComponents(assets, "linux-x64"), /PublishAot/);
+  });
+
+  it("takes command line paths inside the given folder only", () => {
+    const root = path.join(tmp, "checkout");
+    assert.equal(pathInside(root, "out/erikterm", "contents"), path.join(root, "out", "erikterm"));
+    assert.equal(pathInside(root, path.join(root, "a.zip"), "asset"), path.join(root, "a.zip"));
+    assert.equal(pathInside(root, ".", "contents"), root);
+    assert.throws(() => pathInside(root, "../elsewhere", "contents"), /--contents \.\.\/elsewhere is outside/);
+    assert.throws(() => pathInside(root, "/etc/passwd", "asset"), /outside/);
+    assert.throws(() => pathInside(root, `${root}-sibling/a.zip`, "asset"), /outside/);
   });
 });

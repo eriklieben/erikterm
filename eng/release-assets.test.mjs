@@ -94,6 +94,6 @@ describe("verify (the semantic-release step)", () => {
   it("writes SHA256SUMS from the command line", () => {
     rmSync(path.join(dir, SUMS));
     execFileSync(process.execPath, [script, "checksums", dir]);
-    verifyAssets(dir, VERSION);
+    assert.doesNotThrow(() => verifyAssets(dir, VERSION));
   });
 });

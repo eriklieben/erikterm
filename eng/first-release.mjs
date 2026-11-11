@@ -23,9 +23,8 @@ export class FirstReleaseError extends Error {
 /** "major" (any release type would do: the first release is 1.0.0) when there is no last release; an error otherwise. */
 export function analyzeCommits(pluginConfig, { lastRelease, logger }) {
   if (lastRelease?.version) {
-    throw new FirstReleaseError(
-      `First release requested, but ${lastRelease.gitTag ?? `v${lastRelease.version}`} is already released: run the Release workflow without "First release".`,
-    );
+    const tag = lastRelease.gitTag ?? "v" + lastRelease.version;
+    throw new FirstReleaseError(`First release requested, but ${tag} is already released: run the Release workflow without "First release".`);
   }
   logger?.log("First release: no release tag yet, releasing whatever the commit types are.");
   return "major";

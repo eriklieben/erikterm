@@ -82,6 +82,13 @@ export function buildCommitInput({ repository, branch, expectedHeadOid, message,
   };
 }
 
+/** What to check after a failed API request with HTTP `status`, as a sentence to append ("" when there's nothing to add). */
+function hintFor(status) {
+  if (status === 401) return " The App token is invalid or expired: check RELEASE_APP_ID and RELEASE_APP_PRIVATE_KEY.";
+  if (status === 403 || status === 404) return " Check that the GitHub App is installed on this repository with Contents: read and write.";
+  return "";
+}
+
 async function graphql({ token, url, query, variables, fetch }) {
   let response;
   try {
@@ -107,12 +114,7 @@ async function graphql({ token, url, query, variables, fetch }) {
   }
   if (!response.ok) {
     const detail = redact(json?.message ?? text.slice(0, 300), [token]);
-    const hint = response.status === 401
-      ? " The App token is invalid or expired: check RELEASE_APP_ID and RELEASE_APP_PRIVATE_KEY."
-      : response.status === 403 || response.status === 404
-        ? " Check that the GitHub App is installed on this repository with Contents: read and write."
-        : "";
-    throw new ReleaseCommitError(`GitHub API request failed: HTTP ${response.status} ${detail}.${hint}`);
+    throw new ReleaseCommitError(`GitHub API request failed: HTTP ${response.status} ${detail}.${hintFor(response.status)}`);
   }
   if (!json) throw new ReleaseCommitError(`GitHub API returned no JSON: ${redact(text.slice(0, 300), [token])}`);
   return json;
@@ -202,8 +204,8 @@ export async function prepare(pluginConfig, context, { fetch = globalThis.fetch,
   };
 
   const expectedHeadOid = await run(["rev-parse", "HEAD"], "rev-parse HEAD");
-  const files = {};
-  for (const asset of assets) files[asset] = await readFile(path.resolve(cwd, asset));
+  const contents = await Promise.all(assets.map((asset) => readFile(path.resolve(cwd, asset))));
+  const files = Object.fromEntries(assets.map((asset, i) => [asset, contents[i]]));
 
   const commit = await createReleaseCommit({ token, repository, branch: branch.name, expectedHeadOid, message: template(message, context), files, graphqlUrl, fetch });
   logger.success("Created the release commit %s on %s through the GitHub API: %s", commit.oid, branch.name, commit.url ?? "");

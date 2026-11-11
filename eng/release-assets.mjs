@@ -31,9 +31,15 @@ export class AssetError extends Error {}
 
 export const sha256 = (file) => createHash("sha256").update(readFileSync(file)).digest("hex");
 
+/** Orders file names by UTF-16 code units, as sort() does without a compare function: the same on every locale. */
+const byCodeUnits = (a, b) => {
+  if (a === b) return 0;
+  return a < b ? -1 : 1;
+};
+
 /** The text of SHA256SUMS for `files` (names in `dir`), sorted by name. */
 export function checksums(dir, files) {
-  return [...files].sort().map((name) => `${sha256(path.join(dir, name))}  ${name}\n`).join("");
+  return [...files].sort(byCodeUnits).map((name) => `${sha256(path.join(dir, name))}  ${name}\n`).join("");
 }
 
 /** Writes dir/SHA256SUMS for every regular file in `dir` except SHA256SUMS itself. Returns the file names. */
