@@ -73,7 +73,10 @@ jobs:
           fi
           echo "ERIKTERM_VERSION=$VERSION" >> "$GITHUB_ENV"
           echo "VersionPrefix=${VERSION%%-*}" >> "$GITHUB_ENV"
-          case "$VERSION" in *-*) echo "VersionSuffix=${VERSION#*-}" >> "$GITHUB_ENV" ;; esac
+          case "$VERSION" in
+            *-*) echo "VersionSuffix=${VERSION#*-}" >> "$GITHUB_ENV" ;;
+            *) ;; # a normal version: no suffix
+          esac
           echo "Building erikterm $VERSION."
 
       # ---- Windows: SDL3, FreeType and HarfBuzz DLLs from vcpkg (cached), shipped next to erikterm.exe ----
@@ -143,6 +146,7 @@ jobs:
             linux-*) printf '%s\n' "Needs SDL3, FreeType and HarfBuzz from your distribution (Arch: pacman -S sdl3 freetype2 harfbuzz)." > out/erikterm/INSTALL.txt ;;
             osx-*)   printf '%s\n' "Needs SDL3, FreeType and HarfBuzz from Homebrew:" "  brew install sdl3 freetype harfbuzz" "Optional: brew install fontconfig (font lookup through fontconfig instead of erikterm's own scan of the font folders)." "Unsigned build: the first time, run  xattr -dr com.apple.quarantine erikterm  in this folder." "Settings: ~/.config/erikterm/erikterm.toml (see README.md, macOS)." > out/erikterm/INSTALL.txt ;;
             win-*)   printf '%s\n' "SDL3, FreeType and HarfBuzz DLLs and Microsoft's console host (conpty.dll, OpenConsole.exe) are included. Unsigned build: SmartScreen may ask once." > out/erikterm/INSTALL.txt ;;
+            *)       echo "::error::No INSTALL.txt for runtime identifier ${{ matrix.rid }}"; exit 1 ;;
           esac
           # Debug symbols stay out of the download (Windows .pdb, Linux .dbg, macOS .dSYM folder).
           rm -rf out/erikterm/*.pdb out/erikterm/*.dbg out/erikterm/*.dSYM

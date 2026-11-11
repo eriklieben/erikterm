@@ -18,7 +18,10 @@ on:
     branches: [main]
   workflow_dispatch:
 
-permissions: read-all
+# Read-only at the top, as publish_results requires; the job below adds the two writes it needs.
+permissions:
+  contents: read
+  actions: read
 
 jobs:
   analysis:

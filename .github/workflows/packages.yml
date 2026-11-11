@@ -178,7 +178,10 @@ jobs:
           if ! gh release view "$tag" -R "$PACKAGES_REPO" >/dev/null 2>&1; then
             node erikterm/eng/packages.mjs notes "$VERSION" < dist/notes.md > dist/packages-notes.md
             prerelease=()
-            case "$VERSION" in *-*) prerelease=(--prerelease) ;; esac
+            case "$VERSION" in
+              *-*) prerelease=(--prerelease) ;;
+              *) ;; # a normal version: a normal release
+            esac
             gh release create "$tag" -R "$PACKAGES_REPO" --title "erikterm $VERSION" --notes-file dist/packages-notes.md "${prerelease[@]}"
           fi
           gh release upload "$tag" -R "$PACKAGES_REPO" --clobber \

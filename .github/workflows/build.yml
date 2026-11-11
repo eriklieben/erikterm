@@ -67,6 +67,7 @@ jobs:
           case "$EVENT" in
             push) from="$BEFORE" ;;
             pull_request) from="$BASE" ;;
+            *) ;; # workflow_dispatch: nothing to compare with, so everything runs
           esac
           # On main, compare with the last build that ran everything and passed, not with the previous push: when
           # pushes come quickly, GitHub keeps only the newest waiting build, and the code changes of a replaced one
