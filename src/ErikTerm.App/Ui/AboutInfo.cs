@@ -10,7 +10,7 @@ namespace ErikTerm.App.Ui;
 internal sealed record AboutInfo
 {
     public const string Product = "erikterm";
-    public const string Tagline = "A fast, native terminal built in C#";
+    public const string Tagline = "A fast, native terminal built in C# for me, Erik. And maybe for you?";
     public const string Copyright = "© 2026 Erik Lieben";
 
     // Build
