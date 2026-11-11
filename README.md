@@ -5,7 +5,7 @@
 <h1 align="center">erikterm</h1>
 
 <p align="center">
-  <strong>A fast, native terminal built in C# for me, Erik</strong><br>
+  <strong>A fast, native terminal built in C# for me, Erik. And maybe for you?</strong><br>
   GPU-rendered, one small binary, and aware of the tools you run in it.
 </p>
 
