@@ -21,11 +21,12 @@ on:
 permissions:
   contents: read
 
-# main: builds queue, so a slow first Windows build (vcpkg) still finishes and fills its cache, and every green push
-# to main gets to its release job. Work branches and pull requests: a new push replaces the running build of the same
-# branch.
+# main: every commit gets its own complete build (a group per commit), so none is cancelled or replaced while it waits:
+# GitHub keeps only the newest waiting run of a group, which used to drop builds of quick pushes and showed them as
+# failed. The release only ever takes the head of main (release.yml checks). Work branches and pull requests: a new
+# push replaces the running build of the same branch.
 concurrency:
-  group: build-${{ github.ref }}
+  group: build-${{ github.ref }}${{ github.ref == 'refs/heads/main' && format('-{0}', github.sha) || '' }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 env:

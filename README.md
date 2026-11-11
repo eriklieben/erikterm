@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/eriklieben/erikterm/actions/workflows/build.yml"><img src="https://github.com/eriklieben/erikterm/actions/workflows/build.yml/badge.svg" alt="Build status"></a>
+  <a href="https://github.com/eriklieben/erikterm/actions/workflows/build.yml"><img src="https://github.com/eriklieben/erikterm/actions/workflows/build.yml/badge.svg?branch=main&amp;event=push" alt="Build status"></a>
   <a href="https://github.com/eriklieben/erikterm/releases"><img src="https://img.shields.io/github/v/release/eriklieben/erikterm?sort=semver&label=release" alt="Latest release"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT License"></a>
   <img src="https://img.shields.io/badge/platforms-Linux%20%7C%20Windows%20%7C%20macOS-555" alt="Linux, Windows and macOS">
@@ -24,7 +24,7 @@
   <a href="https://sonarcloud.io/summary/new_code?id=eriklieben_erikterm"><img src="https://sonarcloud.io/api/project_badges/measure?project=eriklieben_erikterm&metric=reliability_rating" alt="Reliability Rating"></a>
   <a href="https://sonarcloud.io/summary/new_code?id=eriklieben_erikterm"><img src="https://sonarcloud.io/api/project_badges/measure?project=eriklieben_erikterm&metric=security_rating" alt="Security Rating"></a>
   <a href="https://sonarcloud.io/summary/new_code?id=eriklieben_erikterm"><img src="https://sonarcloud.io/api/project_badges/measure?project=eriklieben_erikterm&metric=sqale_rating" alt="Maintainability Rating"></a>
-  <a href="https://github.com/eriklieben/erikterm/actions/workflows/codeql.yml"><img src="https://github.com/eriklieben/erikterm/actions/workflows/codeql.yml/badge.svg" alt="CodeQL"></a>
+  <a href="https://github.com/eriklieben/erikterm/actions/workflows/codeql.yml"><img src="https://github.com/eriklieben/erikterm/actions/workflows/codeql.yml/badge.svg?branch=main" alt="CodeQL"></a>
   <a href="https://scorecard.dev/viewer/?uri=github.com/eriklieben/erikterm"><img src="https://api.scorecard.dev/projects/github.com/eriklieben/erikterm/badge" alt="OpenSSF Scorecard"></a>
 </p>
 
