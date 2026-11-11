@@ -107,7 +107,7 @@ jobs:
       - name: Native libraries the tests load
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libfreetype6 libharfbuzz0b fontconfig fonts-dejavu-core
       - name: Test
-        run: dotnet test --project tests/ErikTerm.Tests --coverage --coverage-output-format cobertura --coverage-output coverage.xml --results-directory coverage
+        run: dotnet test --project tests/ErikTerm.Tests --coverage --coverage-output-format cobertura --coverage-output coverage.xml --coverage-settings tests/ErikTerm.Tests/coverage.config --results-directory coverage
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coverage-linux
@@ -132,7 +132,7 @@ jobs:
       - name: Native libraries the tests load
         run: brew install freetype harfbuzz
       - name: Test
-        run: dotnet test --project tests/ErikTerm.Tests --coverage --coverage-output-format cobertura --coverage-output coverage.xml --results-directory coverage
+        run: dotnet test --project tests/ErikTerm.Tests --coverage --coverage-output-format cobertura --coverage-output coverage.xml --coverage-settings tests/ErikTerm.Tests/coverage.config --results-directory coverage
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coverage-macos
@@ -176,7 +176,7 @@ jobs:
         shell: pwsh
         run: Copy-Item "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\bin\*.dll" tests\ErikTerm.Tests\bin\Debug\net10.0\
       - name: Test
-        run: dotnet test --project tests/ErikTerm.Tests --no-build --coverage --coverage-output-format cobertura --coverage-output coverage.xml --results-directory coverage
+        run: dotnet test --project tests/ErikTerm.Tests --no-build --coverage --coverage-output-format cobertura --coverage-output coverage.xml --coverage-settings tests/ErikTerm.Tests/coverage.config --results-directory coverage
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coverage-windows
@@ -217,7 +217,9 @@ jobs:
       - name: Tests
         run: node --test eng/
 
-  # Line coverage over all three platforms: code for one system is measured on that system.
+  # Line coverage over all three platforms: code for one system is measured on that system. The four libraries are
+  # gated; ErikTerm.App (the part the tests compile in, tests/ErikTerm.Tests/coverage.config) is reported without a
+  # gate. docs/development/code-analysis.md.
   coverage:
     name: coverage
     needs: [test, test-macos, test-windows]

@@ -7,7 +7,8 @@
        count it as lines of code. -->
   <Property Name="sonar.exclusions">bench/**,artifacts/**,**/bin/**,**/obj/**,**/*.g.cs,scripts/**,packaging/**,contrib/**,coverage/**</Property>
   <!-- The coverage of the three test jobs of build.yml, with paths of this checkout (scripts/sonar-coverage.py). A line
-       counts as covered when any platform ran it, as in the coverage job. -->
+       counts as covered when any platform ran it, as in the coverage job. The reports include the ErikTerm.App files
+       the test project compiles in (tests/ErikTerm.Tests/coverage.config); app files not in them count as uncovered. -->
   <Property Name="sonar.cs.cobertura.reportsPaths">coverage/*/coverage.xml</Property>
   <!-- Compiler and analyzer warnings aren't imported: build.yml's quality job gates the SDK analyzers
        (build/quality.globalconfig), and they would show up twice next to Sonar's own rules. -->

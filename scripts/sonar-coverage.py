@@ -3,8 +3,10 @@
 
 The test jobs write absolute paths of their own runner (/home/runner/work/..., /Users/runner/work/...,
 D:\\a\\...). SonarQube Cloud only imports coverage for files it finds, so every file name becomes
-<root>/src/... with forward slashes. Classes outside src/ and generated code (*.g.cs) are left out, as in
+<root>/src/... with forward slashes. Classes outside src/ and generated code (*.g.cs, obj/) are left out, as in
 scripts/merge-coverage.py. The reports are rewritten in place; SonarQube Cloud adds up the hits of all three.
+ErikTerm.App's files come from the test assembly (they're compiled into it, tests/ErikTerm.Tests/coverage.config);
+their paths are the real src/ErikTerm.App/... ones, so they map like the libraries' files.
 
     scripts/sonar-coverage.py --root "$GITHUB_WORKSPACE" coverage/*/coverage.xml
 """
@@ -15,10 +17,12 @@ import xml.etree.ElementTree as ET
 
 
 def source_key(filename):
-    """The path from src/ on, the same on every platform; None for files outside the sources."""
+    """The path from src/ on, the same on every platform; None for files outside the sources and generated code."""
     path = filename.replace("\\", "/")
     match = re.search(r"(?:^|/)(src/.*)$", path)
-    return match.group(1) if match and not path.endswith(".g.cs") else None
+    if not match or path.endswith(".g.cs") or "/obj/" in match.group(1):
+        return None
+    return match.group(1)
 
 
 def rewrite(path, root):

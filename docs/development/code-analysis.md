@@ -56,7 +56,7 @@ Why this shape:
 
 The settings are in [build/SonarQube.Analysis.xml](../../build/SonarQube.Analysis.xml): the benchmark, scripts,
 packaging, `contrib/` and generated code are left out, compiler warnings aren't imported (the quality job gates the
-SDK analyzers), and the coverage comes from the three Cobertura reports. The scanner is a CI tool in
+SDK analyzers), and the coverage comes from the three Cobertura reports (see [Coverage](#coverage)). The scanner is a CI tool in
 [.config/dotnet-tools.json](../../.config/dotnet-tools.json); it isn't part of erikterm. Only `src/ErikTerm.App` is
 built, which brings in the libraries; the test project compiles some app files a second time, and building it too
 would report those files twice.
@@ -64,6 +64,42 @@ would report those files twice.
 Without the secret `SONAR_TOKEN` the job stops after its first step with a notice, so the workflow can be merged
 before the project exists. The organization and project key are `eriklieben` and `eriklieben_erikterm`; the
 repository variables `SONAR_ORGANIZATION` and `SONAR_PROJECT_KEY` override them. Quality profile: *Sonar way*.
+
+## Coverage
+
+Each test job runs the suite with Microsoft's code coverage extension (`--coverage`, Cobertura output) and the
+settings in [tests/ErikTerm.Tests/coverage.config](../../tests/ErikTerm.Tests/coverage.config). Locally, from the
+repository root (the settings path is resolved against the working directory):
+
+```sh
+dotnet test --project tests/ErikTerm.Tests --coverage --coverage-output-format cobertura --coverage-output coverage.xml --coverage-settings tests/ErikTerm.Tests/coverage.config --results-directory coverage
+python3 scripts/merge-coverage.py coverage/coverage.xml
+```
+
+**What is counted.** Code under `src/` that a test can run, wherever it was compiled:
+
+- The four libraries (`ErikTerm.Core`, `Config`, `Ui`, `Pty`), which the test project references.
+- The part of `ErikTerm.App` the test project compiles in itself. The app is an AOT executable with native
+  dependencies, so the test project doesn't reference it; it links the app's testable files instead (the
+  `<Compile Include="../../src/ErikTerm.App/...">` items in ErikTerm.Tests.csproj). That code ends up in the test
+  assembly, which the coverage tool skips by default. `IncludeTestAssembly` takes it in, and the `Sources` filter
+  keeps only files under `src/`, so the tests' own code is never counted.
+- Not counted: the tests, generated code (anything under `obj/`, `*.g.cs`), and app files that aren't compiled into
+  the tests. Those last ones aren't in the reports at all.
+
+`IncludeTestAssembly` is a top-level setting, a sibling of `CodeCoverage`; nested inside `CodeCoverage` it is
+ignored without a warning. An XML comment in the file must not contain two hyphens in a row: the tool then rejects the
+whole file with "Provided settings file doesn't exist or is invalid".
+
+**The gate.** The `coverage` job merges the three reports ([scripts/merge-coverage.py](../../scripts/merge-coverage.py)):
+a line counts as covered when any platform ran it. Lines are grouped by the project their file lives in
+(`src/<project>/...`), not by the assembly that ran them, so the app's linked files count as `ErikTerm.App` and never
+inflate the libraries. The four libraries must each reach 80%; the total is over them alone. `ErikTerm.App` follows
+without a gate, with how many of its source files are in the reports: its percentage covers only the linked files.
+
+**SonarQube Cloud** imports the same reports. It knows every app file from its own build of `src/ErikTerm.App`, so app
+files missing from the reports count as uncovered there, and its `src/ErikTerm.App` percentage is over the whole app.
+That is the honest figure for the app; the one in the `coverage` job says how well the linked part is tested.
 
 ## Dependency updates
 
