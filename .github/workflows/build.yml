@@ -41,6 +41,9 @@ jobs:
     name: scope
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read # main: find the last full green build to compare with
     outputs:
       full: ${{ steps.scope.outputs.full }}
     steps:
@@ -55,6 +58,8 @@ jobs:
           ACTOR: ${{ github.actor }}
           BEFORE: ${{ github.event.before }}
           BASE: ${{ github.event.pull_request.base.sha }}
+          REF: ${{ github.ref }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           full=true
           from=""
@@ -62,6 +67,20 @@ jobs:
             push) from="$BEFORE" ;;
             pull_request) from="$BASE" ;;
           esac
+          # On main, compare with the last build that ran everything and passed, not with the previous push: when
+          # pushes come quickly, GitHub keeps only the newest waiting build, and the code changes of a replaced one
+          # must still get the full run.
+          if [ "$EVENT" = "push" ] && [ "$REF" = "refs/heads/main" ]; then
+            from=""
+            for id in $(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/build.yml/runs?branch=main&status=success&per_page=20" \
+                --jq '.workflow_runs[] | select(.event == "push" or .event == "workflow_dispatch") | .id'); do
+              mac=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$id/jobs?per_page=100" --jq '[.jobs[] | select(.name == "test (macos)" and .conclusion == "success")] | length')
+              if [ "$mac" != "0" ]; then
+                from=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$id" --jq .head_sha)
+                break
+              fi
+            done
+          fi
           if [ "$ACTOR" = "dependabot[bot]" ]; then
             full=false
           elif [ -n "$from" ] && ! printf '%s' "$from" | grep -qE '^0+$' && git cat-file -e "$from^{commit}" 2>/dev/null; then
@@ -214,13 +233,14 @@ jobs:
         run: python3 scripts/merge-coverage.py coverage/*/coverage.xml --min ErikTerm.Core=80 --min ErikTerm.Config=80 --min ErikTerm.Ui=80 --min ErikTerm.Pty=80
 
   # The downloads, as a development build (no release version). Releases build with release.yml.
-  # SonarQube Cloud: pushes to main only (the token is a secret; pull requests and forks don't get it). It imports
-  # this run's coverage (coverage-linux, -macos, -windows), so nothing is tested twice, and wraps one Release build of
-  # src/ErikTerm.App with SonarScanner for .NET. Skipped without the secret SONAR_TOKEN. docs/development/code-analysis.md.
+  # SonarQube Cloud: pushes to main and manual runs on main only (the token is a secret; pull requests and forks don't
+  # get it). It imports this run's coverage (coverage-linux, -macos, -windows), so nothing is tested twice, and wraps
+  # one Release build of src/ErikTerm.App with SonarScanner for .NET. Skipped without the secret SONAR_TOKEN.
+  # docs/development/code-analysis.md.
   sonar:
     name: SonarQube Cloud
     needs: [test, test-macos, test-windows]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
