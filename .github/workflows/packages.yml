@@ -6,7 +6,9 @@ run-name: Publish erikterm ${{ inputs.version }} to eriklieben/packages
 #   2. arch/erikterm/PKGBUILD (_tag, pkgver, pkgrel, sha256sums), bucket/erikterm.json (version, url, hash) and the
 #      installer link in README.md (eng/packages.mjs update);
 #   3. the pacman package (makepkg, as a normal user) added to the database on the `arch` release
-#      (scripts/publish-arch.sh of that repository: repo-add, upload);
+#      (scripts/publish-arch.sh of that repository: repo-add, upload), the package and the database GPG-signed when
+#      the secret ARCH_SIGNING_KEY (and ARCH_SIGNING_PASSPHRASE, if the key has one) is in the release environment,
+#      unsigned as before when it isn't;
 #   4. the commit "Update erikterm to <version>" on its main, through the GitHub API as the release GitHub App, so
 #      GitHub signs it ("Verified") (eng/packages.mjs commit).
 # The files are the ones on the erikterm GitHub release v<version> (checked against its SHA256SUMS and, once the
@@ -96,6 +98,56 @@ jobs:
           token: ${{ steps.app-token.outputs.token }}
           persist-credentials: false
 
+      - name: Signing key
+        id: signing
+        env:
+          ARCH_SIGNING_KEY: ${{ secrets.ARCH_SIGNING_KEY }}
+          ARCH_SIGNING_PASSPHRASE: ${{ secrets.ARCH_SIGNING_PASSPHRASE }}
+        run: |
+          if [ -z "$ARCH_SIGNING_KEY" ]; then
+            echo "::notice::No ARCH_SIGNING_KEY in the release environment: the pacman package and database are published unsigned."
+            exit 0
+          fi
+          # Fail here, before anything is published, rather than leave a half-signed repository behind.
+          if ! grep -q GPGKEY packages/scripts/publish-arch.sh; then
+            echo "::error::ARCH_SIGNING_KEY is set, but scripts/publish-arch.sh of $PACKAGES_REPO can't sign yet (docs/releasing.md, Signing)."
+            exit 1
+          fi
+          export GNUPGHOME="$RUNNER_TEMP/arch-gnupg"
+          gpgconf --kill gpg-agent
+          rm -rf "$GNUPGHOME"
+          mkdir -m 700 "$GNUPGHOME"
+          # Before the import, which starts the agent: a passphrase can be given to it ahead (below).
+          echo allow-preset-passphrase > "$GNUPGHOME/gpg-agent.conf"
+          printf '%s\n' "$ARCH_SIGNING_KEY" | gpg --batch --quiet --import
+          fpr=$(gpg --batch --with-colons --list-secret-keys | awk -F: '$1 == "fpr" { print $10; exit }')
+          [ -n "$fpr" ] || { echo "::error::ARCH_SIGNING_KEY holds no secret key"; exit 1; }
+          # The published keys: repo-add --verify checks the current database against them (an earlier key too, after
+          # a rotation), and the key that signs must be one of them, or pacman wouldn't trust what it signs.
+          if [ -f packages/eriklieben.asc ]; then
+            gpg --batch --quiet --import packages/eriklieben.asc
+            if ! gpg --batch --with-colons --show-keys packages/eriklieben.asc | grep -q "^fpr:\{9\}$fpr:"; then
+              echo "::error::The key in ARCH_SIGNING_KEY ($fpr) is not in eriklieben.asc of $PACKAGES_REPO."
+              exit 1
+            fi
+          else
+            echo "::warning::$PACKAGES_REPO has no eriklieben.asc: publish the public key $fpr there for users to trust."
+          fi
+          if [ -n "$ARCH_SIGNING_PASSPHRASE" ]; then
+            # The agent keeps the passphrase for the later steps of this job (repo-add signs through the agent).
+            gpg --batch --with-colons --with-keygrip --list-secret-keys "$fpr" | awk -F: '$1 == "grp" { print $10 }' |
+              while read -r grip; do
+                printf '%s' "$ARCH_SIGNING_PASSPHRASE" | /usr/lib/gnupg/gpg-preset-passphrase --preset "$grip"
+              done
+          fi
+          # A wrong passphrase or an unusable key fails now.
+          echo test | gpg --batch --use-agent -u "$fpr" --detach-sign > /dev/null
+          echo "Signing with $fpr"
+          {
+            echo "fingerprint=$fpr"
+            echo "gnupghome=$GNUPGHOME"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Download the released files
         env:
           GH_TOKEN: ${{ github.token }}
@@ -148,13 +200,44 @@ jobs:
       - name: Add it to the pacman repository
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
-        run: packages/scripts/publish-arch.sh /tmp/build/erikterm-*.pkg.tar.zst
+          # Empty without ARCH_SIGNING_KEY: then nothing is signed.
+          GPGKEY: ${{ steps.signing.outputs.fingerprint }}
+          GNUPGHOME: ${{ steps.signing.outputs.gnupghome }}
+        run: |
+          if [ -z "$GPGKEY" ]; then unset GPGKEY GNUPGHOME; fi
+          packages/scripts/publish-arch.sh /tmp/build/erikterm-*.pkg.tar.zst
 
       - name: Commit to eriklieben/packages
         env:
           PACKAGES_TOKEN: ${{ steps.app-token.outputs.token }}
           PACKAGES_REPOSITORY: ${{ env.PACKAGES_REPO }}
         run: node erikterm/eng/packages.mjs commit packages "$VERSION"
+
+      - name: Check the signatures
+        # What pacman downloads, checked against the public key users trust.
+        if: steps.signing.outputs.fingerprint != ''
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          FPR: ${{ steps.signing.outputs.fingerprint }}
+          GNUPGHOME: ${{ steps.signing.outputs.gnupghome }}
+        run: |
+          pkg=$(basename /tmp/build/erikterm-*.pkg.tar.zst)
+          rm -rf check
+          mkdir check
+          gh release download arch -R "$PACKAGES_REPO" -D check \
+            -p "$pkg" -p "$pkg.sig" -p eriklieben.db -p eriklieben.db.sig -p eriklieben.files -p eriklieben.files.sig
+          if [ -f packages/eriklieben.asc ]; then
+            # Only the published keys, not the keyring that signed.
+            published=$(mktemp -d)
+            gpg --batch --quiet --homedir "$published" --import packages/eriklieben.asc
+            gpg --batch --homedir "$published" --export > check/keyring.gpg
+          else
+            gpg --batch --export "$FPR" > check/keyring.gpg
+          fi
+          for f in "$pkg" eriklieben.db eriklieben.files; do
+            gpgv --keyring "$PWD/check/keyring.gpg" "check/$f.sig" "check/$f"
+          done
+          echo "Signed with $FPR: $pkg and the database" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Summary
         run: |

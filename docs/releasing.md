@@ -9,7 +9,7 @@ releases: [Commit messages and releases](development/README.md#commit-messages-a
 | [`release.config.mjs`](../release.config.mjs) | Release branch `main`, tag format `v<version>`, plugins, release notes. |
 | [`.github/workflows/release.yml`](../.github/workflows/release.yml) | The release: next version, build, semantic-release, attestations, packages. |
 | [`.github/workflows/build-binaries.yml`](../.github/workflows/build-binaries.yml) | The four downloads and their SBOMs; used by CI (development build) and by releases (with the version). |
-| [`.github/workflows/packages.yml`](../.github/workflows/packages.yml) | Publishes a release to [eriklieben/packages](https://github.com/eriklieben/packages) (pacman, Scoop). |
+| [`.github/workflows/packages.yml`](../.github/workflows/packages.yml) | Publishes a release to [eriklieben/packages](https://github.com/eriklieben/packages) (pacman, signed; Scoop). |
 | [`.github/workflows/commit-messages.yml`](../.github/workflows/commit-messages.yml) | Checks PR titles (and, as a warning, PR commits) with [`commitlint.config.mjs`](../commitlint.config.mjs). |
 | [`eng/release-gate.mjs`](../eng/release-gate.mjs) | Whether a green push to `main` releases: the `cut-release` label. |
 | [`eng/first-release.mjs`](../eng/first-release.mjs) | The Release workflow's *First release* option: releases 1.0.0 while there is no release tag yet. |
@@ -168,12 +168,47 @@ its `SHA256SUMS` (and, once public, its attestations), to [eriklieben/packages](
    (`1.3.0-rc.1` → `1.3.0rc.1`). For a normal version a beta marker is removed too: "(beta)" from the PKGBUILD's
    `pkgdesc` and the manifest's description, "**Beta**" from erikterm's row in the README's package table;
 3. `makepkg` (in an Arch Linux container, as a normal user) and that repository's `scripts/publish-arch.sh`, which
-   adds the package to the pacman database on its `arch` release;
+   adds the package to the pacman database on its `arch` release, both GPG-signed ([Signing](#signing));
 4. the commit `Update erikterm to <version>` on its `main`, through the GitHub API with the release App's token, so it
    is *Verified* like the hand-made ones.
 
 It needs the release GitHub App installed on eriklieben/packages too (Contents: read and write); its token there is
 limited to that repository. Without the App the job is skipped and the packages are updated by hand as before.
+
+### Signing
+
+The pacman package and database are signed with a key used for nothing else, so users can keep pacman's default
+`SigLevel` after trusting it once (`pacman-key --recv-keys` and `--lsign-key`, in eriklieben/packages' README).
+
+| Where | What |
+| --- | --- |
+| Secret `ARCH_SIGNING_KEY` (environment `release`) | The secret key, ASCII-armored (`gpg --armor --export-secret-keys`). |
+| Secret `ARCH_SIGNING_PASSPHRASE` (environment `release`) | Its passphrase; only if it has one. |
+| `eriklieben.asc` in eriklieben/packages | The public keys users trust: the current one, and during a rotation the next. |
+| `scripts/publish-arch.sh` in eriklieben/packages | With `GPGKEY` set: signs the package (`.pkg.tar.zst.sig`), checks the current database's signature (`repo-add --verify`), signs the new one (`repo-add --sign`) and uploads the `.sig` files. |
+
+*Signing key* in `packages.yml` imports the key into a keyring of its own, with the public keys of `eriklieben.asc`,
+and stops before anything is published if the key isn't in `eriklieben.asc`, the passphrase is wrong or
+`publish-arch.sh` can't sign yet. *Check the signatures* downloads the package and database from the `arch` release
+and checks them with `gpgv` against `eriklieben.asc` only. Without `ARCH_SIGNING_KEY` nothing is signed (a notice says
+so); but once the database is signed, `publish-arch.sh` refuses to replace it with an unsigned one, so removing the
+secret makes the job fail instead of breaking `SigLevel = Required`.
+
+By hand, on an Arch machine with the key in your keyring: `GPGKEY=<fingerprint> scripts/publish-arch.sh <package>`.
+
+The key is ed25519, sign-only and doesn't expire: an expired key would make every user's `pacman -Syu` fail until
+they refresh it. It is replaced by rotating (below), or revoked with the revocation certificate gpg wrote when it was
+made (kept offline, not in GitHub).
+
+**Rotating the key:**
+
+1. Make the new key (the same commands as the first one) and add its public key to `eriklieben.asc` next to the old
+   one; send it to the keyservers.
+2. Tell users to trust it (`pacman-key --recv-keys` and `--lsign-key` with the new fingerprint), and give them time.
+3. Replace `ARCH_SIGNING_KEY` (and the passphrase). The next publish checks the database, still signed by the old key,
+   against `eriklieben.asc` and signs it with the new one.
+4. Later, remove the old key from `eriklieben.asc`. A compromised key is revoked right away instead: publish the
+   revocation (`gpg --import` the certificate, then `--send-keys`), and users run `sudo pacman-key --refresh-keys`.
 
 ## Dry run
 
@@ -202,6 +237,6 @@ Look at which job of the Release run failed:
 | *Next version*, *build* | Nothing was released. **Re-run failed jobs**, or run the workflow again (dry run off). |
 | *semantic-release*, before the tag | Nothing was released (the log says so). Re-run, or run the workflow again. "The binaries were built as X, but the next version is now Y" means another release happened in between: run the workflow again. |
 | *semantic-release*, after the tag | Rare (a GitHub outage while uploading). semantic-release now counts the tag as released, so a re-run finds nothing to do: finish the GitHub release by hand with the run's artifacts (`gh run download <run id> --pattern 'erikterm-*' --dir dist`, then `gh release create` or `gh release upload` with `dist/*` and a `SHA256SUMS` from `node eng/release-assets.mjs checksums dist`), then publish the packages. A failed release also opens an issue *The automated release is failing*, closed by the next successful one. |
-| *packages* | The erikterm release is done. **Actions → Publish packages → Run workflow** (branch `main`) with the version, e.g. `1.2.1`. Every step can run twice. |
+| *packages* | The erikterm release is done. **Actions → Publish packages → Run workflow** (branch `main`) with the version, e.g. `1.2.1`. Every step can run twice. A failed *Signing key* has published nothing; its error says which of [Signing](#signing) is off. "The database is signed" from *Add it to the pacman repository*: `ARCH_SIGNING_KEY` is missing. |
 
 Don't edit `CHANGELOG.md` or create `v*` tags by hand.
