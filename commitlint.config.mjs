@@ -6,9 +6,11 @@
 //
 // config-conventional = the Angular types (build, ci, docs, feat, fix, perf, refactor, style, test) plus chore and
 // revert, and also accepts the `!` breaking-change marker (`feat(config)!: ...`), which release.config.mjs understands.
-// Commits from before this format (plain sentences) stay as they are: nothing checks old history.
 export default {
   extends: ["@commitlint/config-conventional"],
+  // Dependabot writes "Bump" with a capital whatever the prefix (build(deps): Bump the tunit group ...): accept that
+  // one generated form instead of failing every update's title check.
+  ignores: [(message) => /^[a-z]+(\([a-z-]+\))?: Bump /.test(message)],
   rules: {
     // Suggested scopes: a warning, not an error, and the scope stays optional. Keep in sync with
     // docs/development/README.md.

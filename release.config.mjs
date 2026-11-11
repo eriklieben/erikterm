@@ -8,7 +8,7 @@
 //
 //   pnpm exec semantic-release --dry-run --no-ci     what would the next release be? (needs GITHUB_TOKEN and push access)
 //
-// Commits not in this format (plain sentences such as "Add a settings page") have no type: the analyzer ignores them,
+// Commits not in this format have no type: the analyzer ignores them,
 // so they never release anything and aren't in the notes.
 
 // The Angular commit format (type(scope): subject), plus the `!` breaking-change marker from Conventional Commits

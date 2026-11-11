@@ -188,7 +188,7 @@ on `main`: it works out the next version, writes the release notes and publishes
 ```
 
 The header is the line in the release notes, so write it for users: `fix(pty): keep the exit code of a killed shell`,
-not `fix: PtyWriter null check`. Commits not in this format (plain sentences) never release anything.
+not `fix: PtyWriter null check`. Commits not in this format never release anything.
 
 | Type | Use for | Release |
 | --- | --- | --- |

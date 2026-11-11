@@ -8,7 +8,7 @@ platforms, the quality gate, coverage) is [build.yml](../../.github/workflows/bu
 | --- | --- | --- | --- |
 | CodeQL | [codeql.yml](../../.github/workflows/codeql.yml) | pushes to main, pull requests, Mondays | a public repository (or GitHub Advanced Security) |
 | OpenSSF Scorecard | [scorecard.yml](../../.github/workflows/scorecard.yml) | pushes to main, branch protection changes, Mondays | a public repository |
-| SonarQube Cloud | [sonar.yml](../../.github/workflows/sonar.yml) | after a green build of main | the secret `SONAR_TOKEN` |
+| SonarQube Cloud | the `sonar` job in [build.yml](../../.github/workflows/build.yml) | pushes to main, after the tests | the secret `SONAR_TOKEN` |
 | Dependabot | [dependabot.yml](../../.github/dependabot.yml) | Mondays | nothing |
 
 ## CodeQL
@@ -39,22 +39,20 @@ lists. Keep it that way when changing [scorecard.yml](../../.github/workflows/sc
 
 ## SonarQube Cloud
 
-[sonar.yml](../../.github/workflows/sonar.yml) runs after each build of main that passed (`workflow_run`). It
-downloads that run's coverage artifacts (`coverage-linux`, `coverage-macos`, `coverage-windows`), points their file
-paths at its own checkout ([scripts/sonar-coverage.py](../../scripts/sonar-coverage.py)), and wraps one Release
-build of `src/ErikTerm.App` with SonarScanner for .NET. It runs no tests.
+The `sonar` job in [build.yml](../../.github/workflows/build.yml) runs on pushes to main, after the three test jobs.
+It downloads their coverage artifacts (`coverage-linux`, `coverage-macos`, `coverage-windows`) from the same run,
+points their file paths at its own checkout ([scripts/sonar-coverage.py](../../scripts/sonar-coverage.py)), and wraps
+one Release build of `src/ErikTerm.App` with SonarScanner for .NET. It runs no tests.
 
-Why a separate workflow and not a job in build.yml or a test run of its own:
+Why this shape:
 
 - **No second test run.** The suite runs on three platforms already, and a Linux-only run would lose the coverage of
-  the Windows and macOS code. CI minutes are limited.
-- **build.yml stays as it is.** The coverage it uploads is enough.
-- **Secrets stay on main.** `workflow_run` gets the repository's secrets whatever triggered the build, so the job only
-  follows pushes to main of this repository. Pull requests and forks are not analysed; the analysis of main after the
-  merge picks the change up.
-
-`workflow_run` matches the build workflow by its name, `build`, and the artifacts by their names. Renaming either
-needs the same change in sonar.yml.
+  the Windows and macOS code.
+- **The token stays on main.** Only pushes to main run the job, and it checks out the commit its own run is for.
+  Pull requests and forks are not analysed; the analysis of main after the merge picks the change up. A separate
+  `workflow_run` workflow would also work, but it checks out a commit from another run while it holds the token,
+  which code scanning (CodeQL, Scorecard's Dangerous-Workflow) flags.
+- **Documentation-only pushes** skip the macOS and Windows tests (the `scope` job), so the analysis is skipped too.
 
 The settings are in [build/SonarQube.Analysis.xml](../../build/SonarQube.Analysis.xml): the benchmark, scripts,
 packaging, `contrib/` and generated code are left out, compiler warnings aren't imported (the quality job gates the

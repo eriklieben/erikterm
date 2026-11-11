@@ -63,7 +63,7 @@ Pick whichever fits:
   label? Add it to the merged pull request and re-run the `release` job of that CI run, or run the workflow by hand.
 - **A vulnerability fix:** a pull request with the label `security` releases without `cut-release`.
 
-Only `feat`, `fix`, `perf`, `revert` and breaking changes release. Commits not in this format (plain sentences) never
+Only `feat`, `fix`, `perf`, `revert` and breaking changes release. Commits not in this format never
 release anything and don't appear in the notes, and neither do `docs`, `chore`, `refactor`, `test`, `ci`, `build` and
 `style` commits: a release that has one of the others lists only those.
 

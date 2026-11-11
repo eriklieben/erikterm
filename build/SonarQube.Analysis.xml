@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The SonarQube Cloud analysis settings for .github/workflows/sonar.yml: SonarScanner for .NET reads them with /s:
+<!-- The SonarQube Cloud analysis settings for the sonar job in .github/workflows/build.yml: SonarScanner for .NET reads them with /s:
      (it doesn't read sonar-project.properties). docs/development/code-analysis.md explains each choice. -->
 <SonarQubeAnalysisProperties xmlns="http://www.sonarsource.com/msbuild/integration/2015/1">
   <!-- Not shipped: the benchmark, build output, generated code (the P/Invoke stubs), scripts, packaging and the shell
