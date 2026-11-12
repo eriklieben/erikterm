@@ -188,7 +188,12 @@ internal sealed class AppRun : IAsyncDisposable
         File.WriteAllText(script, ExpandScript(scenario.Script, dir));
 
         var env = PrivateEnvironment(dir);
-        if (scenario.Desktop) env.Remove("SDL_VIDEODRIVER"); // SDL picks the platform's own (windows, cocoa)
+        if (scenario.Desktop)
+        {
+            env.Remove("SDL_VIDEODRIVER"); // SDL picks the platform's own (windows, cocoa)
+            // Cocoa has no framebuffer of its own: the software renderer's surface needs SDL's GPU texture one.
+            env.Remove("SDL_FRAMEBUFFER_ACCELERATION");
+        }
         env["ERIKTERM_DEBUG_SCRIPT_FILE"] = script;
         InstallFakes(dir, env, scenario.Fakes);
         foreach (var (k, v) in scenario.Env) env[k] = v.Replace("{dir}", dir);
@@ -235,7 +240,7 @@ internal sealed class AppRun : IAsyncDisposable
                 env.Remove(name);
         env["SDL_VIDEODRIVER"] = "offscreen";
         env["SDL_RENDER_DRIVER"] = "software";
-        // macOS and Windows: no GPU texture behind the offscreen window's surface. SDL would try each GPU renderer for
+        // macOS and Windows, off-screen: no GPU texture behind the window's surface. SDL would try each GPU renderer for
         // it first (SDL_CreateWindowTexture), and off-screen none works there (no EGL, no HWND or NSView): skip that and
         // use the in-memory surface (which has no alpha channel). Linux keeps its EGL one, which carries the alpha the
         // translucency scenario checks.
