@@ -863,6 +863,22 @@ public class TmuxShimFilesTests
     }
 
     [Test]
+    [Arguments("tmux", true)]
+    [Arguments("/run/user/1000/erikterm/shim-42/tmux", true)]
+    [Arguments("D:/a/state/erikterm/shim-42/tmux.exe", true)]
+    [Arguments("D:/a/app/erikterm.dll", false)] // a framework-dependent build's GetCommandLineArgs()[0], even run as the shim
+    [Arguments("/usr/bin/erikterm", false)]
+    [Arguments(null, false)]
+    public async Task The_shim_is_recognised_by_its_program_name(string? argv0, bool shim)
+    {
+        // Act
+        bool isShim = TmuxShim.IsTmuxName(argv0);
+
+        // Assert
+        await Assert.That(isShim).IsEqualTo(shim);
+    }
+
+    [Test]
     public async Task A_single_file_build_needs_nothing_beside_the_shim()
     {
         // Act
