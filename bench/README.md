@@ -37,6 +37,48 @@ directories unique names, and pass environment lookups and paths explicitly: no 
 (`$ERIKTERM_SOCKET`, `$XDG_RUNTIME_DIR/erikterm`) or touches its session files, so the suite is safe to run from
 inside erikterm.
 
+### Integration scenarios
+
+`tests/ErikTerm.IntegrationTests` starts the real erikterm (the JIT build of `src/ErikTerm.App`, its `erikterm`
+apphost) once per test, off-screen, and checks what it does:
+
+```sh
+scripts/integration-tests.sh                                   # every scenario (builds first)
+scripts/integration-tests.sh -- --treenode-filter '/*/*/TabTests/*'   # one class (options after -- go to TUnit)
+scripts/integration-tests.sh --coverage coverage/integration.xml      # under dotnet-coverage: a Cobertura report
+```
+
+**Off-screen and private.** Each run gets SDL's offscreen video driver and software renderer
+(`SDL_VIDEODRIVER=offscreen`, `SDL_RENDER_DRIVER=software`), no `DISPLAY`, `WAYLAND_DISPLAY`, D-Bus session,
+`ERIKTERM_*`, `TMUX` or `TMUX_PANE`, and its own `HOME` and XDG runtime, state, config, data and cache directories under
+`/tmp/etit-*` (short, for the control socket's path limit; `ERIKTERM_IT_KEEP=1` keeps them). No window opens, and a
+scenario never talks to an erikterm you are using or reads your configuration, so the suite is safe to run from
+inside erikterm. The programs erikterm hands things to — `xdg-open`/`open`, `notify-send`, `gh`, `$VISUAL`/`$EDITOR`
+and the coding agents `claude`, `codex`, `copilot` — are stand-ins first on `PATH` that only write their arguments to
+the run's `calls.log` (the agents also report `working` with OSC 7501 and wait), so a test can check what would have
+been opened and nothing reaches the desktop. Every scenario starts from `AppRun.BaseConfig` (fixed size, no animation,
+no git or GitHub status, no session, `window_close_confirmation = "NeverPrompt"`); a scenario's own settings replace
+those keys.
+
+**Driving and checking.** A scenario is a debug script (`ERIKTERM_DEBUG_SCRIPT_FILE`, the steps in
+[Debugging](../docs/development/README.md#debugging)) plus `erikterm cli` calls against the instance's socket
+(`send-text`, `get-text`, `list --format json`, splits, tabs, layouts, worktrees, agent states). The script step
+`wait-file:NAME` pauses the script until the test creates that file (`run.Release("NAME")`), so the test checks the
+window at a known point: the pane text (`WaitForTextAsync`), the panes and tabs (`WaitForPanesAsync`), a screenshot
+(`shot:NAME.bmp`: `Checks.RenderedAsync` wants a real frame, not a blank surface; `Checks.DifferAsync` that an
+overlay, split or theme changed it), the stand-ins' `calls.log`, git's view of a throwaway repository. Every scenario
+ends by closing its window and `Checks.CleanExitAsync`: exit status 0, no crash log in the state directory, no
+exception, internal error or failed script step in the output. A scenario that only runs things without such a check
+doesn't belong here. A scenario is a walk-through: the script, running in the app on its own, is the Act, and the
+test checks it at each `wait-file` stop, so its body has numbered `// Act N` / `// Assert N` steps (or `// Act / Assert`
+where a step only observes). At most half the cores' worth of erikterm processes run at once (`ERIKTERM_IT_PARALLEL`), since
+the steps are timed and the software renderer is single-threaded.
+
+**Coverage.** dotnet-coverage (a local tool, `.config/dotnet-tools.json`) runs the test assembly and measures the
+erikterm processes it starts, with [tests/ErikTerm.IntegrationTests/coverage.config](../tests/ErikTerm.IntegrationTests/coverage.config)
+(the app and the four libraries, sources under `src/`). CI's `integration (linux)` job uploads that report as
+`coverage-integration-linux`; see [Coverage](../docs/development/code-analysis.md#coverage).
+
 **Converting xUnit tests** (e.g. from a branch started before the switch):
 
 ```sh

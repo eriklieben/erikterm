@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Off-screen integration scenarios: each test starts the real erikterm (the JIT build of src/ErikTerm.App) with
+       SDL's offscreen video driver and the software renderer, drives it with a debug script and erikterm cli, and
+       checks what it shows. bench/README.md (Integration scenarios). Test-only packages are allowed; nothing here ships. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>ErikTerm.IntegrationTests</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <PublishAot>false</PublishAot>
+    <IsAotCompatible>false</IsAotCompatible>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="TUnit" Version="1.81.10" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Built first, not referenced: the tests run its output (bin/<Configuration>/net10.0/erikterm) as a process. -->
+    <ProjectReference Include="../../src/ErikTerm.App/ErikTerm.App.csproj" ReferenceOutputAssembly="false" Private="false" />
+  </ItemGroup>
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>AppDirectory</_Parameter1>
+      <_Parameter2>$(MSBuildThisFileDirectory)../../src/ErikTerm.App/bin/$(Configuration)/$(TargetFramework)/</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>RepositoryRoot</_Parameter1>
+      <_Parameter2>$(MSBuildThisFileDirectory)../../</_Parameter2>
+    </AssemblyAttribute>
+  </ItemGroup>
+</Project>

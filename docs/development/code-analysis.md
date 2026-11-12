@@ -39,8 +39,9 @@ lists. Keep it that way when changing [scorecard.yml](../../.github/workflows/sc
 
 ## SonarQube Cloud
 
-The `sonar` job in [build.yml](../../.github/workflows/build.yml) runs on pushes to main, after the three test jobs.
-It downloads their coverage artifacts (`coverage-linux`, `coverage-macos`, `coverage-windows`) from the same run,
+The `sonar` job in [build.yml](../../.github/workflows/build.yml) runs on pushes to main, after the three test jobs,
+the integration scenarios and the release scripts. It downloads their coverage artifacts (`coverage-linux`,
+`coverage-macos`, `coverage-windows`, `coverage-integration-linux`, and `coverage-eng` for `eng/`) from the same run,
 points their file paths at its own checkout ([scripts/sonar-coverage.py](../../scripts/sonar-coverage.py)), and wraps
 one Release build of `src/ErikTerm.App` with SonarScanner for .NET. It runs no tests.
 
@@ -56,7 +57,7 @@ Why this shape:
 
 The settings are in [build/SonarQube.Analysis.xml](../../build/SonarQube.Analysis.xml): the benchmark, scripts,
 packaging, `contrib/` and generated code are left out, compiler warnings aren't imported (the quality job gates the
-SDK analyzers), and the coverage comes from the three Cobertura reports (see [Coverage](#coverage)). The scanner is a CI tool in
+SDK analyzers), and the coverage comes from the four Cobertura reports and the lcov of `eng/` (see [Coverage](#coverage)). The scanner is a CI tool in
 [.config/dotnet-tools.json](../../.config/dotnet-tools.json); it isn't part of erikterm. Only `src/ErikTerm.App` is
 built, which brings in the libraries; the test project compiles some app files a second time, and building it too
 would report those files twice.
@@ -91,11 +92,34 @@ python3 scripts/merge-coverage.py coverage/coverage.xml
 ignored without a warning. An XML comment in the file must not contain two hyphens in a row: the tool then rejects the
 whole file with "Provided settings file doesn't exist or is invalid".
 
-**The gate.** The `coverage` job merges the three reports ([scripts/merge-coverage.py](../../scripts/merge-coverage.py)):
+**The gate.** The `coverage` job merges the reports (the three test jobs' and the integration scenarios') ([scripts/merge-coverage.py](../../scripts/merge-coverage.py)):
 a line counts as covered when any platform ran it. Lines are grouped by the project their file lives in
 (`src/<project>/...`), not by the assembly that ran them, so the app's linked files count as `ErikTerm.App` and never
 inflate the libraries. The four libraries must each reach 80%; the total is over them alone. `ErikTerm.App` follows
 without a gate, with how many of its source files are in the reports: its percentage covers only the linked files.
+
+**The integration scenarios** ([Integration scenarios](../../bench/README.md#integration-scenarios)) are the other
+half of the app's coverage: much of `ErikTerm.App` (the window, its event loop, rendering, overlays, the window
+features) only runs with a real window. The `integration (linux)` job runs them in an Arch Linux container (Ubuntu
+24.04 has no SDL3) under dotnet-coverage, with
+[tests/ErikTerm.IntegrationTests/coverage.config](../../tests/ErikTerm.IntegrationTests/coverage.config): the
+`erikterm` processes the tests start are measured (the app and the four libraries, sources under `src/`), and the
+report is uploaded as `coverage-integration-linux`. The `coverage` and `sonar` jobs pick it up with the test jobs'
+reports (`coverage-*`), and a line counts as covered when any report ran it, so the per-project totals in the
+`coverage` job and SonarQube Cloud's include what the scenarios ran. Locally:
+
+```sh
+scripts/integration-tests.sh --coverage coverage/integration/coverage.xml
+python3 scripts/merge-coverage.py coverage/coverage.xml coverage/integration/coverage.xml
+```
+
+What stays uncovered on Linux is mostly code for other systems (Windows UI Automation in `Accessibility/`, the
+borderless window chrome in `Chrome/`, `WindowsFontLocator`, ConPTY) and paths a scenario can't reach off-screen
+(system dark-mode and accessibility settings, the compositor's drag-and-drop between processes, real tmux handoff).
+
+**JavaScript.** The release scripts job runs `node --test eng/` with node's own coverage and writes
+`coverage/lcov.info` (the test files left out, paths relative to the checkout), uploaded as `coverage-eng`; the sonar
+job passes it to SonarQube Cloud as `sonar.javascript.lcov.reportPaths` (build/SonarQube.Analysis.xml).
 
 **SonarQube Cloud** imports the same reports. It knows every app file from its own build of `src/ErikTerm.App`, so app
 files missing from the reports count as uncovered there, and its `src/ErikTerm.App` percentage is over the whole app.

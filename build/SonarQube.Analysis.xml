@@ -6,10 +6,13 @@
        and editor integration files. tests/** is test code: the scanner analyses it with the test rules and doesn't
        count it as lines of code. -->
   <Property Name="sonar.exclusions">bench/**,artifacts/**,**/bin/**,**/obj/**,**/*.g.cs,scripts/**,packaging/**,contrib/**,coverage/**</Property>
-  <!-- The coverage of the three test jobs of build.yml, with paths of this checkout (scripts/sonar-coverage.py). A line
-       counts as covered when any platform ran it, as in the coverage job. The reports include the ErikTerm.App files
-       the test project compiles in (tests/ErikTerm.Tests/coverage.config); app files not in them count as uncovered. -->
+  <!-- The coverage of the three test jobs of build.yml and of the off-screen integration scenarios (integration-linux:
+       the real app, tests/ErikTerm.IntegrationTests), with paths of this checkout (scripts/sonar-coverage.py). A line
+       counts as covered when any of them ran it, as in the coverage job. -->
   <Property Name="sonar.cs.cobertura.reportsPaths">coverage/*/coverage.xml</Property>
+  <!-- The release tooling's line coverage (eng/*.mjs, release.config.mjs): node's own lcov from the release scripts job,
+       with paths relative to the checkout. -->
+  <Property Name="sonar.javascript.lcov.reportPaths">coverage/coverage-eng/lcov.info</Property>
   <!-- Compiler and analyzer warnings aren't imported: build.yml's quality job gates the SDK analyzers
        (build/quality.globalconfig), and they would show up twice next to Sonar's own rules. -->
   <Property Name="sonar.cs.roslyn.ignoreIssues">true</Property>

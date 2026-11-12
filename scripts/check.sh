@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# Runs the checks of CI's test, code quality and release scripts jobs (.github/workflows/build.yml) on this machine,
-# before you push:
+# Runs the checks of CI's test, code quality, release scripts and integration jobs (.github/workflows/build.yml)
+# on this machine, before you push:
 #
 #   1. the tests:            dotnet test --project tests/ErikTerm.Tests
 #   2. the analyzers:        dotnet build src/ErikTerm.App -p:Quality=true (build/quality.globalconfig)
 #   3. method complexity:    scripts/check-complexity.py against build/complexity-baseline.txt
 #   4. the release tooling:  node --test eng/ (skipped when node isn't installed)
+#   5. the integration scenarios (Linux): scripts/integration-tests.sh, the real app off-screen (no window opens)
 #
 #   scripts/check.sh
 #
@@ -44,6 +45,13 @@ if command -v node >/dev/null; then
 else
     printf '\n==> release scripts\nnode not found: skipped.\n'
     skipped+=("release scripts")
+fi
+
+if [[ $(uname -s) == Linux ]]; then
+    step "integration scenarios" scripts/integration-tests.sh
+else
+    printf '\n==> integration scenarios\nLinux only here: skipped.\n'
+    skipped+=("integration scenarios")
 fi
 
 printf '\n'

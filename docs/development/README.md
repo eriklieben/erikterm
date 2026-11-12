@@ -34,7 +34,8 @@ are looked up off the UI thread; such a cell shows a .notdef box until its font 
 scripts/run.sh                 # AOT-publish and launch $SHELL
 scripts/run.sh -e btop         # run a specific program
 dotnet test --project tests/ErikTerm.Tests   # see Tests below
-scripts/check.sh               # what CI's test, code quality and release scripts jobs run (Windows: scripts\check.ps1)
+scripts/check.sh               # what CI's test, code quality, release scripts and integration jobs run (Windows: scripts\check.ps1)
+scripts/integration-tests.sh   # the off-screen integration scenarios alone (see Testing)
 ```
 
 Install a local build for your user (Linux): `scripts/install-desktop.sh` links `~/.local/bin/erikterm` to `artifacts/app/erikterm` (publishing it first if needed) and installs the icons and desktop entry; `--prefix DIR` installs elsewhere and `--uninstall` removes it. `scripts/render-icons.sh` regenerates the PNGs and the `.ico` from `assets/icon/`.
@@ -55,7 +56,9 @@ staying held, `ctrl-up` releases it and `ctrl-tap` is both at once (a quick tap)
 scrolls an overflowing bar).
 Steps go to the newest window; window steps: `window:ID`, `new-window`, `close-window` (like the compositor's close:
 it may ask first, answer with `key:enter` / `key:escape`), `move-tab:ID` (0 = a new window),
-`drop-on:ID,X,Y` (the next tab dropped outside its window lands there), `shot:PATH` (`{window}`: every window), `sleep:MS`.
+`drop-on:ID,X,Y` (the next tab dropped outside its window lands there), `shot:PATH` (`{window}`: every window), `sleep:MS`,
+`wait-file:PATH` (the steps pause until PATH exists, at most 2 minutes: the integration scenarios check the window
+there, then create the file; see [Integration scenarios](../../bench/README.md#integration-scenarios)).
 Point `XDG_STATE_HOME` at a temporary directory when testing session restore.
 Internal errors are written with their stack trace to `$XDG_STATE_HOME/erikterm/crash-<time>.log` (newest 20 kept;
 About shows the latest). An error in one window's event, tick or frame drops that work and shows *Internal error

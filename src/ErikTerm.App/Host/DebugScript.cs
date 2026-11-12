@@ -30,6 +30,12 @@ internal sealed class DebugScript(IDebugScriptOwner owner, TabTearOff tearOff)
         (Environment.GetEnvironmentVariable("ERIKTERM_DEBUG_SCRIPT") ?? "").Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
     private long _nextAt = Environment.TickCount64 + 700;
 
+    // wait-file:PATH: the steps pause until PATH exists (at most WaitFileMs), so a test can check the window (erikterm
+    // cli, a screenshot) at a known point and then let the script go on (tests/ErikTerm.IntegrationTests).
+    private const int WaitFileMs = 120_000;
+    private string? _waitFile;
+    private long _waitUntil;
+
     private ErikTerm.Ui.WindowSet<TermWindow, Tab> Windows => owner.Windows;
 
     /// <summary>The window the next steps go to.</summary>
@@ -71,12 +77,12 @@ internal sealed class DebugScript(IDebugScriptOwner owner, TabTearOff tearOff)
     /// Runs the next step. Window steps: window:ID (later steps go to that window) · new-window · close-window ·
     /// shot:PATH (a {window} in it: every window) · move-tab:ID (the active tab to window ID; 0 = new) ·
     /// drop-on:ID,X,Y (the next tear-off drop outside its window lands on window ID at X,Y pixels — what the pointer
-    /// entering that window right after the release does on Wayland) · sleep:ms.
+    /// entering that window right after the release does on Wayland) · sleep:ms · wait-file:PATH (pause until PATH exists).
     /// Everything else goes to the window (TermWindow.RunScript).
     /// </summary>
     public void Run(long now)
     {
-        if (_script.Count == 0 || now < _nextAt) return;
+        if (_script.Count == 0 || now < _nextAt || Waiting(now)) return;
         _nextAt = now + ScriptStepMs;
         string step = _script.Dequeue();
         int colon = step.IndexOf(':');
@@ -86,6 +92,7 @@ internal sealed class DebugScript(IDebugScriptOwner owner, TabTearOff tearOff)
         switch (kind)
         {
             case "sleep": _nextAt = now + (int.TryParse(arg, out int ms) ? ms : 350); break;
+            case "wait-file": _waitFile = arg; _waitUntil = now + WaitFileMs; break;
             case "window": PickWindow(arg); break;
             case "new-window": owner.SpawnWindow(null, w); break;
             case "close-window": CloseWindow(w); break;
@@ -94,6 +101,16 @@ internal sealed class DebugScript(IDebugScriptOwner owner, TabTearOff tearOff)
             case "drop-on": DropOn(arg); break;
             default: w.RunScript(kind, arg, now); break;
         }
+    }
+
+    /// <summary>A wait-file step is pending: true until its file exists or the wait times out.</summary>
+    private bool Waiting(long now)
+    {
+        if (_waitFile is not { } path) return false;
+        if (!File.Exists(path) && now < _waitUntil) return true;
+        if (now >= _waitUntil) Console.Error.WriteLine($"erikterm: script: gave up waiting for {path}");
+        _waitFile = null;
+        return false;
     }
 
     private void PickWindow(string arg)

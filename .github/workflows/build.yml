@@ -215,15 +215,62 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: lts/*
+      # Line coverage for SonarQube Cloud (the sonar job): node's own, as lcov with paths from the checkout, without the
+      # test files themselves.
       - name: Tests
-        run: node --test eng/
+        run: |
+          mkdir -p coverage
+          node --test --experimental-test-coverage --test-coverage-exclude='eng/**/*.test.mjs' \
+            --test-reporter=spec --test-reporter-destination=stdout \
+            --test-reporter=lcov --test-reporter-destination=coverage/lcov.info eng/
+          sed -i "s#^SF:$GITHUB_WORKSPACE/#SF:#" coverage/lcov.info
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coverage-eng
+          path: coverage/lcov.info
+          if-no-files-found: error
+
+  # The off-screen integration scenarios (tests/ErikTerm.IntegrationTests, scripts/integration-tests.sh): the real
+  # erikterm with SDL's offscreen video driver and software renderer, driven by its debug script and erikterm cli,
+  # under dotnet-coverage. Ubuntu 24.04 has no SDL3 package, so this runs in an Arch Linux container (pinned to a
+  # digest, like packages.yml), which has SDL3, FreeType and HarfBuzz; the coverage report joins the test jobs' in the
+  # coverage and sonar jobs. Documentation-only changes skip it, like the macOS and Windows tests (the scope job).
+  integration-linux:
+    name: integration (linux)
+    needs: scope
+    if: needs.scope.outputs.full == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    # archlinux:base-devel, the image index digest of 2026-11-10 (the same as packages.yml).
+    container: archlinux:base-devel@sha256:fa2d4ce3310ddd90a4208e5168be8ad367da5129af1245f38fd2d803bcbe3239
+    steps:
+      # git before the checkout (it then clones instead of downloading a tarball: build/BuildInfo.targets stamps the
+      # commit); a font for the scenarios to render with; ICU for the .NET SDK.
+      - name: Native libraries, git and a font
+        run: pacman -Syu --noconfirm --needed git sdl3 freetype2 harfbuzz fontconfig ttf-dejavu icu
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          global-json-file: global.json
+      - name: Scenarios
+        # The scenarios run as root in the container; nothing in them needs or checks another user.
+        run: scripts/integration-tests.sh --coverage coverage/coverage.xml
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coverage-integration-linux
+          path: coverage/coverage.xml
+          if-no-files-found: error
 
   # Line coverage over all three platforms: code for one system is measured on that system. The four libraries are
   # gated; ErikTerm.App (the part the tests compile in, tests/ErikTerm.Tests/coverage.config) is reported without a
-  # gate. docs/development/code-analysis.md.
+  # gate. The integration scenarios' report (integration-linux) counts too: a line any of them ran is covered.
+  # docs/development/code-analysis.md.
   coverage:
     name: coverage
-    needs: [test, test-macos, test-windows]
+    needs: [test, test-macos, test-windows, integration-linux]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -238,12 +285,12 @@ jobs:
 
   # The downloads, as a development build (no release version). Releases build with release.yml.
   # SonarQube Cloud: pushes to main and manual runs on main only (the token is a secret; pull requests and forks don't
-  # get it). It imports this run's coverage (coverage-linux, -macos, -windows), so nothing is tested twice, and wraps
-  # one Release build of src/ErikTerm.App with SonarScanner for .NET. Skipped without the secret SONAR_TOKEN.
-  # docs/development/code-analysis.md.
+  # get it). It imports this run's coverage (coverage-linux, -macos, -windows, -integration-linux, and the eng/ lcov of
+  # release-scripts), so nothing is tested twice, and wraps one Release build of src/ErikTerm.App with SonarScanner for
+  # .NET. Skipped without the secret SONAR_TOKEN. docs/development/code-analysis.md.
   sonar:
     name: SonarQube Cloud
-    needs: [test, test-macos, test-windows]
+    needs: [test, test-macos, test-windows, integration-linux, release-scripts]
     if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
