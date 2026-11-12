@@ -68,6 +68,7 @@ body:
       label: How is erikterm installed?
       options:
         - Arch Linux package
+        - Scoop
         - Windows installer
         - Zip / tar.gz from a release
         - Built from source

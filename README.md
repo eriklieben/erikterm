@@ -131,14 +131,22 @@ scoop bucket add eriklieben https://github.com/eriklieben/packages
 scoop install eriklieben/erikterm
 ```
 
-Or download `erikterm-win-x64-setup.exe` from the [latest release](https://github.com/eriklieben/packages/releases).
+Or download `erikterm-win-x64-setup.exe` from the [latest release](https://github.com/eriklieben/erikterm/releases/latest).
 It installs into your user profile and needs no administrator rights. It isn't code-signed yet, so Windows may warn
 before it runs.
 
+### Other Linux distributions
+
+Install SDL3, FreeType and HarfBuzz with your package manager, then unpack `erikterm-linux-x64.tar.gz` from the
+[latest release](https://github.com/eriklieben/erikterm/releases/latest). Its `share/` folder has the desktop entry,
+icons, shell integration and terminfo entry.
+
 ### macOS
 
-Install the libraries with `brew install sdl3 freetype harfbuzz`, then [build from source](#build-from-source).
-Apple silicon is built and tested in CI.
+Install the libraries with `brew install sdl3 freetype harfbuzz`, then unpack `erikterm-osx-arm64.tar.gz` from the
+[latest release](https://github.com/eriklieben/erikterm/releases/latest), or [build from source](#build-from-source).
+The binary isn't notarized yet: run `xattr -dr com.apple.quarantine erikterm` in its folder once. Apple silicon is
+built and tested in CI.
 
 ## Build from source
 

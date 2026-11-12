@@ -20,4 +20,12 @@ The Windows download also includes the libraries FreeType is built with in vcpkg
 | bzip2 | `bz2.dll` | bzip2 license (BSD-style) | https://sourceware.org/bzip2/ |
 | Brotli | `brotlicommon.dll`, `brotlidec.dll`, `brotlienc.dll` | MIT | https://github.com/google/brotli |
 
+Compiled into the binary as data:
+
+| What | License | Project |
+|---|---|---|
+| Unicode Character Database (character widths, emoji properties) | Unicode License v3 | https://www.unicode.org/license.txt |
+| The colours of the built-in schemes *Catppuccin Macchiato* and *Catppuccin Mocha*, copyright © 2021 Catppuccin | MIT | https://github.com/catppuccin/catppuccin |
+| The colours of the built-in scheme *Tokyo Night*, from tokyonight.nvim | Apache License 2.0 (https://www.apache.org/licenses/LICENSE-2.0) | https://github.com/folke/tokyonight.nvim |
+
 Portions of this software are copyright © The FreeType Project (https://freetype.org). All rights reserved.

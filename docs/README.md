@@ -19,7 +19,7 @@ New to erikterm? Start with the [README](../README.md) to install it, then [Pane
 - [Configuration](guide/configuration.md): the config file and its options.
 - [Scripting](guide/scripting.md): `erikterm cli`, the tmux emulation and Neovim splits.
 - [Compatibility](guide/compatibility.md): the escape sequences and protocols erikterm supports.
-- [Accessibility](guide/accessibility.md): contrast, text size, motion and the cursor; no screen-reader support yet.
+- [Accessibility](guide/accessibility.md): contrast, text size, motion and the cursor; screen readers on Windows (new).
 - [FAQ](faq.md): ssh and TERM, how erikterm compares, where settings live, resetting, telemetry (none).
 
 ## Working on erikterm

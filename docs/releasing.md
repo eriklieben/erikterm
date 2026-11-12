@@ -43,7 +43,7 @@ up in erikterm.
      push to `main`): `CHANGELOG.md` stays as it is and the notes are only on the GitHub release;
    - it tags `v<version>` (on the release commit, or without the App on the released commit) and creates the GitHub
      release with the downloads, their SBOMs and `SHA256SUMS`; released pull requests and issues get a comment;
-   - once the repository is public, the workflow attests the build provenance of every asset and each download's SBOM
+   - the workflow attests the build provenance of every asset and each download's SBOM
      ([Verifying a download](#verifying-a-download)).
 5. **packages:** `packages.yml` puts the release into eriklieben/packages ([Packages](#packages)).
 6. **winget:** the installer goes to winget as a pull request on microsoft/winget-pkgs ([winget](#winget)).
@@ -148,8 +148,8 @@ gh attestation verify erikterm-win-x64.zip --repo eriklieben/erikterm --predicat
   --format json --jq '.[0].verificationResult.statement.predicate.packages[].name'
 ```
 
-The attestations are listed under **Actions → Attestations**. While the repository is private these steps are
-skipped (artifact attestations need a public repository); `SHA256SUMS` and the SBOMs are there either way.
+The attestations are listed under **Actions → Attestations**. Artifact attestations need a public repository: on a
+private fork these steps are skipped, and `SHA256SUMS` and the SBOMs are there either way.
 
 The provenance is also attached to the release as `erikterm-<tag>.intoto.jsonl` (the Sigstore bundle), so it can be
 checked without asking GitHub for it:
@@ -161,7 +161,7 @@ gh attestation verify erikterm-linux-x64.tar.gz --repo eriklieben/erikterm --bun
 ## Packages
 
 After the GitHub release, `packages.yml` publishes the same files, downloaded from that release and checked against
-its `SHA256SUMS` (and, once public, its attestations), to [eriklieben/packages](https://github.com/eriklieben/packages):
+its `SHA256SUMS` and its attestations, to [eriklieben/packages](https://github.com/eriklieben/packages):
 
 1. the release `erikterm-v<version>` there, with the Linux tar.gz, the Windows zip and the installer (marked as a
    prerelease only for a version with a `-` suffix; the notes are the release's, without links into this repository);

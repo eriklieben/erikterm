@@ -88,4 +88,5 @@ Links you click open in your browser. Turn the GitHub status off with `github_st
 
 ## Does erikterm work with a screen reader?
 
-Not yet. [Accessibility](guide/accessibility.md) lists what there is today.
+On Windows, through UI Automation (NVDA, Narrator, JAWS), but that support is new and hasn't been tried with a
+screen reader yet. On Linux and macOS, not yet. [Accessibility](guide/accessibility.md) lists what there is today.
