@@ -138,15 +138,88 @@ internal static unsafe partial class Sdl
     [return: MarshalAs(UnmanagedType.U1)]
     public static partial bool SetHint(string name, string value);
 
+    /// <summary>SDL_CreateWindow (see <see cref="CreateOffscreenWindow"/> for SDL's offscreen video driver).</summary>
+    public static nint CreateWindow(string title, int w, int h, ulong flags) =>
+        IsOffscreenVideo() ? CreateOffscreenWindow(title, 0, 0, 0, w, h, flags) : CreateWindowNative(title, w, h, flags);
+
     [LibraryImport(Lib, EntryPoint = "SDL_CreateWindow", StringMarshalling = StringMarshalling.Utf8)]
-    public static partial nint CreateWindow(string title, int w, int h, ulong flags);
+    private static partial nint CreateWindowNative(string title, int w, int h, ulong flags);
 
     [LibraryImport(Lib, EntryPoint = "SDL_DestroyWindow")]
     public static partial void DestroyWindow(nint window);
 
     /// <summary>A popup (tooltip / menu) positioned relative to <paramref name="parent"/>, in points.</summary>
+    public static nint CreatePopupWindow(nint parent, int offsetX, int offsetY, int w, int h, ulong flags) =>
+        IsOffscreenVideo() ? CreateOffscreenWindow(null, parent, offsetX, offsetY, w, h, flags)
+            : CreatePopupWindowNative(parent, offsetX, offsetY, w, h, flags);
+
     [LibraryImport(Lib, EntryPoint = "SDL_CreatePopupWindow")]
-    public static partial nint CreatePopupWindow(nint parent, int offsetX, int offsetY, int w, int h, ulong flags);
+    private static partial nint CreatePopupWindowNative(nint parent, int offsetX, int offsetY, int w, int h, ulong flags);
+
+    /// <summary>
+    /// SDL's offscreen video driver (SDL_VIDEODRIVER=offscreen: the integration tests, scripts/reference-shots.sh),
+    /// which never shows anything. Only there do windows go through <see cref="CreateOffscreenWindow"/>.
+    /// </summary>
+    private static bool IsOffscreenVideo() => GetCurrentVideoDriver() == "offscreen";
+
+    /// <summary>
+    /// What SDL_CreateWindow / SDL_CreatePopupWindow do (a popup when <paramref name="parent"/> isn't 0), with the
+    /// window marked as having an external graphics context. Only used under the offscreen video driver: on macOS SDL
+    /// adds SDL_WINDOW_OPENGL to every window created without a graphics flag (SDL_DefaultGraphicsBackends in
+    /// SDL_video.c), and the offscreen driver's OpenGL is EGL, which macOS doesn't have, so SDL_CreateWindow failed
+    /// with "Could not initialize OpenGL / GLES library". erikterm never draws with OpenGL itself (the renderer picks
+    /// its own backend, and off-screen that is the software one, onto the window surface); the external-context
+    /// property only makes SDL skip that default, and nothing else reads it on these platforms.
+    /// </summary>
+    private static nint CreateOffscreenWindow(string? title, nint parent, int x, int y, int w, int h, ulong flags)
+    {
+        uint props = CreateProperties();
+        if (props == 0) return 0;
+        try
+        {
+            if (title is not null) SetStringProperty(props, "SDL.window.create.title", title);
+            if (parent != 0)
+            {
+                SetPointerProperty(props, "SDL.window.create.parent", parent);
+                SetNumberProperty(props, "SDL.window.create.x", x);
+                SetNumberProperty(props, "SDL.window.create.y", y);
+            }
+            SetNumberProperty(props, "SDL.window.create.width", w);
+            SetNumberProperty(props, "SDL.window.create.height", h);
+            SetNumberProperty(props, "SDL.window.create.flags", unchecked((long)flags));
+            SetBooleanProperty(props, "SDL.window.create.external_graphics_context", true);
+            return CreateWindowWithProperties(props);
+        }
+        finally
+        {
+            DestroyProperties(props);
+        }
+    }
+
+    [LibraryImport(Lib, EntryPoint = "SDL_CreateWindowWithProperties")]
+    private static partial nint CreateWindowWithProperties(uint props);
+
+    [LibraryImport(Lib, EntryPoint = "SDL_CreateProperties")]
+    private static partial uint CreateProperties();
+
+    [LibraryImport(Lib, EntryPoint = "SDL_DestroyProperties")]
+    private static partial void DestroyProperties(uint props);
+
+    [LibraryImport(Lib, EntryPoint = "SDL_SetStringProperty", StringMarshalling = StringMarshalling.Utf8)]
+    [return: MarshalAs(UnmanagedType.U1)]
+    private static partial bool SetStringProperty(uint props, string name, string value);
+
+    [LibraryImport(Lib, EntryPoint = "SDL_SetPointerProperty", StringMarshalling = StringMarshalling.Utf8)]
+    [return: MarshalAs(UnmanagedType.U1)]
+    private static partial bool SetPointerProperty(uint props, string name, nint value);
+
+    [LibraryImport(Lib, EntryPoint = "SDL_SetNumberProperty", StringMarshalling = StringMarshalling.Utf8)]
+    [return: MarshalAs(UnmanagedType.U1)]
+    private static partial bool SetNumberProperty(uint props, string name, long value);
+
+    [LibraryImport(Lib, EntryPoint = "SDL_SetBooleanProperty", StringMarshalling = StringMarshalling.Utf8)]
+    [return: MarshalAs(UnmanagedType.U1)]
+    private static partial bool SetBooleanProperty(uint props, string name, [MarshalAs(UnmanagedType.U1)] bool value);
 
     [LibraryImport(Lib, EntryPoint = "SDL_GetWindowID")]
     public static partial uint GetWindowID(nint window);

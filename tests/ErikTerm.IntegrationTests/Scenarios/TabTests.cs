@@ -121,7 +121,7 @@ public class TabTests
         await Assert.That(panes.Select(p => p.TabTitle())).Contains("first");
         await Assert.That(panes.Single(p => p.Bool("tab_active")).Int("tab_index")).IsEqualTo(1);
         var spawned = panes.Single(p => p.Int("tab_index") == 2);
-        await Assert.That(spawned.Str("current_path")).IsEqualTo(run.Directory);
+        await Assert.That(Platform.SamePath(spawned.Str("current_path"), run.Directory)).IsTrue().Because(spawned.Str("current_path"));
         string table = await run.CliAsync("list");
         await Assert.That(table.Split('\n', StringSplitOptions.RemoveEmptyEntries).Length).IsEqualTo(4);
         run.Release("done");

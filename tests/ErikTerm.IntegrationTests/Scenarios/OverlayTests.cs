@@ -47,14 +47,15 @@ public class OverlayTests
             script.Add("sleep:300");
         }
         script.Add("shot:after.bmp");
-        script.Add("sleep:300");
+        // The test reads the pane's text before the window closes (a timed close raced it on a slow machine).
+        script.Add("wait-file:checked");
         script.Add("close-window");
         // The pane's program ignores the keyboard without echoing it: on a slow runner an overlay can open after the keys
         // meant for it, and a shell would then show them (bash even asks "Display all possibilities?" for the Tab).
         await using var run = AppRun.Start(new Scenario
         {
             Script = string.Join('\n', script),
-            Config = "default_prog = [\"/bin/sh\", \"-c\", \"stty raw -echo; exec cat > /dev/null\"]",
+            Config = $"default_prog = [{Platform.Toml(Platform.Shell)}, \"-c\", \"stty raw -echo; exec cat > /dev/null\"]",
         });
 
         // Act
@@ -70,6 +71,7 @@ public class OverlayTests
         await Assert.That(after.DifferenceFrom(baseline)).IsLessThan(0.02);
         string text = await run.CliAsync("get-text");
         await Assert.That(text).Contains("needle in a haystack");
+        run.Release("checked");
         await Checks.CleanExitAsync(run);
     }
 

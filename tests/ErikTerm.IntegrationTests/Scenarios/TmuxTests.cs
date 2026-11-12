@@ -15,8 +15,7 @@ public class TmuxTests
             Env = { ["ERIKTERM_TMUX_LOG"] = "{dir}/tmux.log" },
             Script = "wait-file:done\nclose-window",
         });
-        string script = Path.Combine(run.Directory, "tmux.sh");
-        File.WriteAllText(script, """
+        string script = run.WriteScript("tmux.sh", """
             set -e
             echo "TMUX set: ${TMUX:+yes}"
             new=$(tmux split-window -h -P -F '#{pane_id}' -- sh)
@@ -39,7 +38,7 @@ public class TmuxTests
             """);
 
         // Act
-        await run.TypeAsync($"sh '{script}'");
+        await run.TypeAsync($"sh '{Platform.ShPath(script)}'");
         string text = await run.WaitForTextAsync("tmux-script-done", ["--start-line", "-200"]);
 
         // Assert
@@ -82,8 +81,7 @@ public class TmuxTests
                 close-window
                 """,
         });
-        string script = Path.Combine(run.Directory, "team.sh");
-        File.WriteAllText(script, """
+        string script = run.WriteScript("team.sh", """
             export CLAUDECODE=1 AI_AGENT=claude-code_2.1.0_test CLAUDE_CODE_ENTRYPOINT=cli
             lead=$TMUX_PANE
             new=$(tmux split-window -d -t "$lead" -h -l 70% -P -F '#{pane_id}' -- cat)
@@ -94,7 +92,7 @@ public class TmuxTests
             """);
 
         // Act
-        await run.TypeAsync($"sh '{script}'");
+        await run.TypeAsync($"sh '{Platform.ShPath(script)}'");
         await run.WaitForTextAsync("teammate: %");
         var panes = await run.WaitForPanesAsync(p => p.Any(x => x.Bool("parked")));
         run.Release("teammate");

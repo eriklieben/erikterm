@@ -41,7 +41,8 @@ lists. Keep it that way when changing [scorecard.yml](../../.github/workflows/sc
 
 The `sonar` job in [build.yml](../../.github/workflows/build.yml) runs on pushes to main, after the three test jobs,
 the integration scenarios and the release scripts. It downloads their coverage artifacts (`coverage-linux`,
-`coverage-macos`, `coverage-windows`, `coverage-integration-linux`, and `coverage-eng` for `eng/`) from the same run,
+`coverage-macos`, `coverage-windows`, `coverage-integration-linux`, `coverage-integration-windows`,
+`coverage-integration-macos`, and `coverage-eng` for `eng/`) from the same run,
 points their file paths at its own checkout ([scripts/sonar-coverage.py](../../scripts/sonar-coverage.py)), and wraps
 one Release build of `src/ErikTerm.App` with SonarScanner for .NET. It runs no tests.
 
@@ -92,7 +93,7 @@ python3 scripts/merge-coverage.py coverage/coverage.xml
 ignored without a warning. An XML comment in the file must not contain two hyphens in a row: the tool then rejects the
 whole file with "Provided settings file doesn't exist or is invalid".
 
-**The gate.** The `coverage` job merges the reports (the three test jobs' and the integration scenarios') ([scripts/merge-coverage.py](../../scripts/merge-coverage.py)):
+**The gate.** The `coverage` job merges the reports (the three test jobs' and the three integration jobs') ([scripts/merge-coverage.py](../../scripts/merge-coverage.py)):
 a line counts as covered when any platform ran it. Lines are grouped by the project their file lives in
 (`src/<project>/...`), not by the assembly that ran them, so the app's linked files count as `ErikTerm.App` and never
 inflate the libraries. The four libraries must each reach 80%; the total is over them alone. `ErikTerm.App` follows
@@ -104,7 +105,13 @@ features) only runs with a real window. The `integration (linux)` job runs them 
 24.04 has no SDL3) under dotnet-coverage, with
 [tests/ErikTerm.IntegrationTests/coverage.config](../../tests/ErikTerm.IntegrationTests/coverage.config): the
 `erikterm` processes the tests start are measured (the app and the four libraries, sources under `src/`), and the
-report is uploaded as `coverage-integration-linux`. The `coverage` and `sonar` jobs pick it up with the test jobs'
+report is uploaded as `coverage-integration-linux`. `integration (windows)` and `integration (macos)` run the same
+scenarios on GitHub's Windows and macOS runners (`coverage-integration-windows`, `coverage-integration-macos`), for
+the code only those systems run: ConPTY and the Windows process tree, `WindowsFontLocator` and `MacFontLocator`, cmd,
+PowerShell and the macOS login shell, the macOS spawn helper and socket directory; and, with a real window on the
+runner's desktop (`ERIKTERM_IT_DESKTOP=1`, `Scenarios/DesktopTests.cs`), the UI Automation provider in
+`Accessibility/`, the Win32 hit test and caption double click in `Chrome/` and the DWM backdrop. The `coverage` and
+`sonar` jobs pick these up with the test jobs'
 reports (`coverage-*`), and a line counts as covered when any report ran it, so the per-project totals in the
 `coverage` job and SonarQube Cloud's include what the scenarios ran. Locally:
 
@@ -113,9 +120,9 @@ scripts/integration-tests.sh --coverage coverage/integration/coverage.xml
 python3 scripts/merge-coverage.py coverage/coverage.xml coverage/integration/coverage.xml
 ```
 
-What stays uncovered on Linux is mostly code for other systems (Windows UI Automation in `Accessibility/`, the
-borderless window chrome in `Chrome/`, `WindowsFontLocator`, ConPTY) and paths a scenario can't reach off-screen
-(system dark-mode and accessibility settings, the compositor's drag-and-drop between processes, real tmux handoff).
+What stays uncovered is mostly what no scenario can drive: system dark-mode and accessibility settings changing,
+the compositor's drag-and-drop between processes, real tmux handoff, and key events as the platform delivers them
+(the debug script's keys skip SDL's event translation, so `MacKeys` is left to the unit tests).
 
 **JavaScript.** The release scripts job runs `node --test eng/` with node's own coverage and writes
 `coverage/lcov.info` (the test files left out, paths relative to the checkout), uploaded as `coverage-eng`; the sonar

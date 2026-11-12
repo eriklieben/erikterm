@@ -276,13 +276,170 @@ jobs:
           path: coverage/coverage.xml
           if-no-files-found: error
 
+  # The same scenarios on Windows, for what only runs there: ConPTY (the bundled conpty.dll and OpenConsole.exe, as
+  # the downloads ship them), the process tree and PEB reads behind the pane's program and directory, the registry and
+  # font folder lookup, cmd and PowerShell in panes, and, with a real window on the runner's desktop
+  # (ERIKTERM_IT_DESKTOP, Scenarios/DesktopTests.cs), the UI Automation provider, the Win32 hit test and DWM. The panes
+  # run Git for Windows' sh; stand-in programs are copies of tests/ErikTerm.IntegrationTests.StandIn. Coverage like
+  # integration-linux; documentation-only changes skip it.
+  integration-windows:
+    name: integration (windows)
+    needs: scope
+    if: needs.scope.outputs.full == 'true'
+    runs-on: windows-2025
+    timeout-minutes: 45
+    steps:
+      # The scenarios hand sh scripts and the reference scenes to Git's sh: they need the repository's \n line ends,
+      # not the CRLF a Windows checkout makes by default.
+      - name: Check out with LF line ends
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          global-json-file: global.json
+      # The same packages and cache key as test-windows and the win-x64 build.
+      - name: Cache vcpkg packages
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}\vcpkg-cache
+          key: vcpkg-x64-windows-sdl3-freetype-harfbuzz-v1
+      - name: Native libraries (vcpkg)
+        shell: pwsh
+        env:
+          VCPKG_DEFAULT_BINARY_CACHE: ${{ runner.temp }}\vcpkg-cache
+        run: |
+          New-Item -ItemType Directory -Force $env:VCPKG_DEFAULT_BINARY_CACHE | Out-Null
+          & "$env:VCPKG_INSTALLATION_ROOT\vcpkg.exe" install sdl3 freetype harfbuzz --triplet x64-windows --clean-after-build
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      # erikterm loads its DLLs (and the bundled console host) only from its own directory (NativeLibraries.cs,
+      # ConPty.cs): the output folder of the build the scenarios run. The console host is the release
+      # scripts/publish-windows.ps1 pins (read from it, so there is one pin). JetBrains Mono, erikterm's default
+      # font, goes to the user's font folder, where erikterm's own lookup finds it (without it every run starts with a
+      # "Config problem" toast about the font).
+      - name: DLLs, the console host and a font
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $app = 'src\ErikTerm.App\bin\Debug\net10.0'
+          New-Item -ItemType Directory -Force $app | Out-Null
+          Copy-Item "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\bin\*.dll" $app
+          $publish = Get-Content scripts\publish-windows.ps1 -Raw
+          $pin = @{}
+          foreach ($name in 'conptyTag', 'conptyVersion', 'conptySha256') {
+            $pin[$name] = [regex]::Match($publish, "\`$$name = '([^']+)'").Groups[1].Value
+            if (-not $pin[$name]) { throw "no $name in scripts\publish-windows.ps1" }
+          }
+          $package = Join-Path $env:RUNNER_TEMP 'conpty.nupkg'
+          Invoke-WebRequest -UseBasicParsing -OutFile $package -Uri "https://github.com/microsoft/terminal/releases/download/$($pin.conptyTag)/Microsoft.Windows.Console.ConPTY.$($pin.conptyVersion).nupkg"
+          if ((Get-FileHash $package -Algorithm SHA256).Hash -ne $pin.conptySha256) { throw 'the ConPTY package does not match its hash' }
+          $conpty = Join-Path $env:RUNNER_TEMP 'conpty'
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          [IO.Compression.ZipFile]::ExtractToDirectory($package, $conpty)
+          Copy-Item (Join-Path $conpty 'runtimes\win-x64\native\conpty.dll') $app
+          Copy-Item (Join-Path $conpty 'build\native\runtimes\x64\OpenConsole.exe') $app
+          $zip = Join-Path $env:RUNNER_TEMP 'jetbrains-mono.zip'
+          Invoke-WebRequest -UseBasicParsing -OutFile $zip -Uri 'https://github.com/JetBrains/JetBrainsMono/releases/download/v2.304/JetBrainsMono-2.304.zip'
+          if ((Get-FileHash $zip -Algorithm SHA256).Hash -ne '6F6376C6ED2960EA8A963CD7387EC9D76E3F629125BC33D1FDCD7EB7012F7BBF') { throw 'JetBrains Mono does not match its hash' }
+          $fonts = Join-Path $env:RUNNER_TEMP 'jetbrains-mono'
+          Expand-Archive $zip -DestinationPath $fonts
+          # A per-user install, as Windows does it: the file in the user's font folder and a value naming it under
+          # HKCU's font list. The registry is what erikterm reads first (WindowsFontLocator); its scan of the font
+          # folder would look in the run's own %LOCALAPPDATA%, since the scenarios give each run one.
+          $userFonts = Join-Path $env:LOCALAPPDATA 'Microsoft\Windows\Fonts'
+          New-Item -ItemType Directory -Force $userFonts | Out-Null
+          $fontList = 'HKCU:\Software\Microsoft\Windows NT\CurrentVersion\Fonts'
+          if (-not (Test-Path $fontList)) { New-Item $fontList | Out-Null }
+          foreach ($file in Get-ChildItem (Join-Path $fonts 'fonts\ttf') -Filter 'JetBrainsMono-*.ttf') {
+            $target = Join-Path $userFonts $file.Name
+            Copy-Item $file.FullName $target
+            $style = ($file.BaseName -replace '^JetBrainsMono-', '') -replace '(?<=.)Italic$', ' Italic'
+            New-ItemProperty -Path $fontList -Name "JetBrains Mono $style (TrueType)" -Value $target -PropertyType String -Force | Out-Null
+          }
+      - name: Scenarios
+        # Git Bash runs the script, as on Linux. ERIKTERM_IT_DESKTOP: the runner's desktop session may show windows,
+        # so the [Desktop] scenarios run here. The run directories are kept for the upload below when one fails.
+        shell: bash
+        env:
+          ERIKTERM_IT_KEEP: "1"
+          ERIKTERM_IT_DESKTOP: "1"
+        run: scripts/integration-tests.sh --coverage coverage/coverage.xml
+      # A control socket a killed erikterm left behind is an AF_UNIX reparse point the upload can't stat (EACCES).
+      - name: Drop leftover control sockets
+        if: failure()
+        shell: pwsh
+        run: Get-ChildItem (Join-Path $env:RUNNER_TEMP 'etit-*') -Recurse -Force -Filter '*.sock' -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
+      - name: Keep the failed runs' screenshots and logs
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: integration-runs-windows
+          path: ${{ runner.temp }}/etit-*/
+          retention-days: 5
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coverage-integration-windows
+          path: coverage/coverage.xml
+          if-no-files-found: error
+
+  # The same scenarios on macOS: the pty's spawn helper, libproc for the pane's program and directory, the socket
+  # directory, the font folder scan (MacFontLocator: Homebrew's fontconfig, which HarfBuzz brings along, is unlinked so
+  # erikterm doesn't use fc-match instead) and, with a real Cocoa window (ERIKTERM_IT_DESKTOP), the window itself.
+  # Coverage like integration-linux; documentation-only changes skip it.
+  integration-macos:
+    name: integration (macos)
+    needs: scope
+    if: needs.scope.outputs.full == 'true'
+    runs-on: macos-15
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          global-json-file: global.json
+      # JetBrains Mono, erikterm's default font, in /Library/Fonts: the scenarios' HOME is their own, so the runner
+      # user's ~/Library/Fonts isn't searched.
+      - name: Native libraries and a font
+        run: |
+          brew install sdl3 freetype harfbuzz
+          if brew list fontconfig >/dev/null 2>&1; then brew unlink fontconfig; fi
+          zip="$RUNNER_TEMP/jetbrains-mono.zip"
+          curl -fsSL -o "$zip" https://github.com/JetBrains/JetBrainsMono/releases/download/v2.304/JetBrainsMono-2.304.zip
+          echo "6f6376c6ed2960ea8a963cd7387ec9d76e3f629125bc33d1fdcd7eb7012f7bbf  $zip" | shasum -a 256 -c -
+          unzip -q -o "$zip" 'fonts/ttf/*' -d "$RUNNER_TEMP/jetbrains-mono"
+          sudo cp "$RUNNER_TEMP"/jetbrains-mono/fonts/ttf/*.ttf /Library/Fonts/
+      - name: Scenarios
+        env:
+          ERIKTERM_IT_KEEP: "1"
+          ERIKTERM_IT_DESKTOP: "1"
+        run: scripts/integration-tests.sh --coverage coverage/coverage.xml
+      - name: Keep the failed runs' screenshots and logs
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: integration-runs-macos
+          path: /private/tmp/etit-*/
+          retention-days: 5
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coverage-integration-macos
+          path: coverage/coverage.xml
+          if-no-files-found: error
+
   # Line coverage over all three platforms: code for one system is measured on that system. The four libraries are
   # gated; ErikTerm.App (the part the tests compile in, tests/ErikTerm.Tests/coverage.config) is reported without a
-  # gate. The integration scenarios' report (integration-linux) counts too: a line any of them ran is covered.
-  # docs/development/code-analysis.md.
+  # gate. The integration scenarios' reports (integration-linux, -windows, -macos) count too: a line any of them ran
+  # is covered. docs/development/code-analysis.md.
   coverage:
     name: coverage
-    needs: [test, test-macos, test-windows, integration-linux]
+    needs: [test, test-macos, test-windows, integration-linux, integration-windows, integration-macos]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -297,12 +454,13 @@ jobs:
 
   # The downloads, as a development build (no release version). Releases build with release.yml.
   # SonarQube Cloud: pushes to main and manual runs on main only (the token is a secret; pull requests and forks don't
-  # get it). It imports this run's coverage (coverage-linux, -macos, -windows, -integration-linux, and the eng/ lcov of
-  # release-scripts), so nothing is tested twice, and wraps one Release build of src/ErikTerm.App with SonarScanner for
-  # .NET. Skipped without the secret SONAR_TOKEN. docs/development/code-analysis.md.
+  # get it). It imports this run's coverage (coverage-linux, -macos, -windows, -integration-linux, -integration-windows,
+  # -integration-macos, and the eng/ lcov of release-scripts), so nothing is tested twice, and wraps one Release build
+  # of src/ErikTerm.App with SonarScanner for .NET. Skipped without the secret SONAR_TOKEN.
+  # docs/development/code-analysis.md.
   sonar:
     name: SonarQube Cloud
-    needs: [test, test-macos, test-windows, integration-linux, release-scripts]
+    needs: [test, test-macos, test-windows, integration-linux, integration-windows, integration-macos, release-scripts]
     if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 20

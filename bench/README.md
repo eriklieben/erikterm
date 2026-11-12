@@ -51,7 +51,8 @@ scripts/integration-tests.sh --coverage coverage/integration.xml      # under do
 **Off-screen and private.** Each run gets SDL's offscreen video driver and software renderer
 (`SDL_VIDEODRIVER=offscreen`, `SDL_RENDER_DRIVER=software`), no `DISPLAY`, `WAYLAND_DISPLAY`, D-Bus session,
 `ERIKTERM_*`, `TMUX` or `TMUX_PANE`, and its own `HOME` and XDG runtime, state, config, data and cache directories under
-`/tmp/etit-*` (short, for the control socket's path limit; `ERIKTERM_IT_KEEP=1` keeps them). No window opens, and a
+`/tmp/etit-*` (short, for the control socket's path limit; `ERIKTERM_IT_KEEP=1` keeps them; macOS `/private/tmp`,
+Windows `%RUNNER_TEMP%` or `%TEMP%`). No window opens, and a
 scenario never talks to an erikterm you are using or reads your configuration, so the suite is safe to run from
 inside erikterm. The programs erikterm hands things to — `xdg-open`/`open`, `notify-send`, `gh`, `$VISUAL`/`$EDITOR`
 and the coding agents `claude`, `codex`, `copilot` — are stand-ins first on `PATH` that only write their arguments to
@@ -74,10 +75,23 @@ test checks it at each `wait-file` stop, so its body has numbered `// Act N` / `
 where a step only observes). At most half the cores' worth of erikterm processes run at once (`ERIKTERM_IT_PARALLEL`), since
 the steps are timed and the software renderer is single-threaded.
 
+**Windows and macOS.** The same scenarios run there (CI's `integration (windows)` and `integration (macos)` jobs;
+`scripts/integration-tests.sh` from Git Bash on Windows). On Windows the panes run Git for Windows' sh
+(`usr\bin\sh.exe`, or `ERIKTERM_IT_SH`), so the scenarios type the same commands; the stand-ins are sh scripts there
+too, each with a `NAME.exe` copy of `tests/ErikTerm.IntegrationTests.StandIn` beside it (CreateProcess only starts an
+.exe), and the link opener is `explorer.exe`. Each run's `%LOCALAPPDATA%` and `%APPDATA%` are its own `state\` and
+`config\` (Windows resolves erikterm's `Environment.GetFolderPath` from them), so control sockets, sessions and crash
+logs stay in the run's directory as on Linux. `SDL3.dll`, FreeType,
+HarfBuzz and the console host (`conpty.dll`, `OpenConsole.exe`) must be in `src/ErikTerm.App/bin/Debug/net10.0/`,
+and JetBrains Mono installed (build.yml's `integration (windows)` job shows how). `Scenarios/PlatformTests.cs` covers
+what only those systems do off-screen (the system shell, batch files and cmd, the font lookup);
+`Scenarios/DesktopTests.cs` needs a real window (UI Automation, the Win32 hit test, the Cocoa window) and runs only with
+`ERIKTERM_IT_DESKTOP=1`, which CI's Windows and macOS jobs set: elsewhere those tests are reported as skipped.
+
 **Coverage.** dotnet-coverage (a local tool, `.config/dotnet-tools.json`) runs the test assembly and measures the
 erikterm processes it starts, with [tests/ErikTerm.IntegrationTests/coverage.config](../tests/ErikTerm.IntegrationTests/coverage.config)
-(the app and the four libraries, sources under `src/`). CI's `integration (linux)` job uploads that report as
-`coverage-integration-linux`; see [Coverage](../docs/development/code-analysis.md#coverage).
+(the app and the four libraries, sources under `src/`). CI's integration jobs upload that report as
+`coverage-integration-linux`, `-windows` and `-macos`; see [Coverage](../docs/development/code-analysis.md#coverage).
 
 **Converting xUnit tests** (e.g. from a branch started before the switch):
 

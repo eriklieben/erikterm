@@ -10,14 +10,17 @@ public class PaneFeatureTests
     [Test]
     public async Task Notifications_reach_the_bar_the_panel_and_the_desktop()
     {
-        // Arrange: the window counts as unfocused, so a pane's notification is shown, not read at once.
+        // Arrange: the window counts as unfocused, so a pane's notification is shown, not read at once. Unfocused before
+        // the first shot: the test types the printf as soon as plain.bmp exists, and a step after the shot ran a step
+        // interval later, so on a slow runner the notification could arrive while the window still had focus (then
+        // erikterm rightly raises no desktop notification).
         await using var run = AppRun.Start(new Scenario
         {
             Config = "os_notifications = \"on\"\nnotify_command_duration = 1",
             Script = """
                 sleep:600
-                shot:plain.bmp
                 unfocus
+                shot:plain.bmp
                 wait-file:sent
                 sleep:800
                 shot:bar.bmp
@@ -61,8 +64,10 @@ public class PaneFeatureTests
         var panel = await Checks.RenderedAsync(run, "panel.bmp");
         await Checks.DifferAsync(bar, panel, because: "the notifications panel");
         await Checks.RenderedAsync(run, "finished.bmp");
-        await Assert.That(run.Calls.Any(c => c.StartsWith("notify-send", StringComparison.Ordinal) && c.Contains("Build finished"))).IsTrue()
-            .Because(string.Join("\n", run.Calls));
+        // Windows has no notify-send: erikterm raises none there (Host/ProcessNotifications.cs).
+        if (!OperatingSystem.IsWindows())
+            await Assert.That(run.Calls.Any(c => c.StartsWith("notify-send", StringComparison.Ordinal) && c.Contains("Build finished"))).IsTrue()
+                .Because(string.Join("\n", run.Calls));
         run.Release("done");
         await Checks.CleanExitAsync(run);
     }

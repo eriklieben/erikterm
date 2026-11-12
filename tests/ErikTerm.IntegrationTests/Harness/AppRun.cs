@@ -39,6 +39,18 @@ internal sealed record Scenario
 
     /// <summary>Leave the directory when the run ends (a later run reuses it); the last run deletes it.</summary>
     public bool KeepDirectory { get; init; }
+
+    /// <summary>
+    /// A real window: SDL's own video driver for the platform instead of the offscreen one (with the software renderer
+    /// still). Only for tests marked <see cref="DesktopAttribute"/>, which run where a window may open.
+    /// </summary>
+    public bool Desktop { get; init; }
+
+    /// <summary>
+    /// No default_prog in the base settings: the panes run the platform's own shell (Pty.DefaultShell: PowerShell on
+    /// Windows, $SHELL as a login shell on macOS), with erikterm's shell integration.
+    /// </summary>
+    public bool SystemShell { get; init; }
 }
 
 /// <summary>
@@ -46,12 +58,23 @@ internal sealed record Scenario
 /// DISPLAY or WAYLAND_DISPLAY, and its own HOME, XDG runtime, state, config, data and cache directories, so it never
 /// shows a window, talks to an erikterm you are using or reads your configuration. Coverage: run the whole test
 /// assembly under dotnet-coverage (scripts/integration-tests.sh); the erikterm processes it starts are measured too.
+/// <para>
+/// Windows: %LOCALAPPDATA% and %APPDATA% are the run's state/ and config/. erikterm reads them through
+/// Environment.GetFolderPath, which Windows resolves from the process's own variables, so its control socket, session
+/// file, crash logs and remembered choices are the run's (CI found state\erikterm\erikterm-PID.sock and the crash logs
+/// there). macOS keeps the control socket in the user's own temp directory (IpcPaths), shared by the runs but named
+/// after each one's pid.
+/// </para>
 /// </summary>
 internal sealed class AppRun : IAsyncDisposable
 {
-    /// <summary>Settings every scenario starts from: fixed size, nothing animated, nothing from the machine.</summary>
-    public const string BaseConfig = """
-        default_prog = ["/bin/sh"]
+    /// <summary>
+    /// Settings every scenario starts from: fixed size, nothing animated, nothing from the machine. The panes run sh
+    /// (<see cref="Platform.Shell"/>: Git for Windows' on Windows).
+    /// </summary>
+    public static string BaseConfig => $"default_prog = [{Platform.Toml(Platform.Shell)}]\n" + BaseSettings;
+
+    private const string BaseSettings = """
         font_size = 12
         line_height = 1.2
         window_padding = 8
@@ -73,6 +96,7 @@ internal sealed class AppRun : IAsyncDisposable
         """;
 
     private static readonly string AppDirectory = Metadata("AppDirectory");
+    private static readonly string StandInDirectory = Metadata("StandInDirectory");
 
     /// <summary>The checkout the tests were built from.</summary>
     public static string RepositoryRoot { get; } = Path.GetFullPath(Metadata("RepositoryRoot"));
@@ -120,7 +144,13 @@ internal sealed class AppRun : IAsyncDisposable
     /// <summary>The run's directory: home/, rt/ (XDG_RUNTIME_DIR), state/, config/, cwd/ and the script's files.</summary>
     public string Directory { get; }
 
-    public string StateDirectory => Path.Combine(Directory, "state", "erikterm");
+    /// <summary>Where erikterm keeps its state (session, crash logs): the run's own state/erikterm, on Windows too.</summary>
+    public string StateDirectory => StateDirectoryOf(Directory);
+
+    private static string StateDirectoryOf(string dir) => Path.Combine(dir, "state", "erikterm");
+
+    /// <summary>The session file this run saves and restores.</summary>
+    public static string SessionFileOf(string dir) => Path.Combine(StateDirectoryOf(dir), "session.json");
 
     private AppRun(string directory, bool owns, Process process, Dictionary<string, string> env)
     {
@@ -130,12 +160,13 @@ internal sealed class AppRun : IAsyncDisposable
         _env = env;
     }
 
-    /// <summary>A short private directory: Unix socket paths may be at most 107 bytes (103 on macOS), so not $TMPDIR.</summary>
+    /// <summary>
+    /// A short private directory: Unix socket paths may be at most 107 bytes (103 on macOS), so not $TMPDIR
+    /// (<see cref="Platform.TempRoot"/>).
+    /// </summary>
     public static string NewDirectory()
     {
-        // macOS: /tmp is a link to /private/tmp, and erikterm reports the resolved path (cwd, current_path).
-        string root = OperatingSystem.IsWindows() ? Path.GetTempPath() : OperatingSystem.IsMacOS() ? "/private/tmp" : "/tmp";
-        string dir = Path.Combine(root, "etit-" + Guid.NewGuid().ToString("N")[..10]);
+        string dir = Path.Combine(Platform.TempRoot(), "etit-" + Guid.NewGuid().ToString("N")[..10]);
         if (OperatingSystem.IsWindows()) System.IO.Directory.CreateDirectory(dir);
         else System.IO.Directory.CreateDirectory(dir, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
         return dir;
@@ -152,11 +183,17 @@ internal sealed class AppRun : IAsyncDisposable
             System.IO.Directory.CreateDirectory(runtime, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
 
         string config = Path.Combine(dir, "erikterm.toml");
-        File.WriteAllText(config, MergeConfig(BaseConfig, scenario.Config));
+        File.WriteAllText(config, MergeConfig(scenario.SystemShell ? BaseSettings : BaseConfig, scenario.Config));
         string script = Path.Combine(dir, "script.txt");
         File.WriteAllText(script, ExpandScript(scenario.Script, dir));
 
         var env = PrivateEnvironment(dir);
+        if (scenario.Desktop)
+        {
+            env.Remove("SDL_VIDEODRIVER"); // SDL picks the platform's own (windows, cocoa)
+            // Cocoa has no framebuffer of its own: the software renderer's surface needs SDL's GPU texture one.
+            env.Remove("SDL_FRAMEBUFFER_ACCELERATION");
+        }
         env["ERIKTERM_DEBUG_SCRIPT_FILE"] = script;
         InstallFakes(dir, env, scenario.Fakes);
         foreach (var (k, v) in scenario.Env) env[k] = v.Replace("{dir}", dir);
@@ -192,7 +229,8 @@ internal sealed class AppRun : IAsyncDisposable
     /// </summary>
     internal static Dictionary<string, string> PrivateEnvironment(string dir)
     {
-        var env = new Dictionary<string, string>(StringComparer.Ordinal);
+        // Windows: names have no case (the variable is "Path" there; PATH must find it).
+        var env = new Dictionary<string, string>(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
         foreach (System.Collections.DictionaryEntry e in Environment.GetEnvironmentVariables())
             env[(string)e.Key] = (string?)e.Value ?? "";
         foreach (var name in env.Keys.ToList())
@@ -202,6 +240,11 @@ internal sealed class AppRun : IAsyncDisposable
                 env.Remove(name);
         env["SDL_VIDEODRIVER"] = "offscreen";
         env["SDL_RENDER_DRIVER"] = "software";
+        // macOS and Windows, off-screen: no GPU texture behind the window's surface. SDL would try each GPU renderer for
+        // it first (SDL_CreateWindowTexture), and off-screen none works there (no EGL, no HWND or NSView): skip that and
+        // use the in-memory surface (which has no alpha channel). Linux keeps its EGL one, which carries the alpha the
+        // translucency scenario checks.
+        if (!OperatingSystem.IsLinux()) env["SDL_FRAMEBUFFER_ACCELERATION"] = "0";
         env["HOME"] = Path.Combine(dir, "home");
         env["XDG_RUNTIME_DIR"] = Path.Combine(dir, "rt");
         env["XDG_STATE_HOME"] = Path.Combine(dir, "state");
@@ -230,16 +273,18 @@ internal sealed class AppRun : IAsyncDisposable
     /// <summary>
     /// The programs erikterm hands things to (the link opener, desktop notifications, the editor, coding agents) are
     /// stand-ins first on PATH that only write their arguments to calls.log: nothing reaches the desktop, and a test
-    /// can check what would have been opened. Unix only (they are sh scripts).
+    /// can check what would have been opened. They are sh scripts; on Windows, where CreateProcess only starts an .exe,
+    /// each also gets NAME.exe, a copy of the stand-in program (tests/ErikTerm.IntegrationTests.StandIn) that runs the
+    /// script NAME with Git for Windows' sh (FAKE_SH), and the link opener is explorer.exe.
     /// </summary>
     private static void InstallFakes(string dir, Dictionary<string, string> env, Dictionary<string, string> own)
     {
-        if (OperatingSystem.IsWindows()) return;
         string bin = Path.Combine(dir, "bin");
         System.IO.Directory.CreateDirectory(bin);
-        string log = Path.Combine(dir, "calls.log");
+        // Forward slashes on Windows: the scripts use these with MSYS2's sh, and erikterm splits $VISUAL like a shell.
+        string log = Platform.ShPath(Path.Combine(dir, "calls.log"));
         const string Recorder = "#!/bin/sh\nprintf '%s' \"$(basename \"$0\")\" >> \"$FAKE_CALLS\"\nfor a in \"$@\"; do printf ' [%s]' \"$a\" >> \"$FAKE_CALLS\"; done\nprintf '\\n' >> \"$FAKE_CALLS\"\n";
-        foreach (var name in new[] { "xdg-open", "open", "notify-send", "gh", "editor", "code" })
+        foreach (var name in new[] { "xdg-open", "open", "explorer", "notify-send", "gh", "editor", "code" })
             WriteExecutable(Path.Combine(bin, name), Recorder);
         // Coding agents: report a state with OSC 7501 like Claude Code does, print their arguments, wait.
         const string Agent = "#!/bin/sh\nprintf '%s' \"$(basename \"$0\")\" >> \"$FAKE_CALLS\"\nfor a in \"$@\"; do printf ' [%s]' \"$a\" >> \"$FAKE_CALLS\"; done\nprintf '\\n' >> \"$FAKE_CALLS\"\n" +
@@ -248,16 +293,35 @@ internal sealed class AppRun : IAsyncDisposable
             WriteExecutable(Path.Combine(bin, name), Agent);
         foreach (var (name, script) in own)
             WriteExecutable(Path.Combine(bin, name), script);
-        env["PATH"] = bin + Path.PathSeparator + env.GetValueOrDefault("PATH", "/usr/bin:/bin");
+        string path = env.GetValueOrDefault("PATH", "/usr/bin:/bin");
+        if (OperatingSystem.IsWindows())
+        {
+            InstallStandIns(bin);
+            env["FAKE_SH"] = Platform.Shell;
+            // The scripts' tools (cat, sed, sleep, base64 …) are MSYS2's, next to its sh; after Windows' own directories.
+            path += Path.PathSeparator + Path.GetDirectoryName(Platform.Shell);
+        }
+        env["PATH"] = bin + Path.PathSeparator + path;
         env["FAKE_CALLS"] = log;
-        env["VISUAL"] = Path.Combine(bin, "editor");
-        env["EDITOR"] = Path.Combine(bin, "editor");
-        env["BROWSER"] = Path.Combine(bin, "xdg-open");
+        env["VISUAL"] = Platform.ShPath(Path.Combine(bin, "editor"));
+        env["EDITOR"] = Platform.ShPath(Path.Combine(bin, "editor"));
+        env["BROWSER"] = Platform.ShPath(Path.Combine(bin, Platform.Opener));
+    }
+
+    /// <summary>Windows: NAME.exe for every script NAME in <paramref name="bin"/>, with the stand-in's assembly beside them.</summary>
+    private static void InstallStandIns(string bin)
+    {
+        foreach (string file in System.IO.Directory.GetFiles(StandInDirectory, "standin.*"))
+            if (!file.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+                File.Copy(file, Path.Combine(bin, Path.GetFileName(file)), overwrite: true);
+        string exe = Path.Combine(StandInDirectory, "standin.exe");
+        foreach (string script in System.IO.Directory.GetFiles(bin).Where(f => Path.GetExtension(f).Length == 0))
+            File.Copy(exe, script + ".exe", overwrite: true);
     }
 
     private static void WriteExecutable(string path, string content)
     {
-        File.WriteAllText(path, content);
+        File.WriteAllText(path, content.Replace("\r\n", "\n"));
         if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
     }
 
@@ -343,7 +407,8 @@ internal sealed class AppRun : IAsyncDisposable
 
     /// <summary>
     /// The control socket of this instance (erikterm cli --socket): erikterm-PID.sock in the directory IpcPaths picks,
-    /// $XDG_RUNTIME_DIR/erikterm on Linux (the run's own); the per-user temp or local app data directory elsewhere.
+    /// $XDG_RUNTIME_DIR/erikterm on Linux and %LOCALAPPDATA%\erikterm on Windows (both the run's own), the per-user temp
+    /// directory on macOS.
     /// </summary>
     public string Socket
     {
@@ -351,8 +416,8 @@ internal sealed class AppRun : IAsyncDisposable
         {
             string name = $"erikterm-{_process.Id}.sock";
             string[] dirs = OperatingSystem.IsLinux() ? [Path.Combine(Directory, "rt", "erikterm")]
-                : OperatingSystem.IsWindows() ? [Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "erikterm")]
-                : [Path.Combine(Path.GetTempPath(), "erikterm"), "/tmp/erikterm-" + Environment.GetEnvironmentVariable("UID")];
+                : OperatingSystem.IsWindows() ? [StateDirectory]
+                : [Path.Combine(Path.GetTempPath(), "erikterm"), "/tmp/erikterm-" + Platform.MacEffectiveUid];
             foreach (var d in dirs)
                 if (File.Exists(Path.Combine(d, name))) return Path.Combine(d, name);
             return Path.Combine(dirs[0], name);
@@ -455,10 +520,19 @@ internal sealed class AppRun : IAsyncDisposable
         return _process.ExitCode;
     }
 
-    /// <summary>Crash logs (internal errors) written so far: there should be none.</summary>
+    /// <summary>Crash logs (internal errors) this erikterm process wrote so far (the ones with its "pid:" line): there should be none.</summary>
     public string[] CrashLogs => System.IO.Directory.Exists(StateDirectory)
-        ? System.IO.Directory.GetFiles(StateDirectory, "crash-*.log").Select(File.ReadAllText).ToArray()
+        ? System.IO.Directory.GetFiles(StateDirectory, "crash-*.log").Select(File.ReadAllText)
+            .Where(text => text.Contains($"\npid: {_process.Id}\n", StringComparison.Ordinal)).ToArray()
         : [];
+
+    /// <summary>Writes a script (sh or other) for the pane to run, with \n line ends whatever the checkout has.</summary>
+    public string WriteScript(string name, string content)
+    {
+        string path = Path.Combine(Directory, name);
+        File.WriteAllText(path, content.Replace("\r\n", "\n"));
+        return path;
+    }
 
     /// <summary>
     /// Lines of the output that report a problem: exceptions, internal errors, failed script steps, and diagnostics
@@ -472,8 +546,10 @@ internal sealed class AppRun : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        string? socket = null;
         try
         {
+            socket = Socket;
             if (!_process.HasExited)
             {
                 _process.Kill(entireProcessTree: true);
@@ -482,6 +558,11 @@ internal sealed class AppRun : IAsyncDisposable
         }
         catch (InvalidOperationException) { /* never started */ }
         _process.Dispose();
+        // A killed erikterm leaves its control socket behind. On Windows that is an AF_UNIX reparse point in the run's
+        // directory, which other programs can't stat: actions/upload-artifact gave up on the kept runs with EACCES.
+        if (OperatingSystem.IsWindows() && socket is not null && File.Exists(socket))
+            try { File.Delete(socket); }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { /* the upload step skips it too */ }
         if (_ownsDirectory && Environment.GetEnvironmentVariable("ERIKTERM_IT_KEEP") != "1")
         {
             try { System.IO.Directory.Delete(Directory, recursive: true); }

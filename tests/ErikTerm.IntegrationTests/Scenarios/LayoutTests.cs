@@ -87,7 +87,7 @@ public class LayoutTests
 
         // Act
         string right = (await run.CliAsync("split-pane", "--right", "--percent", "30")).Trim();
-        string bottom = (await run.CliAsync("split-pane", "--bottom", "--pane-id", right, "--", "/bin/sh")).Trim();
+        string bottom = (await run.CliAsync("split-pane", "--bottom", "--pane-id", right, "--", Platform.Shell)).Trim();
         var panes = await run.WaitForPanesAsync(p => p.Length == 3);
 
         // Assert: the 30 % split is the narrow one.

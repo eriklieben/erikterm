@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The integration scenarios' stand-in programs on Windows (tests/ErikTerm.IntegrationTests/Harness/AppRun.cs,
+       InstallFakes). erikterm starts what it hands things to (explorer.exe, gh, $VISUAL, the coding agents) with
+       CreateProcess, which only runs an .exe; this one is copied as NAME.exe and runs the sh script NAME next to it, the
+       same script the Unix runs use, with Git for Windows' sh. Built everywhere (it is tiny), used on Windows only. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>standin</AssemblyName>
+    <RootNamespace>ErikTerm.IntegrationTests.StandIn</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <PublishAot>false</PublishAot>
+    <IsAotCompatible>false</IsAotCompatible>
+  </PropertyGroup>
+</Project>
