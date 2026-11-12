@@ -56,9 +56,18 @@ internal sealed partial class TmuxShim
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* falls back to the process arguments below */ }
         }
         else if (OperatingSystem.IsMacOS()) argv0 = MacArgv0();
+        // Windows: the shim is a hard-linked tmux.exe, and the process's own path is the link's. Not
+        // GetCommandLineArgs()[0]: in a framework-dependent build (.NET's app host) that is erikterm.dll, so the shim
+        // started the window instead (and failed on SDL3, which isn't in the shim directory).
+        else if (OperatingSystem.IsWindows()) argv0 = Environment.ProcessPath;
         argv0 ??= Environment.GetCommandLineArgs().FirstOrDefault();
-        return argv0 is not null && Path.GetFileNameWithoutExtension(argv0) == "tmux";
+        return IsTmuxName(argv0);
     }
+
+    /// <summary>Whether a program path or name is tmux's ("tmux", "/x/tmux", @"C:\x\tmux.exe"; any case on Windows).</summary>
+    internal static bool IsTmuxName(string? argv0) =>
+        argv0 is not null && string.Equals(Path.GetFileNameWithoutExtension(argv0), "tmux",
+            OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
 
     /// <summary>The real entry point (Program.Main).</summary>
     public static int RunMain(IReadOnlyList<string> args)
