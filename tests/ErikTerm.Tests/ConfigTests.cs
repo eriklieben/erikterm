@@ -115,6 +115,7 @@ public class TomlTests
     [Arguments("a = 1\na = 2", 2)]
     [Arguments("x = 1\n\ns = \"open", 3)]
     [Arguments("a = 1 b = 2", 1)]
+    [Arguments("x = \"\\UFFFFFFFF\"", 1)]
     public async Task ErrorsCarryLineNumbers(string toml, int line)
     {
         // Act

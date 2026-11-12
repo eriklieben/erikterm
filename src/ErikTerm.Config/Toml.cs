@@ -243,7 +243,8 @@ public static class Toml
         {
             if (_pos + digits > s.Length ||
                 !int.TryParse(s.AsSpan(_pos, digits), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out int cp) ||
-                cp > 0x10FFFF || cp is >= 0xD800 and <= 0xDFFF)
+                cp is < 0 or > 0x10FFFF || cp is >= 0xD800 and <= 0xDFFF) // eight hex digits can parse negative
+
                 throw Error("invalid unicode escape");
             _pos += digits;
             return char.ConvertFromUtf32(cp);
