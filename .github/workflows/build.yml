@@ -245,9 +245,10 @@ jobs:
     container: archlinux:base-devel@sha256:fa2d4ce3310ddd90a4208e5168be8ad367da5129af1245f38fd2d803bcbe3239
     steps:
       # git before the checkout (it then clones instead of downloading a tarball: build/BuildInfo.targets stamps the
-      # commit); a font for the scenarios to render with; ICU for the .NET SDK.
+      # commit); JetBrains Mono, erikterm's default font (without it every run starts with a "Config problem" toast
+      # about the font); ICU for the .NET SDK.
       - name: Native libraries, git and a font
-        run: pacman -Syu --noconfirm --needed git sdl3 freetype2 harfbuzz fontconfig ttf-dejavu icu
+        run: pacman -Syu --noconfirm --needed git sdl3 freetype2 harfbuzz fontconfig ttf-jetbrains-mono icu
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
