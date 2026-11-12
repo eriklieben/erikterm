@@ -49,7 +49,13 @@ public class OverlayTests
         script.Add("shot:after.bmp");
         script.Add("sleep:300");
         script.Add("close-window");
-        await using var run = AppRun.Start(new Scenario { Script = string.Join('\n', script) });
+        // The pane's program ignores the keyboard without echoing it: on a slow runner an overlay can open after the keys
+        // meant for it, and a shell would then show them (bash even asks "Display all possibilities?" for the Tab).
+        await using var run = AppRun.Start(new Scenario
+        {
+            Script = string.Join('\n', script),
+            Config = "default_prog = [\"/bin/sh\", \"-c\", \"stty raw -echo; exec cat > /dev/null\"]",
+        });
 
         // Act
         var baseline = await Checks.RenderedAsync(run, "base.bmp");
