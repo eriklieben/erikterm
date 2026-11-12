@@ -652,4 +652,410 @@ public class WindowWorktreesTests
         await Assert.That(request).IsNull();
         await Assert.That(error!).Contains("can't start with -");
     }
+
+    // ---- A repository the tests below only read --------------------------------------------------
+
+    /// <summary>Main plus the feat worktree with one commit of its own; made once, as git is slow to set up.</summary>
+    private static readonly Lazy<TempRepo> SharedRepo = new(() =>
+    {
+        var repo = new TempRepo();
+        TempRepo.Commit(repo.Worktree, "work");
+        return repo;
+    });
+
+    [After(Class)]
+    public static void DeleteSharedRepo()
+    {
+        if (SharedRepo.IsValueCreated) SharedRepo.Value.Dispose();
+    }
+
+    // ---- Row status with a pull request ------------------------------------------------------------
+
+    [Test]
+    [Arguments("OPEN", false, "Pass", "#12 ✓")]
+    [Arguments("OPEN", true, "Fail", "#12 draft ✗")]
+    [Arguments("MERGED", false, "Pending", "#12 merged …")]
+    [Arguments("OPEN", false, "None", "#12")]
+    public async Task StatusTextNamesThePullRequestAndItsChecks(string state, bool draft, string checks, string expected)
+    {
+        // Arrange
+        var gh = new GitHubStatus { PrNumber = 12, PrState = state, Draft = draft, Checks = Enum.Parse<CheckState>(checks) };
+
+        // Act
+        string text = WindowWorktrees<FakePane>.StatusText(new WorktreeRowStatus(0, 0, 0, false), gh, out _);
+
+        // Assert
+        await Assert.That(text).IsEqualTo(expected);
+    }
+
+    // ---- The palette -------------------------------------------------------------------------------
+
+    [Test]
+    public async Task ThePaletteOffersNewAgentWorktreeAndTheGitEntries()
+    {
+        // Arrange
+        var list = new List<Command>();
+
+        // Act
+        _sut.AddCommands(list);
+
+        // Assert: git is on PATH wherever the tests run.
+        await Assert.That(list.Select(c => c.Id)).IsEquivalentTo(["NewAgentWorktree", "ShowWorktrees", "FinishWorktree", "CleanUpWorktrees"], CollectionOrdering.Matching);
+        await Assert.That(list[1].Title).IsEqualTo("Worktrees…");
+    }
+
+    // ---- New Agent Worktree ------------------------------------------------------------------------
+
+    [Test]
+    public async Task TheFormNeedsADirectory()
+    {
+        // Arrange
+        _pane.Cwd = null;
+
+        // Act
+        _sut.OpenAgentForm();
+
+        // Assert
+        await Assert.That(_window.Toasts.Single()).IsEqualTo("No directory to look for a repository in");
+    }
+
+    [Test]
+    [NotInParallel(Isolation.Processes)]
+    public async Task TheFormNeedsARepository()
+    {
+        // Arrange
+        var dir = Directory.CreateTempSubdirectory("etww-norepo");
+        try
+        {
+            _pane.Cwd = dir.FullName;
+
+            // Act
+            _sut.OpenAgentForm();
+            _window.Drain();
+
+            // Assert
+            await Assert.That(_window.Toasts.Single()).IsEqualTo("Can't open New Agent Worktree");
+            await Assert.That(_sut.AnyOpen).IsFalse();
+        }
+        finally { dir.Delete(recursive: true); }
+    }
+
+    [Test]
+    [NotInParallel(Isolation.Processes)]
+    [ExcludeOn(OS.Windows)]
+    public async Task InARepositoryTheFormOpensAndTakesTheKeys()
+    {
+        // Arrange
+        var repo = SharedRepo.Value;
+        _pane.Cwd = repo.Root;
+
+        // Act
+        _sut.OpenAgentForm();
+        _window.Drain();
+        bool text = _sut.TextInput("fix it", 0);
+        bool key = _sut.KeyDown(Sdl.K_DOWN, 0, 0);
+
+        // Assert
+        await Assert.That(_sut.AnyOpen).IsTrue();
+        await Assert.That(text).IsTrue();
+        await Assert.That(key).IsTrue();
+        await Assert.That(_sut.IsAnimating(Environment.TickCount64)).IsTrue();
+    }
+
+    /// <summary>Opens the form on a fresh repository and points its base at a branch that doesn't exist, so git refuses.</summary>
+    private void FormWithAMissingBase(TempRepo repo)
+    {
+        _pane.Cwd = repo.Root;
+        _sut.OpenAgentForm();
+        _window.Drain();
+        _sut.KeyDown(Sdl.K_UP, 0, 0); // Prompt → Base
+        _sut.KeyDown('u', Sdl.KMOD_CTRL, 0);
+        _sut.TextInput("no-such-base", 0);
+    }
+
+    [Test]
+    [NotInParallel(Isolation.Processes)]
+    [ExcludeOn(OS.Windows)]
+    public async Task GitsRefusalShowsInTheFormAndKeepsItOpen()
+    {
+        // Arrange
+        var repo = SharedRepo.Value;
+        FormWithAMissingBase(repo);
+
+        // Act
+        _sut.KeyDown(Sdl.K_RETURN, 0, 0);
+        _window.Drain();
+
+        // Assert
+        await Assert.That(_sut.AnyOpen).IsTrue();
+        await Assert.That(_window.TabLaunches).IsEmpty();
+        await Assert.That(_window.Toasts).IsEmpty();
+    }
+
+    [Test]
+    [NotInParallel(Isolation.Processes)]
+    [ExcludeOn(OS.Windows)]
+    public async Task InTheBackgroundGitsRefusalIsAToast()
+    {
+        // Arrange
+        var repo = SharedRepo.Value;
+        FormWithAMissingBase(repo);
+
+        // Act
+        _sut.KeyDown(Sdl.K_RETURN, Sdl.KMOD_CTRL, 0);
+        _window.Drain();
+
+        // Assert: one toast that it's being created, one that it couldn't be.
+        await Assert.That(_window.Toasts.Count).IsEqualTo(2);
+        await Assert.That(_window.Toasts[1]).StartsWith("Couldn't create worktree");
+        await Assert.That(_window.TabLaunches).IsEmpty();
+    }
+
+    [Test]
+    [NotInParallel(Isolation.Processes)]
+    [ExcludeOn(OS.Windows)]
+    public async Task OpenOverlaysTakeTheMouseAndCloseOverlaysClosesThem()
+    {
+        // Arrange
+        var repo = SharedRepo.Value;
+        _pane.Cwd = repo.Root;
+        _sut.OpenAgentForm();
+        _window.Drain();
+
+        // Act
+        bool move = _sut.MouseMove(1, 1, 0);
+        _sut.CloseOverlays(0);
+        bool after = _sut.MouseDown(1, 1, 0);
+
+        // Assert
+        await Assert.That(move).IsTrue();
+        await Assert.That(after).IsFalse();
+        await Assert.That(_sut.AnyOpen).IsFalse();
+    }
+
+    [Test]
+    [NotInParallel(Isolation.Processes)]
+    [ExcludeOn(OS.Windows)]
+    public async Task AClickOutsideTheFormClosesIt()
+    {
+        // Arrange
+        var repo = SharedRepo.Value;
+        _pane.Cwd = repo.Root;
+        _sut.OpenAgentForm();
+        _window.Drain();
+
+        // Act
+        bool handled = _sut.MouseDown(1, 1, 0);
+
+        // Assert
+        await Assert.That(handled).IsTrue();
+        await Assert.That(_sut.AnyOpen).IsFalse();
+    }
+
+    // ---- The list ------------------------------------------------------------------------------------
+
+    [Test]
+    [NotInParallel(Isolation.Processes)]
+    public async Task TheListNeedsARepository()
+    {
+        // Arrange
+        var dir = Directory.CreateTempSubdirectory("etww-norepo");
+        try
+        {
+            _pane.Cwd = dir.FullName;
+
+            // Act
+            _sut.Execute("ShowWorktrees");
+            _window.Drain();
+
+            // Assert
+            await Assert.That(_window.Toasts.Single()).IsEqualTo("Can't list worktrees");
+            await Assert.That(_sut.AnyOpen).IsFalse();
+        }
+        finally { dir.Delete(recursive: true); }
+    }
+
+    [Test]
+    [NotInParallel(Isolation.Processes)]
+    [ExcludeOn(OS.Windows)]
+    public async Task TheListTakesKeysTextAndTheMouse()
+    {
+        // Arrange
+        var repo = SharedRepo.Value;
+        _pane.Cwd = repo.Root;
+        _sut.Execute("ShowWorktrees");
+        _window.Drain();
+
+        // Act
+        bool key = _sut.KeyDown('j', 0, 0);
+        bool text = _sut.TextInput("j", 0);
+        bool move = _sut.MouseMove(1, 1, 0);
+
+        // Assert
+        await Assert.That(key).IsTrue();
+        await Assert.That(text).IsTrue();
+        await Assert.That(move).IsTrue();
+        await Assert.That(_window.SuppressText).IsTrue();
+    }
+
+    [Test]
+    [NotInParallel(Isolation.Processes)]
+    [ExcludeOn(OS.Windows)]
+    public async Task EnterOnAWorktreeClosesTheList()
+    {
+        // Arrange
+        var repo = SharedRepo.Value;
+        _pane.Cwd = repo.Root;
+        _sut.Execute("ShowWorktrees");
+        _window.Drain();
+
+        // Act
+        Press(Sdl.K_RETURN);
+
+        // Assert
+        await Assert.That(_sut.AnyOpen).IsFalse();
+    }
+
+    [Test]
+    [NotInParallel(Isolation.Processes)]
+    [ExcludeOn(OS.Windows)]
+    public async Task RefreshingAndTickingKeepTheListOpen()
+    {
+        // Arrange
+        var repo = SharedRepo.Value;
+        _pane.Cwd = repo.Root;
+        _sut.Execute("ShowWorktrees");
+        _window.Drain();
+
+        // Act
+        Press('r');
+        _sut.Tick(Environment.TickCount64 + 60_000);
+        _window.Drain();
+
+        // Assert
+        await Assert.That(_sut.AnyOpen).IsTrue();
+        await Assert.That(_window.Toasts).IsEmpty();
+    }
+
+    [Test]
+    [NotInParallel(Isolation.Processes)]
+    [ExcludeOn(OS.Windows)]
+    public async Task NInTheListOpensTheForm()
+    {
+        // Arrange
+        var repo = SharedRepo.Value;
+        _pane.Cwd = repo.Root;
+        _sut.Execute("ShowWorktrees");
+        _window.Drain();
+
+        // Act
+        Press('n');
+        _window.Drain();
+        bool text = _sut.TextInput("x", 0);
+
+        // Assert: the form, not the list, has the text now.
+        await Assert.That(_sut.AnyOpen).IsTrue();
+        await Assert.That(text).IsTrue();
+    }
+
+    [Test]
+    [NotInParallel(Isolation.Processes)]
+    [ExcludeOn(OS.Windows)]
+    public async Task CInTheListSwitchesToCleanup()
+    {
+        // Arrange
+        var repo = SharedRepo.Value;
+        _pane.Cwd = repo.Root;
+        _sut.Execute("ShowWorktrees");
+        _window.Drain();
+
+        // Act
+        Press('c');
+        _window.Drain();
+        Press(Sdl.K_RETURN); // cleanup's Enter: the confirmation for what has landed
+        _window.Drain();
+
+        // Assert
+        await Assert.That(_sut.AnyOpen).IsTrue();
+    }
+
+    // ---- Finish --------------------------------------------------------------------------------------
+
+    [Test]
+    [NotInParallel(Isolation.Processes)]
+    public async Task FinishNeedsARepository()
+    {
+        // Arrange
+        var dir = Directory.CreateTempSubdirectory("etww-norepo");
+        try
+        {
+            _pane.Cwd = dir.FullName;
+
+            // Act
+            _sut.Execute("FinishWorktree");
+            _window.Drain();
+
+            // Assert
+            await Assert.That(_window.Toasts.Single()).IsEqualTo("Can't finish this worktree");
+        }
+        finally { dir.Delete(recursive: true); }
+    }
+
+    [Test]
+    [NotInParallel(Isolation.Processes)]
+    [ExcludeOn(OS.Windows)]
+    public async Task FInTheListOpensFinishForThatWorktree()
+    {
+        // Arrange
+        var repo = SharedRepo.Value;
+        _pane.Cwd = repo.Root;
+        _sut.Execute("ShowWorktrees");
+        _window.Drain();
+        Press('j'); // the feat worktree, after main
+
+        // Act
+        Press('f');
+        _window.Drain();
+        _sut.KeyDown(Sdl.K_TAB, 0, 0); // into the message
+
+        // Assert: typing in the message lets the text through.
+        await Assert.That(_sut.AnyOpen).IsTrue();
+        await Assert.That(_window.SuppressText).IsFalse();
+        await Assert.That(_sut.TextInput("x", 0)).IsTrue();
+    }
+
+    [Test]
+    [NotInParallel(Isolation.Processes)]
+    [ExcludeOn(OS.Windows)]
+    public async Task EscapeClosesFinish()
+    {
+        // Arrange
+        var repo = SharedRepo.Value;
+        _sut.OpenFinish(repo.Worktree);
+        _window.Drain();
+
+        // Act
+        bool handled = _sut.KeyDown(Sdl.K_ESCAPE, 0, 0);
+
+        // Assert
+        await Assert.That(handled).IsTrue();
+        await Assert.That(_sut.AnyOpen).IsFalse();
+    }
+
+    [Test]
+    [NotInParallel(Isolation.Processes)]
+    [ExcludeOn(OS.Windows)]
+    public async Task FinishOnTheMainWorktreeIsRefusedInTheForm()
+    {
+        // Arrange: main is the target itself.
+        var repo = SharedRepo.Value;
+
+        // Act
+        _sut.OpenFinish(repo.Root);
+        _window.Drain();
+        Press(Sdl.K_RETURN);
+
+        // Assert
+        await Assert.That(_window.Plans).IsEmpty();
+    }
 }

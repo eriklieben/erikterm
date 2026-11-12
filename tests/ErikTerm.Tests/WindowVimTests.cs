@@ -520,4 +520,808 @@ public class WindowVimTests
         // Assert
         await Assert.That(response).IsNull();
     }
+
+    // ---- Key and text routing --------------------------------------------------------------------------
+
+    [Test]
+    public async Task KeysAreNotVimsOutsideVimMode()
+    {
+        // Act
+        bool key = _sut.KeyDown('j', 0, 0);
+        bool text = _sut.TextInput("j");
+
+        // Assert
+        await Assert.That(key).IsFalse();
+        await Assert.That(text).IsFalse();
+    }
+
+    [Test]
+    public async Task APrintableKeyWaitsForItsTextEvent()
+    {
+        // Arrange
+        Toggle();
+
+        // Act
+        bool handled = _sut.KeyDown('j', 0, 0);
+
+        // Assert: taken, but the text that follows is what vim reads.
+        await Assert.That(handled).IsTrue();
+        await Assert.That(_window.SuppressText).IsFalse();
+    }
+
+    [Test]
+    public async Task AnUnboundCtrlKeyReachesNoProgram()
+    {
+        // Arrange
+        Toggle();
+
+        // Act
+        bool handled = _sut.KeyDown('q', Sdl.KMOD_CTRL | Sdl.KMOD_SHIFT, 0);
+
+        // Assert
+        await Assert.That(handled).IsTrue();
+        await Assert.That(_window.SuppressText).IsTrue();
+        await Assert.That(_window.Calls.Where(c => c.StartsWith("execute"))).IsEmpty();
+    }
+
+    [Test]
+    public async Task TheCopyModeKeyLeavesVimMode()
+    {
+        // Arrange
+        Toggle();
+        _process.Keys[KeyNames.Chord('x', Sdl.KMOD_CTRL | Sdl.KMOD_SHIFT)!.Value] = new ActionSpec("ActivateCopyMode", null);
+
+        // Act
+        _sut.KeyDown('x', Sdl.KMOD_CTRL | Sdl.KMOD_SHIFT, 0);
+
+        // Assert
+        await Assert.That(_a.Vim).IsNull();
+    }
+
+    [Test]
+    public async Task TheSearchKeyOpensVimsSlashPrompt()
+    {
+        // Arrange
+        Toggle();
+        _process.Keys[KeyNames.Chord('f', Sdl.KMOD_CTRL | Sdl.KMOD_SHIFT)!.Value] = new ActionSpec("Search", null);
+
+        // Act
+        _sut.KeyDown('f', Sdl.KMOD_CTRL | Sdl.KMOD_SHIFT, 0);
+
+        // Assert
+        await Assert.That(_a.Vim!.Prompt).IsEqualTo(VimPromptKind.SearchForward);
+    }
+
+    [Test]
+    public async Task TheCopyKeyYanksAVisualSelection()
+    {
+        // Arrange
+        _sut.Script("ggve");
+        _process.Keys[KeyNames.Chord('c', Sdl.KMOD_CTRL | Sdl.KMOD_SHIFT)!.Value] = new ActionSpec("CopyTo", "Clipboard");
+
+        // Act
+        _sut.KeyDown('c', Sdl.KMOD_CTRL | Sdl.KMOD_SHIFT, 0);
+
+        // Assert
+        await Assert.That(_window.CopiedText).IsEqualTo("hello");
+    }
+
+    [Test]
+    public async Task TheCopyKeyOutsideVisualModeIsAnOrdinaryAction()
+    {
+        // Arrange
+        Toggle();
+        _process.Keys[KeyNames.Chord('c', Sdl.KMOD_CTRL | Sdl.KMOD_SHIFT)!.Value] = new ActionSpec("CopyTo", "Clipboard");
+
+        // Act
+        _sut.KeyDown('c', Sdl.KMOD_CTRL | Sdl.KMOD_SHIFT, 0);
+
+        // Assert
+        await Assert.That(_window.Calls).Contains("execute:CopyTo");
+    }
+
+    [Test]
+    public async Task OpenSearchPromptOutsideVimModeIsNotVims()
+    {
+        // Act
+        bool opened = _sut.OpenSearchPrompt();
+
+        // Assert
+        await Assert.That(opened).IsFalse();
+    }
+
+    [Test]
+    public async Task OpenSearchPromptInVimModeOpensSlash()
+    {
+        // Arrange
+        Toggle();
+
+        // Act
+        bool opened = _sut.OpenSearchPrompt();
+
+        // Assert
+        await Assert.That(opened).IsTrue();
+        await Assert.That(_a.Vim!.Prompt).IsEqualTo(VimPromptKind.SearchForward);
+    }
+
+    [Test]
+    public async Task TypingASearchHighlightsWithVimsSearch()
+    {
+        // Arrange
+        Toggle();
+
+        // Act
+        _sut.Script("/wor");
+
+        // Assert
+        await Assert.That(_search.IsVim).IsTrue();
+        await Assert.That(_search.Pane).IsSameReferenceAs(_a);
+    }
+
+    [Test]
+    public async Task EscapingASearchEndsTheHighlights()
+    {
+        // Arrange
+        Toggle();
+        _sut.Script("/wor");
+
+        // Act
+        _sut.Script("<Esc>");
+
+        // Assert
+        await Assert.That(_search.IsVim).IsFalse();
+    }
+
+    [Test]
+    public async Task TickKeepsAPaneInVimModeAndReflowIsOnlyForThem()
+    {
+        // Arrange
+        Toggle();
+        _sut.Script("j");
+
+        // Act
+        _sut.Tick();
+        _sut.Reflowed(_a);
+        _sut.Reflowed(_b); // not in vim mode: nothing to do
+
+        // Assert
+        await Assert.That(_a.Vim).IsNotNull();
+        await Assert.That(_b.Vim).IsNull();
+    }
+
+    // ---- The cheat sheet -------------------------------------------------------------------------------
+
+    [Test]
+    public async Task GQuestionOpensTheCheatSheetWhichTakesTheKeys()
+    {
+        // Arrange
+        Toggle();
+        _sut.Script("g?");
+
+        // Act
+        bool key = _sut.KeyDown('j', 0, 0);
+        bool text = _sut.TextInput("j");
+
+        // Assert
+        await Assert.That(key).IsTrue();
+        await Assert.That(text).IsTrue();
+        await Assert.That(_window.SuppressText).IsTrue();
+        await Assert.That(_sut.IsAnimating(Environment.TickCount64)).IsTrue();
+    }
+
+    [Test]
+    public async Task EscClosesTheCheatSheetAndVimModeStays()
+    {
+        // Arrange
+        Toggle();
+        _sut.Script("g?");
+
+        // Act
+        _sut.KeyDown(Sdl.K_ESCAPE, 0, 0);
+        bool after = _sut.KeyDown('j', 0, 0);
+
+        // Assert: the next key is vim's again.
+        await Assert.That(after).IsTrue();
+        await Assert.That(_window.SuppressText).IsFalse();
+        await Assert.That(_a.Vim).IsNotNull();
+    }
+
+    [Test]
+    public async Task TheCheatSheetTakesClicksAndTheWheelWhileOpen()
+    {
+        // Arrange
+        Toggle();
+        _sut.Script("g?");
+
+        // Act
+        bool wheel = _sut.HelpWheel(1, 0);
+        bool click = _sut.HelpMouseDown(1, 1, 0);
+        bool afterClose = _sut.HelpWheel(1, 0);
+
+        // Assert: a click outside the card closed it.
+        await Assert.That(wheel).IsTrue();
+        await Assert.That(click).IsTrue();
+        await Assert.That(afterClose).IsFalse();
+    }
+
+    [Test]
+    public async Task CloseHelpClosesIt()
+    {
+        // Arrange
+        Toggle();
+        _sut.Script("g?");
+
+        // Act
+        _sut.CloseHelp(0);
+
+        // Assert
+        await Assert.That(_sut.HelpWheel(1, 0)).IsFalse();
+    }
+
+    // ---- The mouse ---------------------------------------------------------------------------------------
+
+    [Test]
+    public async Task ClicksOutsideVimModeAreNotVims()
+    {
+        // Act
+        bool down = _sut.MouseDown(_a, 1, 0, 0);
+        bool drag = _sut.MouseDrag(0, 0);
+        bool up = _sut.MouseUp();
+
+        // Assert
+        await Assert.That(down || drag || up).IsFalse();
+    }
+
+    [Test]
+    public async Task AClickMovesTheCursor()
+    {
+        // Arrange
+        Toggle();
+        _sut.Script("j$");
+
+        // Act
+        bool handled = _sut.MouseDown(_a, 1, 0, 0);
+
+        // Assert: the fake window puts every point on the top-left cell.
+        await Assert.That(handled).IsTrue();
+        await Assert.That(_a.Vim!.Cursor).IsEqualTo(new VimPos(_a.Term.ViewTopLine, 0));
+        await Assert.That(_a.Vim!.InVisual).IsFalse();
+    }
+
+    [Test]
+    public async Task ADoubleClickSelectsTheWord()
+    {
+        // Arrange
+        Toggle();
+
+        // Act
+        _sut.MouseDown(_a, 2, 0, 0);
+
+        // Assert
+        await Assert.That(_a.Vim!.Mode).IsEqualTo(VimMode.Visual);
+        await Assert.That(_a.Vim!.SelectionText()).IsEqualTo("hello");
+    }
+
+    [Test]
+    public async Task ATripleClickSelectsTheLine()
+    {
+        // Arrange
+        Toggle();
+
+        // Act
+        _sut.MouseDown(_a, 3, 0, 0);
+
+        // Assert
+        await Assert.That(_a.Vim!.Mode).IsEqualTo(VimMode.VisualLine);
+        await Assert.That(_a.Selection!.Mode).IsEqualTo(SelectionMode.Line);
+    }
+
+    [Test]
+    public async Task AClickUnderAPromptDoesNotMoveTheCursor()
+    {
+        // Arrange
+        Toggle();
+        _sut.Script("j:");
+        var before = _a.Vim!.Cursor;
+
+        // Act
+        bool handled = _sut.MouseDown(_a, 1, 0, 0);
+
+        // Assert
+        await Assert.That(handled).IsTrue();
+        await Assert.That(_a.Vim!.Cursor).IsEqualTo(before);
+    }
+
+    [Test]
+    public async Task DraggingBelowThePaneStartsAVisualSelection()
+    {
+        // Arrange
+        Toggle();
+        _sut.MouseDown(_a, 1, 0, 0);
+
+        // Act: below the pane's rectangle: one line further.
+        bool dragged = _sut.MouseDrag(0, 500);
+        bool up = _sut.MouseUp();
+
+        // Assert
+        await Assert.That(dragged).IsTrue();
+        await Assert.That(up).IsTrue();
+        await Assert.That(_a.Vim!.InVisual).IsTrue();
+    }
+
+    [Test]
+    public async Task DraggingOnTheSameCellIsNoSelection()
+    {
+        // Arrange
+        Toggle();
+        _sut.MouseDown(_a, 1, 0, 0);
+
+        // Act
+        bool dragged = _sut.MouseDrag(0, 10);
+
+        // Assert
+        await Assert.That(dragged).IsTrue();
+        await Assert.That(_a.Vim!.InVisual).IsFalse();
+    }
+
+    [Test]
+    public async Task ADragEndsWhenThePaneLeftVimMode()
+    {
+        // Arrange
+        Toggle();
+        _sut.MouseDown(_a, 1, 0, 0);
+        Toggle();
+
+        // Act
+        bool dragged = _sut.MouseDrag(0, 500);
+
+        // Assert
+        await Assert.That(dragged).IsFalse();
+    }
+
+    // ---- Ctrl-w ------------------------------------------------------------------------------------------
+
+    [Test]
+    [Arguments("h", "dir:Left")]
+    [Arguments("j", "dir:Down")]
+    [Arguments("k", "dir:Up")]
+    [Arguments("l", "dir:Right")]
+    [Arguments("s", "split:Vertical")]
+    [Arguments("n", "split:Vertical")]
+    [Arguments("v", "split:Horizontal")]
+    [Arguments("q", "request-close:1")]
+    [Arguments("c", "request-close:1")]
+    [Arguments("T", "move:1")]
+    public async Task CtrlWCommandsAskTheWindow(string command, string call)
+    {
+        // Arrange
+        Toggle();
+
+        // Act
+        _sut.Script("<C-w>" + command);
+
+        // Assert
+        await Assert.That(_window.Calls).Contains(call);
+    }
+
+    [Test]
+    [Arguments("x")]
+    [Arguments("r")]
+    [Arguments("R")]
+    [Arguments("=")]
+    [Arguments("H")]
+    [Arguments("J")]
+    [Arguments("K")]
+    [Arguments("L")]
+    [Arguments(">")]
+    [Arguments("<")]
+    [Arguments("+")]
+    [Arguments("-")]
+    public async Task CtrlWArrangementsReLayOutAnimated(string command)
+    {
+        // Arrange
+        Toggle();
+
+        // Act
+        _sut.Script("<C-w>" + command);
+
+        // Assert
+        await Assert.That(_window.Animated).IsTrue();
+    }
+
+    [Test]
+    public async Task CtrlWOZoomsAndUnzooms()
+    {
+        // Arrange
+        Toggle();
+
+        // Act
+        _sut.Script("<C-w>o");
+        var zoomed = _window.Zoomed;
+        _sut.Script("<C-w>o");
+
+        // Assert
+        await Assert.That(zoomed).IsSameReferenceAs(_a);
+        await Assert.That(_window.Zoomed).IsNull();
+    }
+
+    [Test]
+    public async Task CtrlWCapitalWWalksBackwards()
+    {
+        // Arrange
+        Toggle();
+
+        // Act
+        _sut.Script("<C-w>W");
+
+        // Assert
+        await Assert.That(_window.Calls).Contains("focus:2");
+    }
+
+    [Test]
+    public async Task AnUnknownCtrlWCommandExplains()
+    {
+        // Arrange
+        Toggle();
+
+        // Act
+        _sut.Script("<C-w>y");
+
+        // Assert
+        await Assert.That(_window.Toasts).Contains("Ctrl-w y: not a window command");
+    }
+
+    [Test]
+    public async Task ArrangingLeavesZoomFirst()
+    {
+        // Arrange
+        _window.Zoomed = _a;
+
+        // Act
+        _sut.ExecuteAction("SwapPane", "Previous", default);
+
+        // Assert
+        await Assert.That(_window.Zoomed).IsNull();
+        await Assert.That(_window.Animated).IsTrue();
+    }
+
+    [Test]
+    [Arguments("SwapPane", "")]
+    [Arguments("RotatePanes", "CounterClockwise")]
+    [Arguments("EqualizePanes", "")]
+    [Arguments("MovePaneToEdge", "")]
+    [Arguments("PaneLayout", "tiled")]
+    [Arguments("PaneLayout", "even")]
+    public async Task ArrangementActionsReLayOutAnimated(string action, string arg)
+    {
+        // Act
+        _sut.ExecuteAction(action, arg, Direction.Left);
+
+        // Assert
+        await Assert.That(_window.Animated).IsTrue();
+    }
+
+    [Test]
+    public async Task AnUnknownPaneLayoutDoesNothing()
+    {
+        // Act
+        _sut.ExecuteAction("PaneLayout", "spiral", default);
+
+        // Assert
+        await Assert.That(_window.Animated).IsFalse();
+        await Assert.That(_window.Toasts).IsEmpty();
+    }
+
+    [Test]
+    public async Task MovePaneToNewTabAsksTheWindow()
+    {
+        // Act
+        _sut.ExecuteAction("MovePaneToNewTab", "", default);
+
+        // Assert
+        await Assert.That(_window.Calls).Contains("move:1");
+    }
+
+    // ---- Ex commands -------------------------------------------------------------------------------------
+
+    [Test]
+    [Arguments(":split<CR>", "split:Vertical")]
+    [Arguments(":vsplit<CR>", "split:Horizontal")]
+    [Arguments(":vsplit htop<CR>", "split:Horizontal")]
+    [Arguments(":quit<CR>", "request-close:1")]
+    [Arguments(":quit!<CR>", "close:1")]
+    [Arguments(":tabclose!<CR>", "close-tab:True")]
+    [Arguments(":EqualizePanes<CR>", "execute:EqualizePanes")]
+    public async Task ExCommandsAskTheWindow(string keys, string call)
+    {
+        // Act
+        _sut.Script(keys);
+
+        // Assert
+        await Assert.That(_window.Calls).Contains(call);
+    }
+
+    [Test]
+    public async Task TabNextAndPreviousWalkTheTabs()
+    {
+        // Arrange
+        _window.Tabs.Add(new LayoutTree<FakePane>(new FakePane(4)));
+        _window.Tabs.Add(new LayoutTree<FakePane>(new FakePane(5)));
+
+        // Act
+        _sut.Script(":tabnext<CR>");
+        int next = _window.ActiveTabIndex;
+        Toggle();
+        _sut.Script(":tabprevious 2<CR>");
+
+        // Assert
+        await Assert.That(next).IsEqualTo(1);
+        await Assert.That(_window.ActiveTabIndex).IsEqualTo(2);
+    }
+
+    [Test]
+    public async Task TabNextWithANumberGoesToThatTab()
+    {
+        // Arrange
+        _window.Tabs.Add(new LayoutTree<FakePane>(new FakePane(4)));
+
+        // Act
+        _sut.Script(":tabnext 9<CR>");
+
+        // Assert: clamped to the last tab.
+        await Assert.That(_window.ActiveTabIndex).IsEqualTo(1);
+    }
+
+    [Test]
+    public async Task ABadActionIsAnErrorInThePrompt()
+    {
+        // Act
+        _sut.Script(":EqualizePanes(now)<CR>");
+
+        // Assert
+        await Assert.That(_a.Vim!.PromptError).IsNotNull();
+        await Assert.That(_window.Calls.Where(c => c.StartsWith("execute"))).IsEmpty();
+    }
+
+    [Test]
+    public async Task AnUnknownExCommandIsAnError()
+    {
+        // Act
+        _sut.Script(":frobnicate<CR>");
+
+        // Assert
+        await Assert.That(_a.Vim!.PromptError).IsNotNull();
+    }
+
+    [Test]
+    public async Task WriteSavesTheScrollbackToAFile()
+    {
+        // Arrange
+        var dir = Directory.CreateTempSubdirectory("vim-write-");
+        string path = Path.Combine(dir.FullName, "out.txt");
+        try
+        {
+            // Act
+            _sut.Script($":write {path}<CR>");
+
+            // Assert
+            await Assert.That(File.ReadAllText(path)).StartsWith("hello world");
+            await Assert.That(_window.Toasts.Any(t => t.StartsWith("Wrote "))).IsTrue();
+        }
+        finally { dir.Delete(recursive: true); }
+    }
+
+    [Test]
+    public async Task WriteWontOverwriteWithoutABang()
+    {
+        // Arrange
+        var dir = Directory.CreateTempSubdirectory("vim-write-");
+        string path = Path.Combine(dir.FullName, "out.txt");
+        File.WriteAllText(path, "keep");
+        try
+        {
+            // Act
+            _sut.Script($":write {path}<CR>");
+
+            // Assert
+            await Assert.That(_a.Vim!.PromptError).IsNotNull().And.Contains("File exists");
+            await Assert.That(File.ReadAllText(path)).IsEqualTo("keep");
+        }
+        finally { dir.Delete(recursive: true); }
+    }
+
+    [Test]
+    public async Task WriteToADirectoryIsAnError()
+    {
+        // Arrange
+        var dir = Directory.CreateTempSubdirectory("vim-write-");
+        try
+        {
+            // Act
+            _sut.Script($":write {dir.FullName}<CR>");
+
+            // Assert
+            await Assert.That(_a.Vim!.PromptError).IsNotNull().And.Contains("is a directory");
+        }
+        finally { dir.Delete(recursive: true); }
+    }
+
+    [Test]
+    public async Task WriteIntoAMissingDirectoryIsAnError()
+    {
+        // Arrange
+        string path = Path.Combine(Path.GetTempPath(), "erikterm-missing-" + Guid.NewGuid().ToString("N"), "out.txt");
+
+        // Act
+        _sut.Script($":write {path}<CR>");
+
+        // Assert
+        await Assert.That(_a.Vim!.PromptError).IsNotNull().And.Contains("No such directory");
+    }
+
+    [Test]
+    public async Task SendByPaneIdPastesThere()
+    {
+        // Arrange
+        _sut.Script("ggvey");
+
+        // Act
+        _sut.Script(":send %2<CR>");
+
+        // Assert
+        await Assert.That(_window.Calls).Contains("paste:2:hello");
+        await Assert.That(_window.Toasts).Contains("Sent to pane 2 · claude-notes");
+    }
+
+    [Test]
+    public async Task SendToNobodyIsAnError()
+    {
+        // Arrange
+        _sut.Script("ggvey");
+
+        // Act
+        _sut.Script(":send nobody<CR>");
+
+        // Assert
+        await Assert.That(_a.Vim!.PromptError).IsNotNull().And.Contains("No pane or agent matches");
+    }
+
+    [Test]
+    public async Task AnUnknownThemeIsAnError()
+    {
+        // Act
+        _sut.Script(":theme zzqq<CR>");
+
+        // Assert
+        await Assert.That(_a.Vim!.PromptError).IsNotNull().And.Contains("Unknown theme");
+    }
+
+    // ---- Opening things ---------------------------------------------------------------------------------
+
+    [Test]
+    [Arguments("gx", "No link under the cursor")]
+    [Arguments("gf", "No file under the cursor")]
+    [Arguments("go", "No prompts marked yet")]
+    public async Task OpeningWhatIsNotThereExplains(string keys, string toast)
+    {
+        // Arrange
+        Toggle();
+
+        // Act
+        _sut.Script(keys);
+
+        // Assert
+        await Assert.That(_window.Toasts).Contains(toast);
+    }
+
+    [Test]
+    public async Task HintsAreTheWindowsQuickSelect()
+    {
+        // Arrange
+        Toggle();
+
+        // Act
+        _sut.Script("gh");
+
+        // Assert
+        await Assert.That(_window.Calls).Contains("hints");
+    }
+
+    // ---- The palette and IPC ----------------------------------------------------------------------------
+
+    [Test]
+    public async Task ThePaletteNamesTheVimToggleForTheState()
+    {
+        // Arrange
+        var before = new List<string>();
+        var during = new List<(string Title, bool? Enabled)>();
+
+        // Act
+        _sut.AddCommands((_, title, _, _, _) => before.Add(title));
+        Toggle();
+        _sut.AddCommands((_, title, _, _, enabled) => during.Add((title, enabled?.Invoke())));
+
+        // Assert
+        await Assert.That(before[0]).IsEqualTo("Vim Mode (Copy Mode)");
+        await Assert.That(during[0].Title).IsEqualTo("Leave Vim Mode");
+        await Assert.That(during.Count).IsEqualTo(16);
+        await Assert.That(during[1].Enabled).IsEqualTo(true);
+    }
+
+    [Test]
+    public async Task SwappingWithAPaneOfAnotherTabFails()
+    {
+        // Arrange
+        _window.IpcTargetResult = (0, _a);
+
+        // Act + Assert
+        await Assert.That(() => _sut.HandleIpc(new IpcRequest { Command = "swap-pane", OtherPaneId = 99 })).Throws<IpcException>();
+    }
+
+    [Test]
+    public async Task SwappingAPaneWithItselfFails()
+    {
+        // Arrange
+        _window.IpcTargetResult = (0, _a);
+
+        // Act + Assert
+        await Assert.That(() => _sut.HandleIpc(new IpcRequest { Command = "swap-pane", OtherPaneId = 1 })).Throws<IpcException>();
+    }
+
+    [Test]
+    public async Task SwappingWithANamedPaneSwapsThem()
+    {
+        // Arrange
+        _window.IpcTargetResult = (0, _a);
+
+        // Act
+        var response = _sut.HandleIpc(new IpcRequest { Command = "swap-pane", OtherPaneId = 2 });
+
+        // Assert
+        await Assert.That(response!.Ok).IsTrue();
+        await Assert.That(_window.Layout.LeafList[0]).IsSameReferenceAs(_b);
+    }
+
+    [Test]
+    public async Task SwappingInATabOfOnePaneFails()
+    {
+        // Arrange
+        _window.Layout.Remove(_b);
+        _window.IpcTargetResult = (0, _a);
+
+        // Act + Assert
+        await Assert.That(() => _sut.HandleIpc(new IpcRequest { Command = "swap-pane" })).Throws<IpcException>();
+    }
+
+    [Test]
+    public async Task RotatingInATabOfOnePaneFails()
+    {
+        // Arrange
+        _window.Layout.Remove(_b);
+
+        // Act + Assert
+        await Assert.That(() => _sut.HandleIpc(new IpcRequest { Command = "rotate-panes" })).Throws<IpcException>();
+    }
+
+    [Test]
+    public async Task MovingAPaneThatIsAloneFails()
+    {
+        // Arrange
+        _window.Layout.Remove(_b);
+        _window.IpcTargetResult = (0, _a);
+
+        // Act + Assert
+        await Assert.That(() => _sut.HandleIpc(new IpcRequest { Command = "move-pane-to-new-tab" })).Throws<IpcException>();
+    }
+
+    [Test]
+    public async Task AFailedMoveIsAnError()
+    {
+        // Arrange
+        _window.IpcTargetResult = (0, _a);
+        _window.MoveResult = false;
+
+        // Act + Assert
+        await Assert.That(() => _sut.HandleIpc(new IpcRequest { Command = "move-pane-to-new-tab" })).Throws<IpcException>();
+    }
 }
