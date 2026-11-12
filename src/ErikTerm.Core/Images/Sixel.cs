@@ -95,10 +95,12 @@ public static class Sixel
         /// <summary>Raster attributes: reserves the declared size, if it is within the pixel limit.</summary>
         public void Declare(int w, int h)
         {
-            if ((long)w * h > ImageLimits.MaxPixels) return;
-            Ensure(w, h);
-            _width = Math.Max(_width, w);
-            _height = Math.Max(_height, h);
+            // The image keeps the widest and the tallest declaration, so check them together: two that each fit can
+            // still add up to far more than the limit.
+            int nw = Math.Max(_width, w), nh = Math.Max(_height, h);
+            if ((long)nw * nh > ImageLimits.MaxPixels || !Ensure(nw, nh)) return;
+            _width = nw;
+            _height = nh;
         }
 
         public void Paint(int bits, int repeat)
@@ -155,6 +157,7 @@ public static class Sixel
         public DecodedImage ToImage()
         {
             if (_width == 0 || _height == 0) throw new ImageDecodeException("empty sixel image");
+            if ((long)_width * _height > ImageLimits.MaxPixels) throw new ImageDecodeException("sixel image too large");
             var rgba = new byte[(long)_width * _height * 4];
             for (int y = 0; y < _height; y++)
                 for (int px = 0; px < _width; px++)

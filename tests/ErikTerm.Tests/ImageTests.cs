@@ -863,6 +863,20 @@ public class ImageTests
     }
 
     [Test]
+    public async Task Sixel_raster_declarations_together_stay_within_the_pixel_limit()
+    {
+        // Arrange: each declaration fits on its own, but the widest and the tallest together would be 20000x20000
+        // (1.6 GB of RGBA from 33 bytes).
+        var data = "\"1;1;20000;2500\"1;1;2500;20000#0~"u8.ToArray();
+
+        // Act
+        var img = Sixel.Decode(data);
+
+        // Assert
+        await Assert.That((long)img.Width * img.Height).IsLessThanOrEqualTo(ImageLimits.MaxPixels);
+    }
+
+    [Test]
     public async Task Sixel_decodes_palette_repeats_and_bands()
     {
         // Act

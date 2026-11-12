@@ -273,6 +273,20 @@ public class PngTests
     }
 
     [Test]
+    public async Task Rejects_a_corrupt_zlib_stream_as_a_decode_error()
+    {
+        // Arrange: a fuzzer-found file whose IDAT makes the zlib reader throw its own exception type.
+        var png = Convert.FromBase64String(
+            "iVBORw0KGgoAAAANSUhEUgAAABAAAAASAQAAAAAAApJTAAAAIGNIUk0AAHomAACAhAAA+gAAAIDoAFMAQObYZgAAAAFiS0dEAIgFHUgAAAAHdElNRQfqCzA6MDB4n2pFAAAAJXRFWHRkYXRlOm1vZGlmeQA0MDUyLTExLTExVDIzOjM4OjM3KzAwOjAwCcLS+QAAACh0RVh0ZGF0ZTp0aW1lc3RhbXAAMjAyNi0xMS0xMVQyMzo0NTo0MyswMDowMHyYQB8AAABOSURBVBg4OjM3KzAwOjAwCcLS+QAAACh0RVh0ZGF0ZTp0aW1lc3RhbXAAMjAyNi0xMS0xMVQyMwEAAACg+gPsN3QXmKfi/XhIejQzK7FErkJggg==");
+
+        // Act
+        var act = () => Png.Decode(png);
+
+        // Assert
+        await Assert.That(act).ThrowsExactly<ImageDecodeException>();
+    }
+
+    [Test]
     public async Task Rejects_data_that_is_not_a_png()
     {
         // Act

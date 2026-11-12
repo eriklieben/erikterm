@@ -164,7 +164,8 @@ public static class Png
                 got += n;
             }
         }
-        catch (InvalidDataException) { throw new ImageDecodeException("corrupt PNG data"); }
+        // Corrupt data surfaces as InvalidDataException or, from the native zlib, as an IOException (ZLibException).
+        catch (Exception e) when (e is InvalidDataException or IOException) { throw new ImageDecodeException("corrupt PNG data"); }
         if (got < raw.Length) throw new ImageDecodeException("truncated PNG data");
         return raw;
     }
