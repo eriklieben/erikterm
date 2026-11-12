@@ -256,8 +256,19 @@ jobs:
         with:
           global-json-file: global.json
       - name: Scenarios
-        # The scenarios run as root in the container; nothing in them needs or checks another user.
+        # The scenarios run as root in the container; nothing in them needs or checks another user. Their run
+        # directories (screenshots, logs) are kept, for the upload below when one fails.
+        env:
+          ERIKTERM_IT_KEEP: "1"
         run: scripts/integration-tests.sh --coverage coverage/coverage.xml
+      - name: Keep the failed runs' screenshots and logs
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: integration-runs-linux
+          path: /tmp/etit-*/
+          retention-days: 5
+          if-no-files-found: ignore
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coverage-integration-linux
