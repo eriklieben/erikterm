@@ -54,7 +54,7 @@ public class OverlayTests
         await using var run = AppRun.Start(new Scenario
         {
             Script = string.Join('\n', script),
-            Config = "default_prog = [\"/bin/sh\", \"-c\", \"stty raw -echo; exec cat > /dev/null\"]",
+            Config = $"default_prog = [{Platform.Toml(Platform.Shell)}, \"-c\", \"stty raw -echo; exec cat > /dev/null\"]",
         });
 
         // Act

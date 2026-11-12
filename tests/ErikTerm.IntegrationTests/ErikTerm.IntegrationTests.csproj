@@ -16,11 +16,17 @@
   <ItemGroup>
     <!-- Built first, not referenced: the tests run its output (bin/<Configuration>/net10.0/erikterm) as a process. -->
     <ProjectReference Include="../../src/ErikTerm.App/ErikTerm.App.csproj" ReferenceOutputAssembly="false" Private="false" />
+    <!-- Windows: the stand-in programs are copies of its apphost (Harness/AppRun.cs, InstallFakes). -->
+    <ProjectReference Include="../ErikTerm.IntegrationTests.StandIn/ErikTerm.IntegrationTests.StandIn.csproj" ReferenceOutputAssembly="false" Private="false" />
   </ItemGroup>
   <ItemGroup>
     <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
       <_Parameter1>AppDirectory</_Parameter1>
       <_Parameter2>$(MSBuildThisFileDirectory)../../src/ErikTerm.App/bin/$(Configuration)/$(TargetFramework)/</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>StandInDirectory</_Parameter1>
+      <_Parameter2>$(MSBuildThisFileDirectory)../ErikTerm.IntegrationTests.StandIn/bin/$(Configuration)/$(TargetFramework)/</_Parameter2>
     </AssemblyAttribute>
     <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
       <_Parameter1>RepositoryRoot</_Parameter1>

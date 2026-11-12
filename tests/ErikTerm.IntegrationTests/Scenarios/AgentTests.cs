@@ -90,16 +90,15 @@ public class AgentTests
                 close-window
                 """,
         });
-        string script = Path.Combine(run.Directory, "marks.sh");
-        File.WriteAllText(script, """
-            printf '\033]7;file://localhost%s\033\\' "$PWD"
+        string script = run.WriteScript("marks.sh", """
+            printf '\033]7;file://localhost%s\033\\' "PWD_HERE"
             printf '\033]133;A\033\\$ \033]133;B\033\\echo recent-$((20+3))\r\n\033]133;C;cmdline_url=echo%%20recent-%%24((20%%2B3))\033\\'
             echo recent-$((20+3))
             printf '\033]133;D;0\033\\'
-            """);
+            """.Replace("PWD_HERE", Platform.ShellPwd));
 
         // Act
-        await run.TypeAsync($"sh '{script}'");
+        await run.TypeAsync($"sh '{Platform.ShPath(script)}'");
         await run.WaitForTextAsync("recent-23");
         await Task.Delay(500);
         run.Release("ran");

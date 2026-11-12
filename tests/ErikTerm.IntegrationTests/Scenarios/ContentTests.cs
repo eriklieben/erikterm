@@ -37,7 +37,7 @@ public class ContentTests
                      ("underlines.vt", "erikterm reference: underline styles"), ("images.vt", "erikterm reference: images"),
                  })
         {
-            await run.TypeAsync($"clear; cat '{paths[file]}'");
+            await run.TypeAsync($"clear; cat '{Platform.ShPath(paths[file])}'");
             string text = await run.WaitForTextAsync(heading, ["--start-line", "-500"]);
             string name = Path.GetFileNameWithoutExtension(file);
             run.Release(name);
@@ -83,7 +83,7 @@ public class ContentTests
         string path = run.WriteContent("links.vt");
 
         // Act
-        await run.TypeAsync($"clear; cat '{path}'");
+        await run.TypeAsync($"clear; cat '{Platform.ShPath(path)}'");
         await run.WaitForTextAsync("erikterm reference: links");
         run.Release("links");
 
@@ -94,8 +94,8 @@ public class ContentTests
         await Checks.DifferAsync(plain, hyper, 0.0002, "the hovered OSC 8 link");
         await Checks.DifferAsync(hyper, url, 0.0002, "the hovered URL");
         await Wait.UntilAsync(() => run.Calls.Length >= 2, "two links opened");
-        await Assert.That(run.Calls).Contains("xdg-open [https://github.com/erikterm/erikterm]");
-        await Assert.That(run.Calls.Any(c => c.StartsWith("xdg-open [https://example.com/docs/testing", StringComparison.Ordinal))).IsTrue();
+        await Assert.That(run.Calls).Contains($"{Platform.Opener} [https://github.com/erikterm/erikterm]");
+        await Assert.That(run.Calls.Any(c => c.StartsWith($"{Platform.Opener} [https://example.com/docs/testing", StringComparison.Ordinal))).IsTrue();
         run.Release("done");
         await Checks.CleanExitAsync(run);
     }
@@ -127,7 +127,7 @@ public class ContentTests
 
         // Act
         // OSC 7 says where the shell is (what shell integration sends), so the relative path resolves.
-        await run.TypeAsync("clear; printf '\\033]7;file://localhost%s\\033\\\\src/parser.c:3:5: error: expected one\\n' \"$PWD\"");
+        await run.TypeAsync($"clear; printf '\\033]7;file://localhost%s\\033\\\\src/parser.c:3:5: error: expected one\\n' \"{Platform.ShellPwd}\"");
         await run.WaitForTextAsync("expected one");
         run.Release("printed");
         await Checks.RenderedAsync(run, "hover.bmp");

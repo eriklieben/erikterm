@@ -30,7 +30,7 @@ public class GitToolTests
 
         // Act
         var outside = await Checks.RenderedAsync(run, "outside.bmp");
-        await run.TypeAsync($"cd '{repo.Path}' && clear && git status --short");
+        await run.TypeAsync($"cd '{Platform.ShPath(repo.Path)}' && clear && git status --short");
         await run.WaitForTextAsync("a.txt");
         run.Release("inside");
 
@@ -38,7 +38,7 @@ public class GitToolTests
         var inside = await Checks.RenderedAsync(run, "rebasing.bmp");
         await Checks.DifferAsync(outside, inside, 0.01, "the rebase bar and the repository badge");
         var panes = await run.PanesAsync();
-        await Assert.That(panes[0].Str("current_path")).IsEqualTo(repo.Path);
+        await Assert.That(Platform.SamePath(panes[0].Str("current_path"), repo.Path)).IsTrue().Because(panes[0].Str("current_path"));
         run.Release("done");
         await Checks.CleanExitAsync(run);
     }
@@ -53,7 +53,7 @@ public class GitToolTests
         {
             Directory = dir,
             Cwd = repo.Path,
-            Config = $"default_prog = [\"{AppRun.Executable}\", \"mergetool\"]\nfont_size = 9",
+            Config = $"default_prog = [{Platform.Toml(AppRun.Executable)}, \"mergetool\"]\nfont_size = 9",
             Script = """
                 sleep:2500
                 shot:merge.bmp
@@ -92,7 +92,7 @@ public class GitToolTests
         {
             Directory = dir,
             Cwd = Path.Combine(dir, "files"),
-            Config = $"default_prog = [\"{AppRun.Executable}\", \"compare\", \"a.ts\", \"b.ts\"]\nfont_size = 9",
+            Config = $"default_prog = [{Platform.Toml(AppRun.Executable)}, \"compare\", \"a.ts\", \"b.ts\"]\nfont_size = 9",
             Script = """
                 sleep:2000
                 shot:compare.bmp

@@ -29,17 +29,17 @@ public class WindowTests
                 """,
         }))
         {
-            await first.TypeAsync($"cd '{work}'");
-            await first.WaitForPanesAsync(p => p.Length == 3 && p.Any(x => x.Str("current_path") == work));
+            await first.TypeAsync($"cd '{Platform.ShPath(work)}'");
+            await first.WaitForPanesAsync(p => p.Length == 3 && p.Any(x => Platform.SamePath(x.Str("current_path"), work)));
             // Saved ~2 s after the last change (Session/SessionKeeper.cs), before the window closes.
-            await first.WaitForFileAsync(Path.Combine(dir, "state", "erikterm", "session.json"));
+            await first.WaitForFileAsync(AppRun.SessionFileOf(dir));
             await Task.Delay(2500);
             first.Release("ready");
             await Checks.CleanExitAsync(first);
         }
-        string saved = Path.Combine(dir, "state", "erikterm", "session.json");
+        string saved = AppRun.SessionFileOf(dir);
         await Assert.That(File.Exists(saved)).IsTrue();
-        await Assert.That(File.ReadAllText(saved)).Contains(work);
+        await Assert.That(File.ReadAllText(saved)).Contains(System.Text.Json.JsonSerializer.Serialize(work).Trim('"'));
 
         // Act: the second run restores it.
         await using var second = AppRun.Start(new Scenario
@@ -54,7 +54,7 @@ public class WindowTests
         // Assert
         await Assert.That(panes.Tabs()).IsEqualTo(2);
         await Assert.That(panes.Single(p => p.Bool("tab_active")).Int("tab_index")).IsEqualTo(1);
-        await Assert.That(panes.Select(p => p.Str("current_path"))).Contains(work);
+        await Assert.That(panes.Any(p => Platform.SamePath(p.Str("current_path"), work))).IsTrue();
         second.Release("checked");
         await Checks.CleanExitAsync(second);
     }

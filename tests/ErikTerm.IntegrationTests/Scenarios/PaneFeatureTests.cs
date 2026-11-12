@@ -61,8 +61,10 @@ public class PaneFeatureTests
         var panel = await Checks.RenderedAsync(run, "panel.bmp");
         await Checks.DifferAsync(bar, panel, because: "the notifications panel");
         await Checks.RenderedAsync(run, "finished.bmp");
-        await Assert.That(run.Calls.Any(c => c.StartsWith("notify-send", StringComparison.Ordinal) && c.Contains("Build finished"))).IsTrue()
-            .Because(string.Join("\n", run.Calls));
+        // Windows has no notify-send: erikterm raises none there (Host/ProcessNotifications.cs).
+        if (!OperatingSystem.IsWindows())
+            await Assert.That(run.Calls.Any(c => c.StartsWith("notify-send", StringComparison.Ordinal) && c.Contains("Build finished"))).IsTrue()
+                .Because(string.Join("\n", run.Calls));
         run.Release("done");
         await Checks.CleanExitAsync(run);
     }

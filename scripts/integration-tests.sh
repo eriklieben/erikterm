@@ -8,16 +8,19 @@
 #   scripts/integration-tests.sh -- --treenode-filter '/*/*/ShellTests/*'   # options after -- go to the test runner
 #
 # Environment: ERIKTERM_IT_PARALLEL=N (erikterm processes at once; default half the cores, at most 4),
-# ERIKTERM_IT_KEEP=1 (keep each run's directory under /tmp: script, config, screenshots).
+# ERIKTERM_IT_KEEP=1 (keep each run's directory under /tmp: script, config, screenshots), ERIKTERM_IT_DESKTOP=1
+# (Windows, macOS: also the scenarios that open a real window), ERIKTERM_IT_SH (Windows: the sh for the panes;
+# default Git for Windows' usr\bin\sh.exe). Runs on Linux, macOS, and Windows from Git Bash.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 coverage=""
 while [[ $# -gt 0 ]]; do
     case $1 in
-        --coverage) coverage=$(realpath -m "$2"); shift 2 ;;
+        # Relative to the checkout (no realpath -m: macOS's realpath has no -m).
+        --coverage) coverage=$2; [[ $coverage == /* ]] || coverage="$PWD/$coverage"; shift 2 ;;
         --) shift; break ;;
-        -h|--help) sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        -h|--help) sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) echo "integration-tests: unknown option $1" >&2; exit 2 ;;
     esac
 done
@@ -30,7 +33,9 @@ export DOTNET_NOLOGO=1 DOTNET_CLI_TELEMETRY_OPTOUT=1
 
 dotnet build tests/ErikTerm.IntegrationTests -nologo -v q -clp:NoSummary
 runner=tests/ErikTerm.IntegrationTests/bin/Debug/net10.0/ErikTerm.IntegrationTests
-[[ -x $runner ]] || runner="$runner.exe"
+# Windows (Git Bash): the .exe by its full name. MSYS2's -x test would also accept the bare name, which
+# dotnet-coverage can't start.
+[[ -f $runner.exe ]] && runner="$runner.exe"
 
 if [[ -z $coverage ]]; then
     exec "$runner" "$@"
