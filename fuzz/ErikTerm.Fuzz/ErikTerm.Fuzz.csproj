@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Fuzz targets for the code that reads what programs send: the VT parser behind Terminal.Feed (CSI, OSC, DCS, APC,
+    kitty graphics, sixel, iTerm2 images), the image decoders and the TOML reader. Never shipped: a development tool
+    like tests/, so it may take packages (SharpFuzz, MIT). How to run it: Program.cs.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <PublishAot>false</PublishAot>
+    <IsAotCompatible>false</IsAotCompatible>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="SharpFuzz" Version="2.3.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/ErikTerm.Core/ErikTerm.Core.csproj" />
+    <ProjectReference Include="../../src/ErikTerm.Config/ErikTerm.Config.csproj" />
+  </ItemGroup>
+</Project>
