@@ -116,8 +116,9 @@ public class DesktopTests
         var window = await Checks.RenderedAsync(run, "window.bmp");
         var split = await Checks.RenderedAsync(run, "split.bmp");
 
-        // Assert
-        await Checks.DifferAsync(window, split, because: "the split");
+        // Assert: a split of an empty pane adds a divider, a prompt and a cursor, about 0.2 % of a 1016×718 frame
+        // (CI's macOS window is at 1x; 0.19 % changed there).
+        await Checks.DifferAsync(window, split, 0.001, "the split");
         await run.WaitForPanesAsync(p => p.Length == 2);
         run.Release("done");
         await Checks.CleanExitAsync(run);

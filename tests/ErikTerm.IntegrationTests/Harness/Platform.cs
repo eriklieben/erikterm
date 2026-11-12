@@ -23,6 +23,20 @@ internal static class Platform
     public static string Toml(string value) =>
         value.Contains('\'') ? throw new ArgumentException($"no single quote in a TOML literal string: {value}") : "'" + value + "'";
 
+    /// <summary>
+    /// A default_prog (TOML array) that runs erikterm itself with <paramref name="args"/> in the pane (mergetool,
+    /// compare). On Windows through sh: erikterm.exe is a GUI-subsystem program, which gets no console when ConPTY
+    /// starts it directly, so its terminal UI had nothing to draw on and quit at once; started from a console program
+    /// it attaches to that one's console (Native/WindowsConsole.cs), as when git or a shell in the pane runs it.
+    /// </summary>
+    public static string ErikTermInPane(params string[] args)
+    {
+        var argv = OperatingSystem.IsWindows()
+            ? new[] { Shell, "-c", "exec \"$0\" \"$@\"", ShPath(AppRun.Executable) }.Concat(args)
+            : new[] { AppRun.Executable }.Concat(args);
+        return "[" + string.Join(", ", argv.Select(Toml)) + "]";
+    }
+
     /// <summary>A path as the pane's sh takes it in a command line: forward slashes on Windows (MSYS2 takes D:/a/b).</summary>
     public static string ShPath(string path) => OperatingSystem.IsWindows() ? path.Replace('\\', '/') : path;
 

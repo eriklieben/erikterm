@@ -210,8 +210,15 @@ public class WindowTests
         var opaque = await Checks.RenderedAsync(run, "opaque.bmp");
 
         // Assert: the background is translucent (the frame's alpha is what the compositor blends) until toggled off.
-        await Assert.That(plain.TranslucentShare).IsGreaterThan(0.5);
-        await Assert.That(opaque.TranslucentShare).IsLessThan(0.05);
+        // Only Linux's offscreen window has an alpha channel to read back (its EGL framebuffer); on macOS and Windows
+        // the offscreen surface is XRGB8888 and drops it. The premultiplied color stays: the translucent background is
+        // darker there, so most of the frame changes when it turns opaque.
+        if (OperatingSystem.IsLinux())
+        {
+            await Assert.That(plain.TranslucentShare).IsGreaterThan(0.5);
+            await Assert.That(opaque.TranslucentShare).IsLessThan(0.05);
+        }
+        else await Checks.DifferAsync(plain, opaque, 0.5, "Toggle Transparency drew the background opaque");
         run.Release("done");
         await Checks.CleanExitAsync(run);
     }

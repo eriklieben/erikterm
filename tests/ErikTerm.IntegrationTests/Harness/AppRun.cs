@@ -59,9 +59,11 @@ internal sealed record Scenario
 /// shows a window, talks to an erikterm you are using or reads your configuration. Coverage: run the whole test
 /// assembly under dotnet-coverage (scripts/integration-tests.sh); the erikterm processes it starts are measured too.
 /// <para>
-/// Windows is less private: erikterm takes %LOCALAPPDATA% and %APPDATA% from Windows itself, so its control socket,
-/// session file (one per run: --class), crash logs and remembered choices go to the real ones of the user running the
-/// tests (<see cref="StateDirectory"/>). The configuration is still the run's own (--config-file).
+/// Windows: %LOCALAPPDATA% and %APPDATA% are the run's state/ and config/. erikterm reads them through
+/// Environment.GetFolderPath, which Windows resolves from the process's own variables, so its control socket, session
+/// file, crash logs and remembered choices are the run's (CI found state\erikterm\erikterm-PID.sock and the crash logs
+/// there). macOS keeps the control socket in the user's own temp directory (IpcPaths), shared by the runs but named
+/// after each one's pid.
 /// </para>
 /// </summary>
 internal sealed class AppRun : IAsyncDisposable
@@ -142,24 +144,13 @@ internal sealed class AppRun : IAsyncDisposable
     /// <summary>The run's directory: home/, rt/ (XDG_RUNTIME_DIR), state/, config/, cwd/ and the script's files.</summary>
     public string Directory { get; }
 
-    /// <summary>
-    /// Where erikterm keeps its state (session, crash logs): the run's own state/erikterm, except on Windows. There
-    /// erikterm asks Windows for %LOCALAPPDATA% (Environment.GetFolderPath, which doesn't read the variable), so it is
-    /// the real one of the user running the tests, shared by every run: each run has a window class of its own
-    /// (<see cref="WindowClass"/>), so its session file is too, and crash logs are told apart by their pid.
-    /// </summary>
+    /// <summary>Where erikterm keeps its state (session, crash logs): the run's own state/erikterm, on Windows too.</summary>
     public string StateDirectory => StateDirectoryOf(Directory);
 
-    private static string StateDirectoryOf(string dir) => OperatingSystem.IsWindows()
-        ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "erikterm")
-        : Path.Combine(dir, "state", "erikterm");
+    private static string StateDirectoryOf(string dir) => Path.Combine(dir, "state", "erikterm");
 
-    /// <summary>Windows: the --class every run of this directory passes (etit-…, the directory's name); null elsewhere.</summary>
-    private static string? WindowClassOf(string dir) => OperatingSystem.IsWindows() ? Path.GetFileName(dir) : null;
-
-    /// <summary>The session file this run saves and restores (session.json; Windows: session-&lt;class&gt;.json).</summary>
-    public static string SessionFileOf(string dir) =>
-        Path.Combine(StateDirectoryOf(dir), WindowClassOf(dir) is { } cls ? $"session-{cls}.json" : "session.json");
+    /// <summary>The session file this run saves and restores.</summary>
+    public static string SessionFileOf(string dir) => Path.Combine(StateDirectoryOf(dir), "session.json");
 
     private AppRun(string directory, bool owns, Process process, Dictionary<string, string> env)
     {
@@ -214,11 +205,6 @@ internal sealed class AppRun : IAsyncDisposable
         start.ArgumentList.Add(config);
         if (!scenario.Restore) start.ArgumentList.Add("--no-restore");
         start.ArgumentList.Add("--new-process");
-        if (WindowClassOf(dir) is { } cls)
-        {
-            start.ArgumentList.Add("--class");
-            start.ArgumentList.Add(cls);
-        }
         foreach (var a in scenario.Args) start.ArgumentList.Add(a.Replace("{dir}", dir));
         Apply(start, env);
 
@@ -249,6 +235,11 @@ internal sealed class AppRun : IAsyncDisposable
                 env.Remove(name);
         env["SDL_VIDEODRIVER"] = "offscreen";
         env["SDL_RENDER_DRIVER"] = "software";
+        // macOS and Windows: no GPU texture behind the offscreen window's surface. SDL would try each GPU renderer for
+        // it first (SDL_CreateWindowTexture), and off-screen none works there (no EGL, no HWND or NSView): skip that and
+        // use the in-memory surface (which has no alpha channel). Linux keeps its EGL one, which carries the alpha the
+        // translucency scenario checks.
+        if (!OperatingSystem.IsLinux()) env["SDL_FRAMEBUFFER_ACCELERATION"] = "0";
         env["HOME"] = Path.Combine(dir, "home");
         env["XDG_RUNTIME_DIR"] = Path.Combine(dir, "rt");
         env["XDG_STATE_HOME"] = Path.Combine(dir, "state");
@@ -411,7 +402,8 @@ internal sealed class AppRun : IAsyncDisposable
 
     /// <summary>
     /// The control socket of this instance (erikterm cli --socket): erikterm-PID.sock in the directory IpcPaths picks,
-    /// $XDG_RUNTIME_DIR/erikterm on Linux (the run's own); the per-user temp or local app data directory elsewhere.
+    /// $XDG_RUNTIME_DIR/erikterm on Linux and %LOCALAPPDATA%\erikterm on Windows (both the run's own), the per-user temp
+    /// directory on macOS.
     /// </summary>
     public string Socket
     {
@@ -419,7 +411,7 @@ internal sealed class AppRun : IAsyncDisposable
         {
             string name = $"erikterm-{_process.Id}.sock";
             string[] dirs = OperatingSystem.IsLinux() ? [Path.Combine(Directory, "rt", "erikterm")]
-                : OperatingSystem.IsWindows() ? [Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "erikterm")]
+                : OperatingSystem.IsWindows() ? [StateDirectory]
                 : [Path.Combine(Path.GetTempPath(), "erikterm"), "/tmp/erikterm-" + Platform.MacEffectiveUid];
             foreach (var d in dirs)
                 if (File.Exists(Path.Combine(d, name))) return Path.Combine(d, name);
@@ -523,10 +515,7 @@ internal sealed class AppRun : IAsyncDisposable
         return _process.ExitCode;
     }
 
-    /// <summary>
-    /// Crash logs (internal errors) this erikterm process wrote so far: there should be none. Told apart by the "pid:"
-    /// line they carry, since on Windows every run writes them to the same directory (<see cref="StateDirectory"/>).
-    /// </summary>
+    /// <summary>Crash logs (internal errors) this erikterm process wrote so far (the ones with its "pid:" line): there should be none.</summary>
     public string[] CrashLogs => System.IO.Directory.Exists(StateDirectory)
         ? System.IO.Directory.GetFiles(StateDirectory, "crash-*.log").Select(File.ReadAllText)
             .Where(text => text.Contains($"\npid: {_process.Id}\n", StringComparison.Ordinal)).ToArray()
@@ -552,8 +541,10 @@ internal sealed class AppRun : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        string? socket = null;
         try
         {
+            socket = Socket;
             if (!_process.HasExited)
             {
                 _process.Kill(entireProcessTree: true);
@@ -562,12 +553,13 @@ internal sealed class AppRun : IAsyncDisposable
         }
         catch (InvalidOperationException) { /* never started */ }
         _process.Dispose();
+        // A killed erikterm leaves its control socket behind. On Windows that is an AF_UNIX reparse point in the run's
+        // directory, which other programs can't stat: actions/upload-artifact gave up on the kept runs with EACCES.
+        if (OperatingSystem.IsWindows() && socket is not null && File.Exists(socket))
+            try { File.Delete(socket); }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { /* the upload step skips it too */ }
         if (_ownsDirectory && Environment.GetEnvironmentVariable("ERIKTERM_IT_KEEP") != "1")
         {
-            // Windows: the run's session file is in the shared state directory, not in the run's.
-            if (OperatingSystem.IsWindows())
-                try { File.Delete(SessionFileOf(Directory)); }
-                catch (Exception e) when (e is IOException or UnauthorizedAccessException) { /* left for the next cleanup */ }
             try { System.IO.Directory.Delete(Directory, recursive: true); }
             catch (IOException) { /* a pane's program still holds a file: the OS temp cleanup gets it */ }
             catch (UnauthorizedAccessException) { }

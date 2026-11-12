@@ -345,9 +345,19 @@ jobs:
           if ((Get-FileHash $zip -Algorithm SHA256).Hash -ne '6F6376C6ED2960EA8A963CD7387EC9D76E3F629125BC33D1FDCD7EB7012F7BBF') { throw 'JetBrains Mono does not match its hash' }
           $fonts = Join-Path $env:RUNNER_TEMP 'jetbrains-mono'
           Expand-Archive $zip -DestinationPath $fonts
+          # A per-user install, as Windows does it: the file in the user's font folder and a value naming it under
+          # HKCU's font list. The registry is what erikterm reads first (WindowsFontLocator); its scan of the font
+          # folder would look in the run's own %LOCALAPPDATA%, since the scenarios give each run one.
           $userFonts = Join-Path $env:LOCALAPPDATA 'Microsoft\Windows\Fonts'
           New-Item -ItemType Directory -Force $userFonts | Out-Null
-          Copy-Item (Join-Path $fonts 'fonts\ttf\*.ttf') $userFonts
+          $fontList = 'HKCU:\Software\Microsoft\Windows NT\CurrentVersion\Fonts'
+          if (-not (Test-Path $fontList)) { New-Item $fontList | Out-Null }
+          foreach ($file in Get-ChildItem (Join-Path $fonts 'fonts\ttf') -Filter 'JetBrainsMono-*.ttf') {
+            $target = Join-Path $userFonts $file.Name
+            Copy-Item $file.FullName $target
+            $style = ($file.BaseName -replace '^JetBrainsMono-', '') -replace '(?<=.)Italic$', ' Italic'
+            New-ItemProperty -Path $fontList -Name "JetBrains Mono $style (TrueType)" -Value $target -PropertyType String -Force | Out-Null
+          }
       - name: Scenarios
         # Git Bash runs the script, as on Linux. ERIKTERM_IT_DESKTOP: the runner's desktop session may show windows,
         # so the [Desktop] scenarios run here. The run directories are kept for the upload below when one fails.
@@ -356,6 +366,11 @@ jobs:
           ERIKTERM_IT_KEEP: "1"
           ERIKTERM_IT_DESKTOP: "1"
         run: scripts/integration-tests.sh --coverage coverage/coverage.xml
+      # A control socket a killed erikterm left behind is an AF_UNIX reparse point the upload can't stat (EACCES).
+      - name: Drop leftover control sockets
+        if: failure()
+        shell: pwsh
+        run: Get-ChildItem (Join-Path $env:RUNNER_TEMP 'etit-*') -Recurse -Force -Filter '*.sock' -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
       - name: Keep the failed runs' screenshots and logs
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

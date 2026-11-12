@@ -53,7 +53,7 @@ public class GitToolTests
         {
             Directory = dir,
             Cwd = repo.Path,
-            Config = $"default_prog = [{Platform.Toml(AppRun.Executable)}, \"mergetool\"]\nfont_size = 9",
+            Config = $"default_prog = {Platform.ErikTermInPane("mergetool")}\nfont_size = 9",
             Script = """
                 sleep:2500
                 shot:merge.bmp
@@ -92,7 +92,7 @@ public class GitToolTests
         {
             Directory = dir,
             Cwd = Path.Combine(dir, "files"),
-            Config = $"default_prog = [{Platform.Toml(AppRun.Executable)}, \"compare\", \"a.ts\", \"b.ts\"]\nfont_size = 9",
+            Config = $"default_prog = {Platform.ErikTermInPane("compare", "a.ts", "b.ts")}\nfont_size = 9",
             Script = """
                 sleep:2000
                 shot:compare.bmp

@@ -79,9 +79,9 @@ the steps are timed and the software renderer is single-threaded.
 `scripts/integration-tests.sh` from Git Bash on Windows). On Windows the panes run Git for Windows' sh
 (`usr\bin\sh.exe`, or `ERIKTERM_IT_SH`), so the scenarios type the same commands; the stand-ins are sh scripts there
 too, each with a `NAME.exe` copy of `tests/ErikTerm.IntegrationTests.StandIn` beside it (CreateProcess only starts an
-.exe), and the link opener is `explorer.exe`. Windows is less private: erikterm asks Windows itself for
-`%LOCALAPPDATA%`, so control sockets, crash logs and remembered choices land in the real one of the user running the
-tests (each run passes `--class etit-…`, so its session file is its own and deleted afterwards). `SDL3.dll`, FreeType,
+.exe), and the link opener is `explorer.exe`. Each run's `%LOCALAPPDATA%` and `%APPDATA%` are its own `state\` and
+`config\` (Windows resolves erikterm's `Environment.GetFolderPath` from them), so control sockets, sessions and crash
+logs stay in the run's directory as on Linux. `SDL3.dll`, FreeType,
 HarfBuzz and the console host (`conpty.dll`, `OpenConsole.exe`) must be in `src/ErikTerm.App/bin/Debug/net10.0/`,
 and JetBrains Mono installed (build.yml's `integration (windows)` job shows how). `Scenarios/PlatformTests.cs` covers
 what only those systems do off-screen (the system shell, batch files and cmd, the font lookup);
