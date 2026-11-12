@@ -29,17 +29,17 @@ corpus=$work/corpus/$target
 findings=$work/findings/$target
 mkdir -p "$corpus" "$findings"
 for seed in "$@"; do
-  if [ -d "$seed" ]; then cp -n "$seed"/* "$corpus"/ 2>/dev/null || true; else cp -n "$seed" "$corpus"/; fi
+  if [[ -d "$seed" ]]; then cp -n "$seed"/* "$corpus"/ 2>/dev/null || true; else cp -n "$seed" "$corpus"/; fi
 done
 
 dict=()
-if [ -f "$root/fuzz/$target.dict" ]; then dict=(-dict="$root/fuzz/$target.dict"); fi
+if [[ -f "$root/fuzz/$target.dict" ]]; then dict=(-dict="$root/fuzz/$target.dict"); fi
 
 # -timeout: one input taking 10 s is a hang. Memory: libFuzzer's -rss_limit_mb only sees the driver, not the .NET
 # process it starts, so the GC gets a hard limit instead: one image may legitimately reach ImageLimits.MaxPixels
 # (200 MB of RGBA, plus the decoder's own canvas), so needing more than 1 GB means an input got past the limits, and
 # the OutOfMemoryException is a crash-* finding.
-export DOTNET_GCHeapHardLimit=0x40000000
+export DOTNET_GCHeapHardLimit=0x40000000 # NOSONAR: the .NET runtime setting is spelled this way
 exec "$libfuzzer" --target_path="$out/ErikTerm.Fuzz" --target_arg="$target" \
   -max_total_time="$seconds" -timeout=10 -print_final_stats=1 \
   -artifact_prefix="$findings/" "${dict[@]}" "$corpus"
