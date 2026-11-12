@@ -105,11 +105,17 @@ Programs can show images inline with the kitty graphics protocol, iTerm2 images 
 
 ### Arch Linux
 
-Add the repository to the end of `/etc/pacman.conf`:
+Trust the repository's signing key once (fingerprint `D184 5ABF B3BA A7E3 A29B A1DA 2E14 70A4 5CE8 F07B`):
+
+```sh
+sudo pacman-key --recv-keys D1845ABFB3BAA7E3A29BA1DA2E1470A45CE8F07B
+sudo pacman-key --lsign-key D1845ABFB3BAA7E3A29BA1DA2E1470A45CE8F07B
+```
+
+Then add the repository to the end of `/etc/pacman.conf`:
 
 ```ini
 [eriklieben]
-SigLevel = Optional TrustAll
 Server = https://github.com/eriklieben/packages/releases/download/arch
 ```
 
@@ -119,8 +125,10 @@ Then install, and later update with your normal `sudo pacman -Syu`:
 sudo pacman -Sy erikterm
 ```
 
-The packages aren't GPG-signed yet, which is what `SigLevel = Optional TrustAll` allows. See
-[eriklieben/packages](https://github.com/eriklieben/packages) for details.
+The packages and the database are signed with that key, so pacman's default `SigLevel` checks them. If the
+keyserver can't be reached, add the key from the repository instead:
+`curl -fsSL https://raw.githubusercontent.com/eriklieben/packages/main/eriklieben.asc | sudo pacman-key --add -`,
+then `--lsign-key` as above. See [eriklieben/packages](https://github.com/eriklieben/packages) for details.
 
 ### Windows
 
