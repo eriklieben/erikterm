@@ -301,8 +301,12 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_ORGANIZATION: ${{ vars.SONAR_ORGANIZATION || 'eriklieben' }}
           SONAR_PROJECT_KEY: ${{ vars.SONAR_PROJECT_KEY || 'eriklieben_erikterm' }}
+        # The version is the last release (its tag), so "new code" in SonarQube Cloud (set to Previous version) is
+        # everything changed since that release; before the first release it is "unreleased".
         run: |
-          dotnet dotnet-sonarscanner begin /k:"$SONAR_PROJECT_KEY" /o:"$SONAR_ORGANIZATION" \
+          version=$(git describe --tags --abbrev=0 --match 'v[0-9]*' 2>/dev/null || true)
+          version=${version#v}
+          dotnet dotnet-sonarscanner begin /k:"$SONAR_PROJECT_KEY" /o:"$SONAR_ORGANIZATION" /v:"${version:-unreleased}" \
             /s:"$GITHUB_WORKSPACE/build/SonarQube.Analysis.xml" /d:sonar.token="$SONAR_TOKEN"
 
       - name: Build

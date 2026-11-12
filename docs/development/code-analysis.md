@@ -155,6 +155,7 @@ On [SonarQube Cloud](https://sonarcloud.io):
 1. Log in with GitHub, and import the repository into the `eriklieben` organization (key `eriklieben_erikterm`).
 2. Under Administration → Analysis Method, turn **Automatic Analysis off**: the CI analysis replaces it.
 3. Quality profile *Sonar way* for C#; new code relative to the previous version.
+   The `sonar` job passes the last release's version (its `v*` tag), so new code is what changed since that release.
 4. Create a token (My Account → Security) and add it to the repository as the secret `SONAR_TOKEN`.
 5. Push to main, or re-run the last *SonarQube Cloud* run under Actions.
 
