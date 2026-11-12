@@ -105,7 +105,7 @@ public class WindowWorktreesTests
 
     private sealed class FakeProcess : IWorktreeProcess<FakePane>
     {
-        public Settings Settings { get; } = new();
+        public Settings Settings { get; set; } = new();
         public readonly Dictionary<string, List<WorktreePaneRef<FakePane>>> Inside = new(StringComparer.Ordinal);
         public List<string> LastRoots = [];
 
@@ -765,6 +765,8 @@ public class WindowWorktreesTests
     /// <summary>Opens the form on a fresh repository and points its base at a branch that doesn't exist, so git refuses.</summary>
     private void FormWithAMissingBase(TempRepo repo)
     {
+        // An agent the form can pick on any machine: it only offers agents it finds on PATH, and without one Enter does nothing.
+        _process.Settings = new Settings { WorktreeAgents = [new WorktreeAgentSettings("stand-in", "Stand-in", "sh", [], [])] };
         _pane.Cwd = repo.Root;
         _sut.OpenAgentForm();
         _window.Drain();
