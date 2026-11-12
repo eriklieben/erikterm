@@ -843,6 +843,36 @@ internal class TmuxHandoffTests
     }
 }
 
+public class TmuxShimFilesTests
+{
+    [Test]
+    public async Task A_framework_dependent_build_gives_the_shim_its_assemblies()
+    {
+        // Arrange: a Debug build's output folder on Windows.
+        string[] files =
+        [
+            "erikterm.exe", "erikterm.dll", "erikterm.pdb", "erikterm.deps.json", "erikterm.runtimeconfig.json",
+            "ErikTerm.Core.dll", "ErikTerm.Ui.dll", "SDL3.dll", "freetype.dll", "conpty.dll", "OpenConsole.exe",
+        ];
+
+        // Act
+        var needed = TmuxShimDirectory.AppFilesForShim("erikterm.exe", files);
+
+        // Assert: the managed app, not the native libraries.
+        await Assert.That(needed).IsEquivalentTo(["erikterm.dll", "erikterm.deps.json", "erikterm.runtimeconfig.json", "ErikTerm.Core.dll", "ErikTerm.Ui.dll"]);
+    }
+
+    [Test]
+    public async Task A_single_file_build_needs_nothing_beside_the_shim()
+    {
+        // Act
+        var needed = TmuxShimDirectory.AppFilesForShim("erikterm.exe", ["erikterm.exe", "SDL3.dll", "conpty.dll"]);
+
+        // Assert
+        await Assert.That(needed).IsEmpty();
+    }
+}
+
 public class TmuxEnvironmentTests
 {
     private const string Sock = "/run/user/1000/erikterm/erikterm-42.sock";

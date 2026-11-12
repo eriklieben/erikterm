@@ -54,9 +54,44 @@ internal sealed class TmuxShimDirectory
     [SupportedOSPlatform("windows")]
     private void LinkOrCopyShim(string link, string exe)
     {
+        LinkOrCopyAppFiles(Path.GetDirectoryName(link)!, exe);
         if (WindowsFiles.CreateHardLink(link, exe)) return;
         if (ShimExecutableCopy(exe) is { } copy && WindowsFiles.CreateHardLink(link, copy)) return;
         File.Copy(exe, link, overwrite: true);
+    }
+
+    /// <summary>
+    /// A framework-dependent erikterm (a development build, not the Native AOT one that ships): its exe is .NET's app
+    /// host, which runs erikterm.dll from the exe's own directory, so tmux.exe in the shim directory needs that and the
+    /// other assemblies beside it (else the shim doesn't start at all, and a GUI-subsystem app host reports that in a
+    /// dialog, not on stderr). Hard links where possible.
+    /// </summary>
+    [SupportedOSPlatform("windows")]
+    private static void LinkOrCopyAppFiles(string shimDir, string exe)
+    {
+        string appDir = Path.GetDirectoryName(exe)!;
+        foreach (string name in AppFilesForShim(Path.GetFileName(exe), Directory.EnumerateFiles(appDir).Select(Path.GetFileName).OfType<string>()))
+        {
+            string target = Path.Combine(shimDir, name), source = Path.Combine(appDir, name);
+            if (File.Exists(target)) File.Delete(target);
+            if (!WindowsFiles.CreateHardLink(target, source)) File.Copy(source, target, overwrite: true);
+        }
+    }
+
+    /// <summary>
+    /// The files of the app directory a shim of <paramref name="exeName"/> needs beside it: none for a single-file
+    /// executable; for a framework-dependent one (its &lt;name&gt;.dll is there) erikterm's assemblies and its
+    /// .deps.json and .runtimeconfig.json (erikterm references no other managed library). Not the native libraries:
+    /// the shim directory is on the panes' PATH, where Windows also looks for DLLs other programs load.
+    /// </summary>
+    internal static List<string> AppFilesForShim(string exeName, IEnumerable<string> filesInAppDir)
+    {
+        var files = filesInAppDir.ToList();
+        string stem = Path.GetFileNameWithoutExtension(exeName);
+        if (!files.Contains(stem + ".dll", StringComparer.OrdinalIgnoreCase)) return [];
+        return files.Where(f => f.StartsWith(stem, StringComparison.OrdinalIgnoreCase)
+            && (f.EndsWith(".dll", StringComparison.OrdinalIgnoreCase) || f.EndsWith(".deps.json", StringComparison.OrdinalIgnoreCase)
+                || f.EndsWith(".runtimeconfig.json", StringComparison.OrdinalIgnoreCase))).ToList();
     }
 
     /// <summary>
