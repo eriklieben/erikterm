@@ -97,8 +97,17 @@ internal sealed unsafe class WindowsPty : IPtyBackend
             if (string.Equals(k, "PATH", StringComparison.OrdinalIgnoreCase)) { path = v; break; }
         string application = ResolveProgram(options.Program, path)
             ?? throw new FileNotFoundException($"CreateProcess('{options.Program}') failed: program not found", options.Program);
-        // A .bat / .cmd runs under cmd.exe, which parses the command line by its own rules.
-        string commandLine = WindowsCommandLine.Build(argv, WindowsCommandLine.IsBatchFile(application));
+        // A .bat / .cmd, and erikterm itself (a GUI-subsystem program: its terminal tools need cmd's console), start
+        // through cmd.exe, which parses the command line by its own rules (WindowsCommandLine.BuildCmdLaunch).
+        string commandLine;
+        bool self = IsThisExecutable(application);
+        if (self || WindowsCommandLine.IsBatchFile(application))
+        {
+            string cmd = Path.Combine(System.Environment.SystemDirectory, "cmd.exe");
+            commandLine = WindowsCommandLine.BuildCmdLaunch(cmd, [application, .. argv.Skip(1)], waitForGuiProgram: self);
+            application = cmd;
+        }
+        else commandLine = WindowsCommandLine.Build(argv);
         string? cwd = options.WorkingDirectory is { } d ? Path.GetFullPath(d) : null;
 
         SafeFileHandle? inputRead = null, inputWrite = null, outputRead = null, outputWrite = null;
@@ -203,6 +212,11 @@ internal sealed unsafe class WindowsPty : IPtyBackend
             NativeMemory.Free(attributes);
         }
     }
+
+    /// <summary>Whether <paramref name="application"/> is the executable of this process (erikterm starting one of its tools).</summary>
+    private static bool IsThisExecutable(string application) =>
+        System.Environment.ProcessPath is { } self
+        && string.Equals(Path.GetFullPath(application), Path.GetFullPath(self), StringComparison.OrdinalIgnoreCase);
 
     internal static string? ResolveProgram(string program, string? path) =>
         WindowsCommandLine.ResolveProgram(program, WindowsCommandLine.SearchDirectories(
