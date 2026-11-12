@@ -350,7 +350,9 @@ public sealed class TomlTable
         var table = new TomlTable { IsArrayElement = true };
         if (_entries.TryGetValue(key, out var e))
         {
-            if (e.Value is not List<object> list || (list.Count > 0 && list[0] is not TomlTable { IsArrayElement: true }))
+            // A [[key]] array always has a table; an empty one was written as a value (a = []), and TOML forbids
+            // appending to that.
+            if (e.Value is not List<object> list || list.Count == 0 || list[0] is not TomlTable { IsArrayElement: true })
                 throw new TomlException($"'{key}' is already defined as a value or a table", line);
             list.Add(table);
         }
