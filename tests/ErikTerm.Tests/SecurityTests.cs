@@ -1689,6 +1689,73 @@ public class SecurityTests
         await Assert.That(build).ThrowsExactly<ArgumentException>();
     }
 
+    private const string Cmd = @"C:\Windows\system32\cmd.exe";
+
+    [Test]
+    public async Task Batch_files_start_through_cmd_with_their_quoting_intact()
+    {
+        // Arrange
+        string[] argv = [@"C:\x\run.bat", "a", "b c", "x&calc"];
+
+        // Act
+        string commandLine = ErikTerm.Pty.WindowsCommandLine.BuildCmdLaunch(Cmd, argv, waitForGuiProgram: false);
+
+        // Assert: cmd /s drops the outer quotes only, and what it then runs has the metacharacter inside quotes.
+        await Assert.That(commandLine).IsEqualTo("\"" + Cmd + "\" /d /v:off /s /c \"\"C:\\x\\run.bat\" a \"b c\" \"x&calc\"\"");
+        await Assert.That(OutsideQuotes(CmdRuns(commandLine))).DoesNotContain("&");
+    }
+
+    [Test]
+    public async Task Batch_files_left_to_CreateProcess_would_lose_their_quoting()
+    {
+        // Arrange: what CreateProcess runs for a batch file it is handed directly: cmd /c and the command line as it is.
+        string implicitLine = Cmd + " /c " + ErikTerm.Pty.WindowsCommandLine.Build([@"C:\x\run.bat", "a", "x&calc"], batchFile: true);
+
+        // Act
+        string runs = CmdRuns(implicitLine);
+
+        // Assert: cmd dropped the first and the last quote, which leaves the & outside quotes ("BatBadBut").
+        await Assert.That(OutsideQuotes(runs)).Contains("&");
+    }
+
+    [Test]
+    public async Task Erikterm_itself_starts_through_cmd_and_waits()
+    {
+        // Act
+        string commandLine = ErikTerm.Pty.WindowsCommandLine.BuildCmdLaunch(Cmd, [@"C:\Program Files\erikterm\erikterm.exe", "settings"], waitForGuiProgram: true);
+
+        // Assert
+        await Assert.That(CmdRuns(commandLine)).IsEqualTo("start \"\" /b /wait \"C:\\Program Files\\erikterm\\erikterm.exe\" settings");
+    }
+
+    /// <summary>
+    /// What cmd.exe runs for a command line with /c (cmd /? on quotes): with /s, or unless the rest has exactly two quotes
+    /// around something with a space, it drops a leading quote and the last quote.
+    /// </summary>
+    private static string CmdRuns(string commandLine)
+    {
+        int c = commandLine.IndexOf(" /c ", StringComparison.Ordinal);
+        string rest = commandLine[(c + 4)..];
+        bool slashS = commandLine[..c].Contains(" /s", StringComparison.Ordinal);
+        bool keep = !slashS && rest.Count(ch => ch == '"') == 2 && rest.TrimEnd().EndsWith('"') && rest.Trim('"').Contains(' ');
+        if (keep || !rest.StartsWith('"')) return rest;
+        int last = rest.LastIndexOf('"');
+        return rest[1..last] + rest[(last + 1)..];
+    }
+
+    /// <summary>The characters of a cmd command that are outside quotes (where &amp;, | and the like take effect).</summary>
+    private static string OutsideQuotes(string command)
+    {
+        var sb = new System.Text.StringBuilder();
+        bool quoted = false;
+        foreach (char ch in command)
+        {
+            if (ch == '"') quoted = !quoted;
+            else if (!quoted) sb.Append(ch);
+        }
+        return sb.ToString();
+    }
+
     [Test]
     public async Task Non_batch_file_arguments_follow_the_crt_rules()
     {

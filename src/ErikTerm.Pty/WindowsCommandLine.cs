@@ -140,6 +140,30 @@ internal static class WindowsCommandLine
         return p.EndsWith(".bat", StringComparison.OrdinalIgnoreCase) || p.EndsWith(".cmd", StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// The command line that starts <paramref name="argv"/> through cmd.exe (<paramref name="cmdExe"/>, which is also the
+    /// program CreateProcess gets), for what can't be started directly:
+    /// <list type="bullet">
+    /// <item>a batch file. Left to CreateProcess, it runs <c>cmd /c</c> followed by the command line as it is; with more
+    /// than two quotes in it, cmd then drops the first and the last one, so the quoting of
+    /// <see cref="Build(IReadOnlyList{string}, bool)"/> shifts by one quote and an argument like <c>x&amp;calc</c> ends up
+    /// unquoted: a second command ("BatBadBut"), and a batch file with a quoted argument doesn't start at all. Here
+    /// cmd gets <c>/s /c "…"</c>, and the quotes it drops are the outer pair added for that;</item>
+    /// <item>with <paramref name="waitForGuiProgram"/>, a GUI-subsystem program that needs the pane's console, such as
+    /// erikterm's own terminal tools (erikterm settings, review, mergetool): ConPTY gives such a program no console, so
+    /// cmd, which has one, runs it with <c>start "" /b /wait</c>, and the program attaches to cmd's console.</item>
+    /// </list>
+    /// /d skips cmd's AutoRun commands and /v:off keeps ! literal. The arguments follow <see cref="BuildForCmd"/>'s rules
+    /// (an ArgumentException for those that can't be passed safely).
+    /// </summary>
+    public static string BuildCmdLaunch(string cmdExe, IReadOnlyList<string> argv, bool waitForGuiProgram)
+    {
+        if (argv.Count == 0) throw new ArgumentException("argv must contain at least argv[0].", nameof(argv));
+        if (cmdExe.AsSpan().IndexOfAny("\"\0") >= 0) throw new ArgumentException($"cmd.exe path can't contain a quote: {cmdExe}");
+        string inner = (waitForGuiProgram ? "start \"\" /b /wait " : "") + BuildForCmd(argv);
+        return $"\"{cmdExe}\" /d /v:off /s /c \"{inner}\"";
+    }
+
     private static string BuildForCmd(IReadOnlyList<string> argv)
     {
         var sb = new StringBuilder();
