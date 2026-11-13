@@ -32,5 +32,6 @@ Compiled into the binary as data:
 | The colours of the built-in scheme *Ayu Light*, from ayu for VS Code, Copyright © 2016 Ike Kurghinyan | MIT | https://github.com/ayu-theme/vscode-ayu |
 | The colours of the built-in scheme *Carbonfox*, from nightfox.nvim, Copyright © 2021 James Simpson | MIT | https://github.com/EdenEast/nightfox.nvim |
 | The colours of the built-in scheme *Catppuccin Frappé*, from Catppuccin for wezterm, Copyright © 2021 Catppuccin | MIT | https://github.com/catppuccin/wezterm |
+| The colours of the built-in scheme *Catppuccin Latte*, from Catppuccin for wezterm, Copyright © 2021 Catppuccin | MIT | https://github.com/catppuccin/wezterm |
 
 Portions of this software are copyright © The FreeType Project (https://freetype.org). All rights reserved.

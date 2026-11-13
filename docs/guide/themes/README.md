@@ -1,6 +1,6 @@
 # Color schemes
 
-erikterm ships 10 built-in color schemes, dark and light. `erik` is the default.
+erikterm ships 11 built-in color schemes, dark and light. `erik` is the default.
 
 ## Picking one
 
@@ -61,5 +61,6 @@ measured contrast of the statusline in erikterm's standard scene, focused and di
 
 | Scheme | Family / origin | License |
 |---|---|---|
+| [Catppuccin Latte](catppuccin-latte.md) | Catppuccin | MIT |
 | [Ayu Light](ayu-light.md) | Ayu | MIT |
 | [Blossom](blossom.md) | erikterm original | MIT (erikterm) |
