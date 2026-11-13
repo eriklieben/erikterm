@@ -86,7 +86,11 @@ internal sealed unsafe class WindowsPty : IPtyBackend
         // Every process on the pane's console reports this host, also one whose parent is gone (MSYS2's fork + exec).
         // It doesn't change once the child has connected; until then (right after the spawn) it is asked again.
         int host = Volatile.Read(ref _consoleHost);
-        if (host == 0) Volatile.Write(ref _consoleHost, host = WindowsProcesses.ConsoleHostProcessId(_process));
+        if (host == 0)
+        {
+            host = WindowsProcesses.ConsoleHostProcessId(_process);
+            Volatile.Write(ref _consoleHost, host);
+        }
         var entry = snapshot.Foreground(ProcessId, _created, host);
         Volatile.Write(ref _pick, new ForegroundPick(snapshot.Version, entry));
         return entry;

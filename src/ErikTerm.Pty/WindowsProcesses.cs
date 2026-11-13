@@ -220,6 +220,15 @@ internal static unsafe class WindowsProcesses
             return _consoleHosts[pid] = host;
         }
 
+        /// <summary>The console host of an open process handle (<see cref="ConsoleHostPid"/>), or 0.</summary>
+        private static int ConsoleHostProcessId(nint process)
+        {
+            nuint value = 0;
+            uint returned;
+            if (Ntdll.NtQueryInformationProcess(process, ProcessConsoleHostProcess, &value, (uint)sizeof(nuint), &returned) < 0) return 0;
+            return ConsoleHostPid(value);
+        }
+
         private (long Created, bool Windowed) Details(int pid)
         {
             if (_details.TryGetValue(pid, out var d)) return d;
@@ -351,20 +360,14 @@ internal static unsafe class WindowsProcesses
             if (Ntdll.NtQueryInformationProcess(process, ProcessConsoleHostProcess, &value, (uint)sizeof(nuint), &returned) < 0) return 0;
         }
         catch (ObjectDisposedException) { return 0; }
-        return (int)(value & ~(nuint)3);
+        return ConsoleHostPid(value);
     }
 
     /// <summary>
-    /// NtQueryInformationProcess(ProcessConsoleHostProcess): a ULONG_PTR, the console host's pid with flags in the low
-    /// two bits (Windows 8+; what Process Explorer and System Informer show as a process's console host).
+    /// What NtQueryInformationProcess(ProcessConsoleHostProcess) returns: a ULONG_PTR, the console host's pid with flags
+    /// in the low two bits (Windows 8+; what Process Explorer and System Informer show as a process's console host).
     /// </summary>
-    private static int ConsoleHostProcessId(nint process)
-    {
-        nuint value = 0;
-        uint returned;
-        if (Ntdll.NtQueryInformationProcess(process, ProcessConsoleHostProcess, &value, (uint)sizeof(nuint), &returned) < 0) return 0;
-        return (int)(value & ~(nuint)3);
-    }
+    private static int ConsoleHostPid(nuint value) => (int)(value & ~(nuint)3);
 
     /// <summary>PROCESSINFOCLASS ProcessConsoleHostProcess (phnt's ntpsapi.h).</summary>
     private const int ProcessConsoleHostProcess = 49;
