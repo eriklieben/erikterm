@@ -1245,7 +1245,7 @@ public class WindowVimTests
         await Assert.That(before[0]).IsEqualTo("Vim Mode (Copy Mode)");
         await Assert.That(during[0].Title).IsEqualTo("Leave Vim Mode");
         await Assert.That(during.Count).IsEqualTo(16);
-        await Assert.That(during[1].Enabled).IsEqualTo(true);
+        await Assert.That(during[1].Enabled).IsTrue();
     }
 
     [Test]

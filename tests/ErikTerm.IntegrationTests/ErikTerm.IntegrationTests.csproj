@@ -11,7 +11,7 @@
     <IsAotCompatible>false</IsAotCompatible>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="TUnit" Version="1.81.10" />
+    <PackageReference Include="TUnit" Version="1.84.0" />
   </ItemGroup>
   <ItemGroup>
     <!-- Built first, not referenced: the tests run its output (bin/<Configuration>/net10.0/erikterm) as a process. -->

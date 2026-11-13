@@ -13,7 +13,7 @@
   </PropertyGroup>
   <ItemGroup>
     <!-- TUnit on Microsoft.Testing.Platform: the project is its own runner (dotnet run / dotnet test, see global.json). -->
-    <PackageReference Include="TUnit" Version="1.81.16" />
+    <PackageReference Include="TUnit" Version="1.84.0" />
     <!-- Property-based tests (ParserPropertyTests): BSD-3-Clause, brings FSharp.Core (MIT). -->
     <PackageReference Include="FsCheck" Version="3.6.0" />
   </ItemGroup>
