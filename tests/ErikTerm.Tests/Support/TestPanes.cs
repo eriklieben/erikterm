@@ -11,7 +11,7 @@ namespace ErikTerm.Tests;
 /// </summary>
 internal static class TestPanes
 {
-    public static Pane Spawn(int columns = 40, int rows = 6, string? text = null, int scrollback = 1000)
+    public static Pane Spawn(int columns = 40, int rows = 6, string? text = null, int scrollback = 1000, string? workingDirectory = null)
     {
         var pty = Pty.Pty.Spawn(new PtyOptions
         {
@@ -19,6 +19,7 @@ internal static class TestPanes
             Arguments = ["sh", "-c", "exec sleep 60"],
             Columns = columns,
             Rows = rows,
+            WorkingDirectory = workingDirectory,
         });
         var term = new Terminal(columns, rows, scrollback);
         if (text is not null) term.Feed(Encoding.UTF8.GetBytes(text));

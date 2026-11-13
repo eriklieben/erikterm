@@ -1010,3 +1010,65 @@ public class WindowOsc52Tests
         await Assert.That(bar.IsShown).IsFalse();
     }
 }
+
+/// <summary>File links (path:line printed by a compiler): which directory a relative path is resolved against.</summary>
+[RunOn(OS.Linux | OS.MacOs)]
+[NotInParallel(Isolation.Processes)]
+public class WindowEditorTests
+{
+    private static WindowEditor New(FakeFeatureWindow window)
+    {
+        var jobs = new ErikTerm.App.Integrations.BackgroundJobs(() => { });
+        var tracks = new PaneTracks();
+        var gate = new Lock();
+        var launches = new WindowLaunches(window, window, null!);
+        return new WindowEditor(window, jobs, tracks, new WindowGit(window, jobs, tracks, launches), new WindowGitHub(window, jobs, tracks, launches, gate), launches, gate);
+    }
+
+    /// <summary>A new directory with src/parser.c in it.</summary>
+    private static string ProjectDirectory()
+    {
+        string dir = Directory.CreateTempSubdirectory("erikterm-links-").FullName;
+        Directory.CreateDirectory(Path.Combine(dir, "src"));
+        File.WriteAllText(Path.Combine(dir, "src", "parser.c"), "int main(void) { return 0; }\n");
+        return dir;
+    }
+
+    [Test]
+    public async Task ARelativePathResolvesInTheShellsDirectoryWithoutOsc7()
+    {
+        // Arrange: no OSC 7 and no git status (so no tracked directory): only the shell's own directory says where it is.
+        string dir = ProjectDirectory();
+        using var window = new FakeFeatureWindow(new Settings { GitStatus = false });
+        using var pane = TestPanes.Spawn(workingDirectory: dir);
+        var editor = New(window);
+        const string text = "src/parser.c:3:5: error: expected one";
+
+        // Act
+        var span = editor.FindSmartLinkAt(pane, text, 2, out var link);
+
+        // Assert
+        Directory.Delete(dir, recursive: true);
+        await Assert.That(span).IsNotNull();
+        await Assert.That(link.Value).IsEqualTo(Path.Combine(Path.GetFullPath(dir), "src", "parser.c"));
+        await Assert.That(link.Line).IsEqualTo(3);
+    }
+
+    [Test]
+    public async Task ARelativePathToAFileThatIsntThereIsNoLink()
+    {
+        // Arrange
+        string dir = ProjectDirectory();
+        using var window = new FakeFeatureWindow(new Settings { GitStatus = false });
+        using var pane = TestPanes.Spawn(workingDirectory: dir);
+        var editor = New(window);
+        const string text = "src/lexer.c:3:5: error: expected one";
+
+        // Act
+        var span = editor.FindSmartLinkAt(pane, text, 2, out _);
+
+        // Assert
+        Directory.Delete(dir, recursive: true);
+        await Assert.That(span).IsNull();
+    }
+}

@@ -20,6 +20,7 @@ internal sealed class WindowEditor(
     IFeatureWindow window, BackgroundJobs jobs, PaneTracks tracks, WindowGit git, WindowGitHub github, WindowLaunches launches, Lock gate)
 {
     private readonly Dictionary<string, (string? Path, long At)> _resolveCache = new(StringComparer.Ordinal);
+    private readonly Dictionary<int, (string? Path, long At)> _directoryCache = [];
 
     private static long Now => Environment.TickCount64;
 
@@ -35,7 +36,7 @@ internal sealed class WindowEditor(
     {
         link = null!;
         var tr = tracks.Of(pane);
-        string? cwd = tr?.Cwd ?? pane.WorkingDirectory;
+        string? cwd = tr?.Cwd ?? LinkDirectory(pane);
         var repo = tr?.Repo;
 
         if (Mode != EditorOpenMode.None && FindFileLinkAt(pane, text, index, cwd, repo?.Root, ref link) is { } file) return file;
@@ -79,6 +80,24 @@ internal sealed class WindowEditor(
             return m;
         }
         return null;
+    }
+
+    /// <summary>
+    /// Where a relative path is resolved when the integrations track no directory for the pane (git status off, or
+    /// before their first scan): OSC 7, else the foreground program's or the shell's directory (PaneCwd). The /proc
+    /// lookups are cached a few seconds per pane, since hovering probes on every cell. A container's shell has no
+    /// such fallback: the directory of the program that runs it isn't the one the paths are printed relative to.
+    /// </summary>
+    private string? LinkDirectory(Pane pane)
+    {
+        string? reported = pane.WorkingDirectory;
+        if (reported is not null || pane.Container is not null) return reported;
+        long now = Now;
+        if (_directoryCache.TryGetValue(pane.Id, out var hit) && now - hit.At < 3000) return hit.Path;
+        if (_directoryCache.Count > 64) _directoryCache.Clear();
+        string? dir = PaneTracks.PaneDirectory(pane);
+        _directoryCache[pane.Id] = (dir, now);
+        return dir;
     }
 
     /// <summary>Path resolution with a short-lived cache: hovering re-probes on every cell.</summary>

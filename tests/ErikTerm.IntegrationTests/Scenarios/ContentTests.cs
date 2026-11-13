@@ -141,4 +141,41 @@ public class ContentTests
         await Checks.CleanExitAsync(run);
     }
 
+    [Test]
+    public async Task Ctrl_click_on_a_file_location_opens_the_editor_without_osc7()
+    {
+        // Arrange: as above, but the shell never reports its directory (no shell integration) and git status is off,
+        // so the link resolves against the shell's own current directory.
+        await using var run = AppRun.Start(new Scenario
+        {
+            Config = "editor_open = \"split\"",
+            Script = """
+                wait-file:printed
+                mouse:2,0
+                ctrl:1
+                sleep:400
+                cellclick:2,0
+                ctrl:0
+                sleep:1200
+                wait-file:done
+                close-window
+                """,
+        });
+        string src = Path.Combine(run.Directory, "cwd", "src");
+        Directory.CreateDirectory(src);
+        File.WriteAllText(Path.Combine(src, "parser.c"), "int main(void)\n{\n    return 0;\n}\n");
+
+        // Act
+        await run.TypeAsync("clear; printf 'src/parser.c:3:5: error: expected one\\n'");
+        await run.WaitForTextAsync("expected one");
+        run.Release("printed");
+        await Wait.UntilAsync(() => run.Calls.Any(c => c.StartsWith("editor", StringComparison.Ordinal)), "the editor started");
+
+        // Assert
+        string call = run.Calls.First(c => c.StartsWith("editor", StringComparison.Ordinal));
+        await Assert.That(call).Contains("parser.c");
+        run.Release("done");
+        await Checks.CleanExitAsync(run);
+    }
+
 }
