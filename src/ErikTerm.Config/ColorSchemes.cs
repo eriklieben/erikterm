@@ -100,6 +100,7 @@ public static partial class ColorSchemes
             FairyFloss,
             GitHubDark,
             GitHubLight,
+            GraphiteAndBlush,
         ];
         All = [builtIn[0], .. builtIn.Skip(1).OrderBy(s => s.Name, StringComparer.OrdinalIgnoreCase)];
     }
