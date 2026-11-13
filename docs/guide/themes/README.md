@@ -1,6 +1,6 @@
 # Color schemes
 
-erikterm ships 25 built-in color schemes, dark and light. `erik` is the default.
+erikterm ships 26 built-in color schemes, dark and light. `erik` is the default.
 
 ## Picking one
 
@@ -54,6 +54,7 @@ measured contrast of the statusline in erikterm's standard scene, focused and di
 | [Tokyo Night](tokyo-night.md) | Tokyo Night | Apache-2.0 |
 | [Dracula](dracula.md) | Dracula | MIT |
 | [Gruvbox Dark](gruvbox-dark.md) | Gruvbox | MIT |
+| [Kanagawa Wave](kanagawa-wave.md) | Kanagawa | MIT |
 | [GitHub Dark](github-dark.md) | GitHub | MIT |
 | [Catppuccin Frappé](catppuccin-frappe.md) | Catppuccin | MIT |
 | [Everforest Dark](everforest-dark.md) | Everforest | MIT |
