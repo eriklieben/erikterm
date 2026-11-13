@@ -1,6 +1,6 @@
 # Color schemes
 
-erikterm ships 43 built-in color schemes, dark and light. `erik` is the default.
+erikterm ships 44 built-in color schemes, dark and light. `erik` is the default.
 
 ## Picking one
 
@@ -89,6 +89,7 @@ measured contrast of the statusline in erikterm's standard scene, focused and di
 | [Kanagawa Lotus](kanagawa-lotus.md) | Kanagawa | MIT |
 | [GitHub Light](github-light.md) | GitHub | MIT |
 | [Catppuccin Latte](catppuccin-latte.md) | Catppuccin | MIT |
+| [Solarized Light](solarized-light.md) | Solarized | MIT |
 | [Everforest Light](everforest-light.md) | Everforest | MIT |
 | [Ayu Light](ayu-light.md) | Ayu | MIT |
 | [One Half Light](one-half-light.md) | One Half | MIT |

@@ -58,5 +58,6 @@ Compiled into the binary as data:
 | The colours of the built-in scheme *Shades of Purple*, from Shades of Purple, Copyright © 2015-present Ahmad Awais | MIT | https://github.com/ahmadawais/shades-of-purple-vscode |
 | The colours of the built-in scheme *Shado*, from shadotheme, Copyright © 2021, Shadorain. All rights reserved. | BSD 3-Clause (copyright notice, conditions and disclaimer in the About screen's Licenses tab) | https://github.com/Shadorain/shadotheme |
 | The colours of the built-in scheme *Solarized Dark*, from Solarized, Copyright © 2011 Ethan Schoonover | MIT | https://github.com/altercation/solarized |
+| The colours of the built-in scheme *Solarized Light*, from Solarized, Copyright © 2011 Ethan Schoonover | MIT | https://github.com/altercation/solarized |
 
 Portions of this software are copyright © The FreeType Project (https://freetype.org). All rights reserved.
