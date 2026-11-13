@@ -1,6 +1,6 @@
 # Color schemes
 
-erikterm ships 12 built-in color schemes, dark and light. `erik` is the default.
+erikterm ships 13 built-in color schemes, dark and light. `erik` is the default.
 
 ## Picking one
 
@@ -57,6 +57,7 @@ measured contrast of the statusline in erikterm's standard scene, focused and di
 | [Carbonfox](carbonfox.md) | Nightfox | MIT |
 | [Cherry Blossom](cherry-blossom.md) | Cherry Blossom | MIT |
 | [Abyss & Brass](abyss-and-brass.md) | erikterm original | MIT (erikterm) |
+| [Coral Navy](coral-navy.md) | erikterm original | MIT (erikterm) |
 
 ## Light
 
