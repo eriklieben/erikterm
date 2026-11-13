@@ -327,8 +327,11 @@ public class PaneSelectTests
         foreach (char key in "asds") select.HandleKey(key, 0);
         select.HandleKey(Sdl.K_RETURN, 0);
 
-        // Assert
-        await Assert.That(chosen!).IsEquivalentTo([a, c], CollectionOrdering.Matching);
+        // Assert: by identity. Equivalence compares member by member, and a live pane's members (its process's name)
+        // can change between two reads of the same pane.
+        await Assert.That(chosen!.Count).IsEqualTo(2);
+        await Assert.That(chosen[0]).IsSameReferenceAs(a);
+        await Assert.That(chosen[1]).IsSameReferenceAs(c);
         await Assert.That(select.IsOpen).IsFalse();
     }
 
@@ -366,8 +369,9 @@ public class PaneSelectTests
         select.HandleMouseDown(50, 50, 0);
         select.HandleKey(Sdl.K_KP_ENTER, 0);
 
-        // Assert
-        await Assert.That(chosen!).IsEquivalentTo([a]);
+        // Assert (by identity: see SeveralPanesAreToggledAndEnterHandsThemOver)
+        await Assert.That(chosen!.Count).IsEqualTo(1);
+        await Assert.That(chosen[0]).IsSameReferenceAs(a);
     }
 
     [Test]
