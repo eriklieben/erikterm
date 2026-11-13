@@ -263,6 +263,135 @@ public class WindowsProcessTreeTests
         await Assert.That(fg?.Pid).IsEqualTo(300);
     }
 
+    // ---- Processes on the pane's console whose parent is gone (MSYS2's fork + exec) ----------------------
+
+    private const int Host = 50; // the pane's conhost / OpenConsole
+
+    private static ProcessEntry Sh => P(Root, 4, "sh.exe", 0) with { ConsoleHost = Host };
+
+    private static ProcessEntry OnConsole(int pid, int ppid, string name, double seconds, int host = Host) =>
+        P(pid, ppid, name, seconds) with { ConsoleHost = host };
+
+    private static ProcessEntry? PickOnConsole(params ProcessEntry[] processes) =>
+        WindowsProcessTree.Foreground(processes, Root, At(0), Now, Host);
+
+    [Test]
+    public async Task ProgramWhoseForkedParentExitedIsAdoptedByTheConsole()
+    {
+        // Arrange: sh forked (pid 150), the fork exec'd sleep and exited, so sleep's parent pid names nothing
+        var sleep = OnConsole(300, 150, "sleep.exe", 10);
+
+        // Act
+        var fg = PickOnConsole(Sh, sleep);
+
+        // Assert
+        await Assert.That(fg?.ExeName).IsEqualTo("sleep.exe");
+    }
+
+    [Test]
+    public async Task ProgramWhoseParentsPidWasReusedIsAdoptedToo()
+    {
+        // Arrange: the forked sh's pid went to a process created after sleep, which can't be sleep's parent
+        var reuser = P(150, 4, "svchost.exe", 20);
+        var sleep = OnConsole(300, 150, "sleep.exe", 10);
+
+        // Act
+        var fg = PickOnConsole(Sh, reuser, sleep);
+
+        // Assert
+        await Assert.That(fg?.Pid).IsEqualTo(300);
+    }
+
+    [Test]
+    [Arguments(0)]  // not on a console (a GUI or detached process), or it couldn't be asked
+    [Arguments(77)] // another console: another pane's, or a window of its own
+    public async Task OrphanOnAnotherConsoleIsNotAdopted(int host)
+    {
+        // Act
+        var fg = PickOnConsole(Sh, OnConsole(300, 150, "sleep.exe", 10, host));
+
+        // Assert
+        await Assert.That(fg?.Pid).IsEqualTo(Root);
+    }
+
+    [Test]
+    public async Task OrphanOlderThanThePaneIsNotAdopted()
+    {
+        // Arrange: on the same host pid but created before the pane's own process
+        var older = OnConsole(300, 150, "sleep.exe", -10);
+
+        // Act
+        var fg = PickOnConsole(Sh, older);
+
+        // Assert
+        await Assert.That(fg?.Pid).IsEqualTo(Root);
+    }
+
+    [Test]
+    public async Task WithoutTheRootsConsoleHostNothingIsAdopted()
+    {
+        // Act: the root hasn't connected to its console yet (host 0), as on Linux and macOS nothing changes
+        var fg = WindowsProcessTree.Foreground([Sh, OnConsole(300, 150, "sleep.exe", 10)], Root, At(0), Now, consoleHost: 0);
+
+        // Assert
+        await Assert.That(fg?.Pid).IsEqualTo(Root);
+    }
+
+    [Test]
+    public async Task AdoptedProgramIsReportedRatherThanWhatItStarted()
+    {
+        // Arrange: vim (adopted) started a language server, a child of a live parent with the same console
+        var vim = OnConsole(300, 150, "vim.exe", 10);
+        var server = OnConsole(400, 300, "clangd.exe", 20);
+
+        // Act
+        var fg = PickOnConsole(Sh, vim, server);
+
+        // Assert
+        await Assert.That(fg?.ExeName).IsEqualTo("vim.exe");
+    }
+
+    [Test]
+    public async Task ChildOfALiveParentOnTheConsoleIsNotAdopted()
+    {
+        // Arrange: nvim is the root's own child, its server nvim's; both on the console
+        var nvim = OnConsole(200, Root, "nvim.exe", 10);
+        var server = OnConsole(300, 200, "lua-language-server.exe", 20);
+
+        // Act
+        var fg = PickOnConsole(Sh, nvim, server);
+
+        // Assert: through nvim, not the server lifted up to the root
+        await Assert.That(fg?.ExeName).IsEqualTo("nvim.exe");
+    }
+
+    [Test]
+    public async Task AdoptedProgramYoungerThanTheSettleTimeDoesNotCountYet()
+    {
+        // Arrange: Git Bash's prompt runs git through forked subshells, for a moment
+        var git = new ProcessEntry(300, 150, "git.exe", Now - WindowsProcessTree.SettleTicks / 2, ConsoleHost: Host);
+
+        // Act
+        var fg = PickOnConsole(Sh, git);
+
+        // Assert
+        await Assert.That(fg?.Pid).IsEqualTo(Root);
+    }
+
+    [Test]
+    public async Task YoungestOfTreeAndAdoptedWins()
+    {
+        // Arrange: a child of the shell from earlier, and the program started since
+        var agent = P(200, Root, "ssh-agent.exe", 5);
+        var npm = OnConsole(300, 150, "node.exe", 30);
+
+        // Act
+        var fg = PickOnConsole(Sh, agent, npm);
+
+        // Assert
+        await Assert.That(fg?.ExeName).IsEqualTo("node.exe");
+    }
+
     [Test]
     [Arguments("nvim.exe", "nvim")]
     [Arguments("PING.EXE", "PING")]

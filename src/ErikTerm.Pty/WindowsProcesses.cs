@@ -111,35 +111,113 @@ internal static unsafe class WindowsProcesses
 
         /// <summary>
         /// The foreground process of the pane whose own process is <paramref name="rootPid"/>, created at
-        /// <paramref name="rootCreated"/> (see <see cref="WindowsProcessTree"/>); null when it isn't running.
-        /// Only the root's descendants are opened (for their creation time), each once per snapshot.
+        /// <paramref name="rootCreated"/> and attached to the console host <paramref name="consoleHost"/> (0: unknown;
+        /// see <see cref="WindowsProcessTree"/>); null when it isn't running. Only the root's descendants and the
+        /// snapshot's orphans are opened (for their creation time and console), each once per snapshot.
         /// </summary>
-        public ProcessEntry? Foreground(int rootPid, long rootCreated)
+        public ProcessEntry? Foreground(int rootPid, long rootCreated, int consoleHost)
         {
             if (!_rowOf.TryGetValue(rootPid, out int r)) return null;
-            var entries = new List<ProcessEntry> { new(rootPid, _rows[r].ParentPid, _rows[r].Name, rootCreated) };
+            var entries = new List<ProcessEntry> { new(rootPid, _rows[r].ParentPid, _rows[r].Name, rootCreated, ConsoleHost: consoleHost) };
             var created = new Dictionary<int, long> { [rootPid] = rootCreated };
             var queue = new Queue<int>();
             queue.Enqueue(rootPid);
             lock (_gate)
             {
-                while (queue.Count > 0 && entries.Count < WindowsProcessTree.MaxDescendants)
+                AddDescendants(entries, created, queue);
+                if (consoleHost > 0)
                 {
-                    int pid = queue.Dequeue();
-                    if (!_children.TryGetValue(pid, out var kids)) continue;
-                    foreach (int k in kids)
-                    {
-                        var row = _rows[k];
-                        if (created.ContainsKey(row.Pid)) continue;
-                        var (c, windowed) = Details(row.Pid);
-                        created[row.Pid] = c;
-                        entries.Add(new ProcessEntry(row.Pid, row.ParentPid, row.Name, c, windowed));
-                        // Not below an orphan of an earlier pid (WindowsProcessTree drops it), a GUI program or a console host.
-                        if (c > 0 && c >= created[pid] && !windowed && !WindowsProcessTree.IsConsoleHost(row.Name)) queue.Enqueue(row.Pid);
-                    }
+                    // MSYS2's programs: on the pane's console, but their parent (a forked sh) is gone. See WindowsProcessTree.
+                    AddAdopted(entries, created, queue, rootCreated, consoleHost);
+                    AddDescendants(entries, created, queue);
                 }
             }
-            return WindowsProcessTree.Foreground(entries, rootPid, rootCreated, Now);
+            return WindowsProcessTree.Foreground(entries, rootPid, rootCreated, Now, consoleHost);
+        }
+
+        /// <summary>Adds the children of the queued pids, and theirs, to <paramref name="entries"/>. Callers hold _gate.</summary>
+        private void AddDescendants(List<ProcessEntry> entries, Dictionary<int, long> created, Queue<int> queue)
+        {
+            while (queue.Count > 0 && entries.Count < WindowsProcessTree.MaxDescendants)
+            {
+                int pid = queue.Dequeue();
+                if (!_children.TryGetValue(pid, out var kids)) continue;
+                foreach (int k in kids)
+                {
+                    var row = _rows[k];
+                    if (created.ContainsKey(row.Pid)) continue;
+                    var (c, windowed) = Details(row.Pid);
+                    created[row.Pid] = c;
+                    entries.Add(new ProcessEntry(row.Pid, row.ParentPid, row.Name, c, windowed));
+                    // Not below an orphan of an earlier pid (WindowsProcessTree drops it), a GUI program or a console host.
+                    if (c > 0 && c >= created[pid] && !windowed && !WindowsProcessTree.IsConsoleHost(row.Name)) queue.Enqueue(row.Pid);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Adds the orphans (<see cref="Orphans"/>) created since the root that are attached to its console host, and
+        /// queues them for their own descendants. Callers hold _gate.
+        /// </summary>
+        private void AddAdopted(List<ProcessEntry> entries, Dictionary<int, long> created, Queue<int> queue, long rootCreated, int consoleHost)
+        {
+            foreach (var (index, c) in Orphans())
+            {
+                if (entries.Count >= WindowsProcessTree.MaxDescendants) return;
+                var row = _rows[index];
+                if (c < rootCreated || created.ContainsKey(row.Pid) || ConsoleHostOf(row.Pid) != consoleHost) continue;
+                var (exact, windowed) = Details(row.Pid); // this snapshot's own reading, not the cross-snapshot cache's
+                if (exact <= 0 || exact < rootCreated) continue;
+                created[row.Pid] = exact;
+                entries.Add(new ProcessEntry(row.Pid, row.ParentPid, row.Name, exact, windowed, consoleHost));
+                if (!windowed && !WindowsProcessTree.IsConsoleHost(row.Name)) queue.Enqueue(row.Pid);
+            }
+        }
+
+        private List<(int Row, long Created)>? _orphans;
+        private readonly Dictionary<int, int> _consoleHosts = new();
+
+        /// <summary>
+        /// The processes whose parent is gone: no process has their parent pid, or the one that has it was created after
+        /// them (the pid was reused). With their creation times, from <see cref="CreationTimes"/>, so a process is opened
+        /// for this once in its life rather than once per snapshot. Computed once per snapshot. Callers hold _gate.
+        /// </summary>
+        private List<(int Row, long Created)> Orphans()
+        {
+            if (_orphans is not null) return _orphans;
+            var orphans = new List<(int, long)>();
+            lock (CreationTimes)
+            {
+                if (CreationTimes.Count > MaxCreationTimes) CreationTimes.Clear();
+                for (int i = 0; i < _rows.Length; i++)
+                {
+                    var row = _rows[i];
+                    if (row.Pid <= 0 || row.Pid == row.ParentPid) continue; // the idle process
+                    long c = CachedCreationTime(row);
+                    if (c <= 0) continue;
+                    if (_rowOf.TryGetValue(row.ParentPid, out int p))
+                    {
+                        long pc = CachedCreationTime(_rows[p]);
+                        if (pc <= 0 || pc <= c) continue; // its parent, or can't be told
+                    }
+                    orphans.Add((i, c));
+                }
+            }
+            return _orphans = orphans;
+        }
+
+        /// <summary>The console host a process is attached to (<see cref="ConsoleHostProcessId(nint)"/>), once per snapshot. Callers hold _gate.</summary>
+        private int ConsoleHostOf(int pid)
+        {
+            if (_consoleHosts.TryGetValue(pid, out int host)) return host;
+            host = 0;
+            nint h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, (uint)pid);
+            if (h != 0)
+            {
+                try { host = ConsoleHostProcessId(h); }
+                finally { CloseHandle(h); }
+            }
+            return _consoleHosts[pid] = host;
         }
 
         private (long Created, bool Windowed) Details(int pid)
@@ -165,6 +243,29 @@ internal static unsafe class WindowsProcesses
         // ---- Names and image kinds, cached across snapshots --------------------------------------------
 
         private static readonly HashSet<string> Names = new(StringComparer.Ordinal);
+
+        /// <summary>
+        /// Creation times across snapshots (0: couldn't be read), keyed by what Toolhelp says of a process: pid, parent
+        /// pid and name. A reused pid nearly always comes with another parent or name; when it doesn't, the time is an
+        /// earlier process's, which can only make a process look orphaned, and <see cref="AddAdopted"/> checks the real
+        /// time before it adopts one. Guarded by itself.
+        /// </summary>
+        private static readonly Dictionary<(int Pid, int ParentPid, string Name), long> CreationTimes = new();
+        private const int MaxCreationTimes = 8192;
+
+        private static long CachedCreationTime(Row row)
+        {
+            var key = (row.Pid, row.ParentPid, row.Name);
+            if (CreationTimes.TryGetValue(key, out long c)) return c;
+            c = 0;
+            nint h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, (uint)row.Pid);
+            if (h != 0)
+            {
+                try { c = ProcessCreationTime(h); }
+                finally { CloseHandle(h); }
+            }
+            return CreationTimes[key] = c;
+        }
         private static readonly Dictionary<(int Pid, long Created), bool> WindowedProcesses = new();
         private static readonly Dictionary<string, bool> WindowedImages = new(StringComparer.OrdinalIgnoreCase);
 
@@ -235,6 +336,41 @@ internal static unsafe class WindowsProcesses
         try { return GetProcessTimes(process, &created, &exited, &kernel, &user) != 0 ? created : 0; }
         catch (ObjectDisposedException) { return 0; }
     }
+
+    /// <summary>
+    /// The pid of the console host (conhost.exe, or the bundled OpenConsole.exe for a ConPTY pane) the process is
+    /// attached to, or 0: none (a GUI or detached process), gone, or not ours to ask. Every process on a pane's
+    /// pseudoconsole has that pane's host, whoever started it.
+    /// </summary>
+    public static int ConsoleHostProcessId(SafeProcessHandle process)
+    {
+        bool added = false;
+        try
+        {
+            process.DangerousAddRef(ref added);
+            return ConsoleHostProcessId(process.DangerousGetHandle());
+        }
+        catch (ObjectDisposedException) { return 0; }
+        finally
+        {
+            if (added) process.DangerousRelease();
+        }
+    }
+
+    /// <summary>
+    /// NtQueryInformationProcess(ProcessConsoleHostProcess): a ULONG_PTR, the console host's pid with flags in the low
+    /// two bits (Windows 8+; what Process Explorer and System Informer show as a process's console host).
+    /// </summary>
+    private static int ConsoleHostProcessId(nint process)
+    {
+        nuint value = 0;
+        uint returned;
+        if (Ntdll.NtQueryInformationProcess(process, ProcessConsoleHostProcess, &value, (uint)sizeof(nuint), &returned) < 0) return 0;
+        return (int)(value & ~(nuint)3);
+    }
+
+    /// <summary>PROCESSINFOCLASS ProcessConsoleHostProcess (phnt's ntpsapi.h).</summary>
+    private const int ProcessConsoleHostProcess = 49;
 
     /// <summary>The executable's full path (QueryFullProcessImageNameW), or null.</summary>
     public static string? ImagePath(int pid)

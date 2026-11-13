@@ -51,6 +51,9 @@ internal sealed unsafe class WindowsPty : IPtyBackend
     private readonly long _created;
     private ForegroundPick? _pick;
 
+    /// <summary>The pid of the pseudoconsole's host process, as the child sees it (0 until it has connected to it).</summary>
+    private int _consoleHost;
+
     /// <summary>The foreground process found in one snapshot (by its version; asked again only for a newer one).</summary>
     private sealed record ForegroundPick(long Snapshot, ProcessEntry? Entry);
 
@@ -80,7 +83,11 @@ internal sealed unsafe class WindowsPty : IPtyBackend
         if (WindowsProcesses.Current() is not { } snapshot) return null;
         var pick = Volatile.Read(ref _pick);
         if (pick is not null && pick.Snapshot == snapshot.Version) return pick.Entry;
-        var entry = snapshot.Foreground(ProcessId, _created);
+        // Every process on the pane's console reports this host, also one whose parent is gone (MSYS2's fork + exec).
+        // It doesn't change once the child has connected; until then (right after the spawn) it is asked again.
+        int host = Volatile.Read(ref _consoleHost);
+        if (host == 0) Volatile.Write(ref _consoleHost, host = WindowsProcesses.ConsoleHostProcessId(_process));
+        var entry = snapshot.Foreground(ProcessId, _created, host);
         Volatile.Write(ref _pick, new ForegroundPick(snapshot.Version, entry));
         return entry;
     }

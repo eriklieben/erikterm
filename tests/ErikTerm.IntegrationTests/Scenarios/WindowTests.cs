@@ -250,11 +250,9 @@ public class WindowTests
                 key:enter
                 """,
         });
-        // Windows: the shell replaces itself with sleep. A program Git for Windows' sh starts the usual way (fork, then
-        // exec) isn't in the pane's process tree: MSYS2's exec starts the program as a new Windows process and the forked
-        // sh exits, so the program's parent is gone. Only a top-level MSYS2 process (the pane's own sh) stays as its
-        // program's parent, which erikterm's foreground lookup follows.
-        await run.TypeAsync(OperatingSystem.IsWindows() ? "exec sleep 600" : "sleep 600");
+        // Windows: Git for Windows' sh starts sleep the usual way (fork, then exec), so sleep's Windows parent, the forked
+        // sh, has exited; erikterm finds it by the pane's console instead (WindowsProcessTree).
+        await run.TypeAsync("sleep 600");
         await run.WaitForPanesAsync(p => p[0].Str("foreground_process_name") == "sleep");
         run.Release("busy");
 
