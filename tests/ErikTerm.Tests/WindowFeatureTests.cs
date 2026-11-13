@@ -1043,15 +1043,35 @@ public class WindowEditorTests
         using var pane = TestPanes.Spawn(workingDirectory: dir);
         var editor = New(window);
         const string text = "src/parser.c:3:5: error: expected one";
+        // The shell's directory is read from the running process: give a slow runner a moment to start it.
+        for (int i = 0; i < 100 && PaneTracks.PaneDirectory(pane) is null; i++) await Task.Delay(50);
 
-        // Act
-        var span = editor.FindSmartLinkAt(pane, text, 2, out var link);
+        try
+        {
+            // Act
+            var span = editor.FindSmartLinkAt(pane, text, 2, out var link);
 
-        // Assert
-        Directory.Delete(dir, recursive: true);
-        await Assert.That(span).IsNotNull();
-        await Assert.That(link.Value).IsEqualTo(Path.Combine(Path.GetFullPath(dir), "src", "parser.c"));
-        await Assert.That(link.Line).IsEqualTo(3);
+            // Assert: the file in the pane's folder (compared as a file: on macOS /var is a link to /private/var).
+            await Assert.That(span).IsNotNull();
+            await Assert.That(link.Value).EndsWith(Path.Combine("src", "parser.c"));
+            await Assert.That(File.Exists(link.Value)).IsTrue();
+            await Assert.That(SameFile(link.Value, Path.Combine(dir, "src", "parser.c"))).IsTrue();
+            await Assert.That(link.Line).IsEqualTo(3);
+        }
+        finally { Directory.Delete(dir, recursive: true); }
+    }
+
+    /// <summary>Whether two paths name the same file, whatever links lie on the way to it.</summary>
+    private static bool SameFile(string a, string b) =>
+        string.Equals(RealPath(a), RealPath(b), OperatingSystem.IsLinux() ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase);
+
+    private static string RealPath(string path)
+    {
+        var dir = new DirectoryInfo(Path.GetDirectoryName(Path.GetFullPath(path))!);
+        var parts = new Stack<string>();
+        for (var d = dir; d is not null; d = d.Parent)
+            parts.Push(d.LinkTarget is { } target ? Path.GetFullPath(target, d.Parent?.FullName ?? "/") : d.Name);
+        return Path.Combine([.. parts, Path.GetFileName(path)]);
     }
 
     [Test]
