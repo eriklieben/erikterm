@@ -149,15 +149,15 @@ public static class Gif
                 rgba[o + 3] = 255;
             }
         }
-    }
 
-    /// <summary>Moves to the next row of the four-pass interlace; false when the passes are done.</summary>
-    private static bool NextInterlacedRow(ref int row, ref int pass, int height)
-    {
-        ReadOnlySpan<int> start = [0, 4, 2, 1], step = [8, 8, 4, 2];
-        row += step[pass];
-        while (row >= height && ++pass < 4) row = start[pass];
-        return pass < 4;
+        /// <summary>Moves to the next row of the four-pass interlace; false when the passes are done.</summary>
+        private static bool NextInterlacedRow(ref int row, ref int pass, int height)
+        {
+            ReadOnlySpan<int> start = [0, 4, 2, 1], step = [8, 8, 4, 2];
+            row += step[pass];
+            while (row >= height && ++pass < 4) row = start[pass];
+            return pass < 4;
+        }
     }
 
     private static int SkipBlocks(ReadOnlySpan<byte> d, int pos)
