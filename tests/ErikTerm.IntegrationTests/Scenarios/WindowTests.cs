@@ -9,10 +9,17 @@ public class WindowTests
     [Test]
     public async Task The_session_is_saved_on_close_and_restored_at_the_next_start()
     {
-        // Arrange: a first run with two tabs, a split and a zoom, closed by the script.
+        // Arrange: a first run with a tab of three panes (a split within a split) renamed through the palette, a second
+        // tab, and the Settings tab renamed with erikterm cli; closed by the script. Each pane cds into a folder of its
+        // own once its split exists: one also reports it with OSC 7, one has a program set its title (OSC 2) after the
+        // rename, and the second tab's cd is made in a shell started from the pane's shell (its folder is only in that
+        // child's process; not on Windows, where MSYS2's sh doesn't keep its child in the pane's process tree).
         string dir = AppRun.NewDirectory();
-        string work = Path.Combine(dir, "work");
-        Directory.CreateDirectory(work);
+        string[] folders = ["one", "two", "three"];
+        foreach (string f in folders) Directory.CreateDirectory(Path.Combine(dir, f));
+        string fourth = Path.Combine(dir, "four");
+        Directory.CreateDirectory(fourth);
+        string Folder(int i) => Path.Combine(dir, folders[i]);
         await using (var first = AppRun.Start(new Scenario
         {
             Directory = dir,
@@ -22,15 +29,42 @@ public class WindowTests
             Script = """
                 action:SplitHorizontal
                 sleep:500
+                action:SplitVertical
+                sleep:500
+                action:ActivateCommandPalette
+                type:Rename Tab
+                key:enter
+                type:renamed-split
+                key:enter
+                sleep:300
+                wait-file:split
                 action:SpawnTab
                 sleep:500
+                wait-file:moved
+                action:OpenSettings
+                sleep:800
                 wait-file:ready
                 close-window
                 """,
         }))
         {
-            await first.TypeAsync($"cd '{Platform.ShPath(work)}'");
-            await first.WaitForPanesAsync(p => p.Length == 3 && p.Any(x => Platform.SamePath(x.Str("current_path"), work)));
+            var split = await first.WaitForPanesAsync(p => p.Length == 3 && p.All(x => x.TabTitle() == "renamed-split"));
+            string[] ids = split.Select(p => p.Int("pane_id")).Order().Select(id => id.ToString()).ToArray();
+            for (int i = 0; i < ids.Length; i++)
+                await first.CliAsync("send-text", "--no-paste", "--pane-id", ids[i], $"cd '{Platform.ShPath(Folder(i))}'\r");
+            await first.CliAsync("send-text", "--no-paste", "--pane-id", ids[0], "printf '\\033]7;file://%s\\033\\\\' \"$PWD\"\r");
+            await first.CliAsync("send-text", "--no-paste", "--pane-id", ids[1], "printf '\\033]2;program-title\\007'\r");
+            await first.WaitForPanesAsync(p => Enumerable.Range(0, 3).All(i => p.Any(x => Platform.SamePath(x.Str("current_path"), Folder(i)))));
+            first.Release("split");
+            await first.WaitForPanesAsync(p => p.Length == 4);
+            if (!OperatingSystem.IsWindows()) await first.TypeAsync(Platform.Shell);
+            await first.TypeAsync($"cd '{Platform.ShPath(fourth)}'");
+            await first.WaitForPanesAsync(p => p.Any(x => Platform.SamePath(x.Str("current_path"), fourth)));
+            first.Release("moved");
+            var settings = (await first.WaitForPanesAsync(p => p.Length == 5 && p.Any(x => x.Int("tab_index") == 2 && x.TabTitle() == "Settings")))
+                .Single(p => p.Int("tab_index") == 2);
+            await first.CliAsync("set-tab-title", "--tab-id", settings.Int("tab_id").ToString(), "my-settings");
+            await first.WaitForPanesAsync(p => p.Any(x => x.TabTitle() == "my-settings"));
             // Saved ~2 s after the last change (Session/SessionKeeper.cs), before the window closes.
             await first.WaitForFileAsync(AppRun.SessionFileOf(dir));
             await Task.Delay(2500);
@@ -38,8 +72,7 @@ public class WindowTests
             await Checks.CleanExitAsync(first);
         }
         string saved = AppRun.SessionFileOf(dir);
-        await Assert.That(File.Exists(saved)).IsTrue();
-        await Assert.That(File.ReadAllText(saved)).Contains(System.Text.Json.JsonSerializer.Serialize(work).Trim('"'));
+        string savedText = File.Exists(saved) ? File.ReadAllText(saved) : "";
 
         // Act: the second run restores it.
         await using var second = AppRun.Start(new Scenario
@@ -49,12 +82,22 @@ public class WindowTests
             Config = "restore_session = true",
             Script = "wait-file:checked\nclose-window",
         });
-        var panes = await second.WaitForPanesAsync(p => p.Length == 3);
+        // The restored shells report their directories once they run.
+        var panes = await second.WaitForPanesAsync(p => p.Length == 5 && p.All(x => x.Str("current_path").Length > 0));
+        var renamed = panes.Where(p => p.Int("tab_index") == 0).ToArray();
+        string fourthPath = panes.Single(p => p.Int("tab_index") == 1).Str("current_path");
+        string settingsTitle = panes.Single(p => p.Int("tab_index") == 2).TabTitle();
 
-        // Assert
-        await Assert.That(panes.Tabs()).IsEqualTo(2);
-        await Assert.That(panes.Single(p => p.Bool("tab_active")).Int("tab_index")).IsEqualTo(1);
-        await Assert.That(panes.Any(p => Platform.SamePath(p.Str("current_path"), work))).IsTrue();
+        // Assert: the tabs and the active one, the user's names for the tabs (not a program's title), each pane in its own folder.
+        await Assert.That(savedText).Contains("renamed-split");
+        await Assert.That(savedText).DoesNotContain("program-title");
+        await Assert.That(panes.Tabs()).IsEqualTo(3);
+        await Assert.That(panes.Single(p => p.Bool("tab_active")).Int("tab_index")).IsEqualTo(2);
+        await Assert.That(renamed.All(p => p.TabTitle() == "renamed-split")).IsTrue().Because(savedText);
+        await Assert.That(settingsTitle).IsEqualTo("my-settings").Because(savedText);
+        foreach (int i in Enumerable.Range(0, 3))
+            await Assert.That(renamed.Count(p => Platform.SamePath(p.Str("current_path"), Folder(i)))).IsEqualTo(1).Because(savedText);
+        await Assert.That(Platform.SamePath(fourthPath, fourth)).IsTrue().Because(savedText);
         second.Release("checked");
         await Checks.CleanExitAsync(second);
     }
