@@ -113,7 +113,10 @@ runner's desktop (`ERIKTERM_IT_DESKTOP=1`, `Scenarios/DesktopTests.cs`), the UI 
 `Accessibility/`, the Win32 hit test and caption double click in `Chrome/` and the DWM backdrop. The `coverage` and
 `sonar` jobs pick these up with the test jobs'
 reports (`coverage-*`), and a line counts as covered when any report ran it, so the per-project totals in the
-`coverage` job and SonarQube Cloud's include what the scenarios ran. Locally:
+`coverage` job and SonarQube Cloud's include what the scenarios ran. On macOS dotnet-coverage collects nothing so far
+(not even for the test process; the cause isn't known yet), so `coverage-integration-macos` is empty: the scenarios still run and
+check the behaviour, and the macOS-only code is measured by the unit tests alone. `scripts/sonar-coverage.py` warns
+about an empty report and fails on one that has data but no file under `src/` (a path it couldn't map). Locally:
 
 ```sh
 scripts/integration-tests.sh --coverage coverage/integration/coverage.xml

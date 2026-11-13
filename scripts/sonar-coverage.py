@@ -51,7 +51,11 @@ def main():
     for report in args.reports:
         kept, dropped = rewrite(report, root)
         print(f"{report}: {kept} classes under src/, {dropped} left out")
-        if kept == 0:
+        if kept == 0 and dropped == 0:
+            # An empty report: the collector measured nothing (so far dotnet-coverage on the macOS runner, see
+            # docs/development/code-analysis.md). Nothing to map; the other reports still count.
+            print(f"::warning::{report} is empty: no coverage was collected for it")
+        elif kept == 0:
             print(f"{report}: no file under src/", file=sys.stderr)
             return 1
     return 0
