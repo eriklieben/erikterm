@@ -93,6 +93,7 @@ public static partial class ColorSchemes
             CherryBlossom,
             CoralNavy,
             CreamAndRose,
+            Cyberpunk,
         ];
         All = [builtIn[0], .. builtIn.Skip(1).OrderBy(s => s.Name, StringComparer.OrdinalIgnoreCase)];
     }

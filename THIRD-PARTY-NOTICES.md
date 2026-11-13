@@ -34,5 +34,6 @@ Compiled into the binary as data:
 | The colours of the built-in scheme *Catppuccin Frappé*, from Catppuccin for wezterm, Copyright © 2021 Catppuccin | MIT | https://github.com/catppuccin/wezterm |
 | The colours of the built-in scheme *Catppuccin Latte*, from Catppuccin for wezterm, Copyright © 2021 Catppuccin | MIT | https://github.com/catppuccin/wezterm |
 | The colours of the built-in scheme *Cherry Blossom*, from Cherry Blossom, Copyright © 2025 daitsuku | MIT | https://github.com/daitsuku/cherry-blossom-vscode-theme |
+| The colours of the built-in scheme *Cyberpunk*, from cyberpunk-iterm, Copyright © Merlijn Vos (Murderlon) | MIT | https://github.com/Murderlon/cyberpunk-iterm |
 
 Portions of this software are copyright © The FreeType Project (https://freetype.org). All rights reserved.
