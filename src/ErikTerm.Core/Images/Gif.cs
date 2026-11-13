@@ -73,9 +73,10 @@ public static class Gif
         int minCode = d[pos++];
         if (minCode is < 1 or > 11) throw new ImageDecodeException("bad GIF LZW code size");
 
-        var indices = Lzw(GatherSubBlocks(d, pos), minCode, fw * fh);
         var rgba = new byte[sw * sh * 4];
-        PaintFrame(indices, new Frame(fx, fy, fw, fh, (f & 0x40) != 0), table, transparent, new Canvas(rgba, sw, sh));
+        var painter = new FramePainter(new Frame(fx, fy, fw, fh, (f & 0x40) != 0), table, transparent, new Canvas(rgba, sw, sh));
+        Lzw(GatherSubBlocks(d, pos), minCode, painter);
+        painter.Finish();
         return new DecodedImage(sw, sh, rgba);
     }
 
@@ -93,35 +94,61 @@ public static class Gif
         return lzw;
     }
 
-    /// <summary>Writes the frame's indices row by row, in interlace order if the frame is interlaced.</summary>
-    private static void PaintFrame(byte[] indices, Frame frame, byte[] table, int transparent, in Canvas canvas)
+    /// <summary>
+    /// Takes the frame's color indices as the LZW stream produces them and paints them row by row (in interlace order
+    /// if the frame is interlaced), so only one row of indices is ever held: the frame descriptor's size, which costs
+    /// a file nothing to declare, only decides how many indices are read, not what is allocated.
+    /// </summary>
+    private sealed class FramePainter(Frame frame, byte[] table, int transparent, Canvas canvas)
     {
-        int k = 0;
-        for (int pass = 0, row = 0; k < indices.Length && row < frame.Height;)
-        {
-            k = PaintRow(indices, k, frame, row, table, transparent, canvas);
-            if (!frame.Interlaced) row++;
-            else if (!NextInterlacedRow(ref row, ref pass, frame.Height)) break;
-        }
-    }
+        private readonly byte[] _indices = new byte[frame.Width];
+        private int _x, _row, _pass;
 
-    /// <summary>Paints one row of the frame starting at index <paramref name="k"/>; returns the next index.</summary>
-    private static int PaintRow(byte[] indices, int k, Frame frame, int y, byte[] table, int transparent, in Canvas canvas)
-    {
-        byte[] rgba = canvas.Rgba;
-        int sw = canvas.Width, sh = canvas.Height;
-        for (int x = 0; x < frame.Width && k < indices.Length; x++, k++)
+        /// <summary>Every row of the frame is painted: the stream's remaining codes are ignored.</summary>
+        public bool Full { get; private set; } = frame.Width == 0 || frame.Height == 0;
+
+        public void Put(byte index)
         {
-            int ci = indices[k];
-            int px = frame.X + x, py = frame.Y + y;
-            if (ci == transparent || px >= sw || py >= sh || ci * 3 + 2 >= table.Length) continue;
-            int o = (py * sw + px) * 4;
-            rgba[o] = table[ci * 3];
-            rgba[o + 1] = table[ci * 3 + 1];
-            rgba[o + 2] = table[ci * 3 + 2];
-            rgba[o + 3] = 255;
+            _indices[_x++] = index;
+            if (_x == _indices.Length) NextRow();
         }
-        return k;
+
+        /// <summary>The stream ended early: the pixels it didn't reach get index 0, as in a frame of zeros.</summary>
+        public void Finish()
+        {
+            if (Full) return;
+            _indices.AsSpan(_x).Clear();
+            NextRow();
+            _indices.AsSpan().Clear();
+            while (!Full) NextRow();
+        }
+
+        private void NextRow()
+        {
+            PaintRow(_row);
+            _x = 0;
+            if (!frame.Interlaced) Full = ++_row >= frame.Height;
+            else Full = !NextInterlacedRow(ref _row, ref _pass, frame.Height);
+        }
+
+        /// <summary>Paints the indices as frame row <paramref name="y"/>, clipped to the canvas.</summary>
+        private void PaintRow(int y)
+        {
+            int py = frame.Y + y;
+            if (py >= canvas.Height) return;
+            byte[] rgba = canvas.Rgba;
+            int visible = Math.Min(frame.Width, canvas.Width - frame.X);
+            for (int x = 0; x < visible; x++)
+            {
+                int ci = _indices[x];
+                if (ci == transparent || ci * 3 + 2 >= table.Length) continue;
+                int o = (py * canvas.Width + frame.X + x) * 4;
+                rgba[o] = table[ci * 3];
+                rgba[o + 1] = table[ci * 3 + 1];
+                rgba[o + 2] = table[ci * 3 + 2];
+                rgba[o + 3] = 255;
+            }
+        }
     }
 
     /// <summary>Moves to the next row of the four-pass interlace; false when the passes are done.</summary>
@@ -144,9 +171,9 @@ public static class Gif
         return pos;
     }
 
-    private static byte[] Lzw(List<byte> data, int minCode, int pixels)
+    private static void Lzw(List<byte> data, int minCode, FramePainter painter)
     {
-        var decoder = new LzwDecoder(minCode, pixels);
+        var decoder = new LzwDecoder(minCode, painter);
         int bits = 0, acc = 0;
         foreach (byte b in data)
         {
@@ -157,29 +184,27 @@ public static class Gif
                 int code = acc & ((1 << decoder.CodeSize) - 1);
                 acc >>= decoder.CodeSize;
                 bits -= decoder.CodeSize;
-                if (!decoder.Accept(code)) return decoder.Output;
+                if (!decoder.Accept(code)) return;
             }
         }
-        return decoder.Output;
     }
 
-    /// <summary>The code table of a GIF LZW stream and the pixel indices decoded so far.</summary>
+    /// <summary>The code table of a GIF LZW stream; the pixel indices it decodes go to a <see cref="FramePainter"/>.</summary>
     private sealed class LzwDecoder
     {
-        public readonly byte[] Output;
         public int CodeSize;
-        private readonly int _minCode, _clear, _end, _pixels;
+        private readonly FramePainter _output;
+        private readonly int _minCode, _clear, _end;
         private readonly short[] _prefix = new short[4096];
         private readonly byte[] _suffix = new byte[4096];
         private readonly byte[] _stack = new byte[4097];
-        private int _next, _old = -1, _outPos;
+        private int _next, _old = -1;
         private byte _first;
 
-        public LzwDecoder(int minCode, int pixels)
+        public LzwDecoder(int minCode, FramePainter output)
         {
             _minCode = minCode;
-            _pixels = pixels;
-            Output = new byte[pixels];
+            _output = output;
             _clear = 1 << minCode;
             _end = _clear + 1;
             CodeSize = minCode + 1;
@@ -198,7 +223,7 @@ public static class Gif
         private bool AcceptFirst(int code)
         {
             if (code >= _clear) return false;
-            if (_outPos < _pixels) Output[_outPos++] = (byte)code;
+            if (!_output.Full) _output.Put((byte)code);
             _old = code;
             _first = (byte)code;
             return true;
@@ -216,8 +241,8 @@ public static class Gif
             while (c >= _clear && sp < 4096) { _stack[sp++] = _suffix[c]; c = _prefix[c]; }
             _first = (byte)c;
             _stack[sp++] = _first;
-            while (sp > 0 && _outPos < _pixels) Output[_outPos++] = _stack[--sp];
-            if (_outPos >= _pixels) return false;
+            while (sp > 0 && !_output.Full) _output.Put(_stack[--sp]);
+            if (_output.Full) return false;
             if (_next < 4096)
             {
                 _prefix[_next] = (short)_old;

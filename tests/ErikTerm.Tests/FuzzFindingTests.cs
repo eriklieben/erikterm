@@ -121,4 +121,35 @@ public class FuzzFindingTests
         await Assert.That(allocated).IsLessThan(SixelAllocationBound);
     }
 
+    /// <summary>A GIF89a with a two-color table and one frame, whose LZW data is one pixel of index 1.</summary>
+    private static byte[] GifWithFrame(int screenW, int screenH, int frameW, int frameH, bool interlaced = false)
+    {
+        var gif = new List<byte>("GIF89a"u8.ToArray());
+        gif.AddRange([(byte)screenW, (byte)(screenW >> 8), (byte)screenH, (byte)(screenH >> 8), 0x80, 0, 0]);
+        gif.AddRange([0, 0, 0, 255, 255, 255]);
+        gif.AddRange([0x2C, 0, 0, 0, 0, (byte)frameW, (byte)(frameW >> 8), (byte)frameH, (byte)(frameH >> 8), (byte)(interlaced ? 0x40 : 0)]);
+        gif.AddRange([2, 2, 0x4C, 0x01, 0, 0x3B]); // clear, 1, end
+        return [.. gif];
+    }
+
+    [Test]
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task Gif_frame_far_larger_than_its_screen_allocates_for_the_screen_only(bool interlaced)
+    {
+        // Arrange
+        byte[] gif = GifWithFrame(2, 1, 7000, 7000, interlaced);
+        long before = GC.GetAllocatedBytesForCurrentThread();
+
+        // Act
+        var image = Gif.Decode(gif);
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        // Assert
+        await Assert.That(image.Width).IsEqualTo(2);
+        await Assert.That(image.Height).IsEqualTo(1);
+        await Assert.That(image.Rgba).IsEquivalentTo(new byte[] { 255, 255, 255, 255, 0, 0, 0, 255 }, CollectionOrdering.Matching);
+        await Assert.That(allocated).IsLessThan(1L << 20).Because("the frame's 49 MB of indices were held before painting");
+    }
+
 }
