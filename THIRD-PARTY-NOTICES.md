@@ -59,5 +59,6 @@ Compiled into the binary as data:
 | The colours of the built-in scheme *Shado*, from shadotheme, Copyright © 2021, Shadorain. All rights reserved. | BSD 3-Clause (copyright notice, conditions and disclaimer in the About screen's Licenses tab) | https://github.com/Shadorain/shadotheme |
 | The colours of the built-in scheme *Solarized Dark*, from Solarized, Copyright © 2011 Ethan Schoonover | MIT | https://github.com/altercation/solarized |
 | The colours of the built-in scheme *Solarized Light*, from Solarized, Copyright © 2011 Ethan Schoonover | MIT | https://github.com/altercation/solarized |
+| The colours of the built-in scheme *SynthWave '84*, from SynthWave '84, Copyright © 2019 Robb Owen | MIT | https://github.com/robb0wen/synthwave-vscode |
 
 Portions of this software are copyright © The FreeType Project (https://freetype.org). All rights reserved.

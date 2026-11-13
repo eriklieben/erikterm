@@ -1,6 +1,6 @@
 # Color schemes
 
-erikterm ships 44 built-in color schemes, dark and light. `erik` is the default.
+erikterm ships 45 built-in color schemes, dark and light. `erik` is the default.
 
 ## Picking one
 
@@ -67,6 +67,7 @@ measured contrast of the statusline in erikterm's standard scene, focused and di
 | [One Half Dark](one-half-dark.md) | One Half | MIT |
 | [Nightfox](nightfox.md) | Nightfox | MIT |
 | [Carbonfox](carbonfox.md) | Nightfox | MIT |
+| [SynthWave '84](synthwave-84.md) | SynthWave | MIT |
 | [Cyberpunk](cyberpunk.md) | Cyberpunk | MIT |
 | [Fairy Floss](fairy-floss.md) | Fairy Floss | MIT |
 | [LaserWave](laserwave.md) | LaserWave | MIT |
