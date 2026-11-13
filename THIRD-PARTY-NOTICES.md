@@ -39,5 +39,6 @@ Compiled into the binary as data:
 | The colours of the built-in scheme *Everforest Dark*, from Everforest, Copyright © 2019 sainnhe | MIT | https://github.com/sainnhe/everforest |
 | The colours of the built-in scheme *Everforest Light*, from Everforest, Copyright © 2019 sainnhe | MIT | https://github.com/sainnhe/everforest |
 | The colours of the built-in scheme *Fairy Floss*, from fairyfloss, Copyright © Amy Wibowo (sailorhg) | MIT | https://github.com/sailorhg/fairyfloss |
+| The colours of the built-in scheme *GitHub Dark*, from GitHub VS Code theme (Primer), Copyright © 2020 Primer | MIT | https://github.com/primer/github-vscode-theme |
 
 Portions of this software are copyright © The FreeType Project (https://freetype.org). All rights reserved.
