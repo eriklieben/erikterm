@@ -105,6 +105,7 @@ public static partial class ColorSchemes
             GruvboxLight,
             KanagawaLotus,
             KanagawaWave,
+            LaserWave,
         ];
         All = [builtIn[0], .. builtIn.Skip(1).OrderBy(s => s.Name, StringComparer.OrdinalIgnoreCase)];
     }

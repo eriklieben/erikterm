@@ -45,5 +45,6 @@ Compiled into the binary as data:
 | The colours of the built-in scheme *Gruvbox Light*, from gruvbox, By Pavel Pertsev (morhetz) | MIT | https://github.com/morhetz/gruvbox |
 | The colours of the built-in scheme *Kanagawa Lotus*, from kanagawa.nvim, Copyright © 2021 Tommaso Laurenzi | MIT | https://github.com/rebelot/kanagawa.nvim |
 | The colours of the built-in scheme *Kanagawa Wave*, from kanagawa.nvim, Copyright © 2021 Tommaso Laurenzi | MIT | https://github.com/rebelot/kanagawa.nvim |
+| The colours of the built-in scheme *LaserWave*, from LaserWave, Copyright © 2019 Jared Jones | MIT | https://github.com/Jaredk3nt/laserwave |
 
 Portions of this software are copyright © The FreeType Project (https://freetype.org). All rights reserved.
