@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.12.0.schema.json
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.28.0.schema.json
 # Template: release.yml (job winget) replaces __VERSION__, __INSTALLER_SHA256__ and __RELEASE_DATE__.
 # The installer is packaging/windows/erikterm.iss: Inno Setup, per user (PrivilegesRequired=lowest), its AppId plus
 # Inno's "_is1" is the uninstall key, so it is the ProductCode. A newer setup.exe upgrades in place (same AppId).
@@ -30,4 +30,4 @@ Installers:
     InstallerUrl: https://github.com/eriklieben/erikterm/releases/download/v__VERSION__/erikterm-win-x64-setup.exe
     InstallerSha256: __INSTALLER_SHA256__
 ManifestType: installer
-ManifestVersion: 1.12.0
+ManifestVersion: 1.28.0

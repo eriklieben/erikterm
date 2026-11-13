@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.12.0.schema.json
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.28.0.schema.json
 # Template: release.yml (job winget) replaces __VERSION__.
 
 PackageIdentifier: ErikLieben.Terminal
@@ -41,4 +41,4 @@ Documentations:
   - DocumentLabel: Guide
     DocumentUrl: https://github.com/eriklieben/erikterm/tree/main/docs/guide
 ManifestType: defaultLocale
-ManifestVersion: 1.12.0
+ManifestVersion: 1.28.0
