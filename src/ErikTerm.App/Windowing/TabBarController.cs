@@ -74,7 +74,7 @@ internal sealed class TabBarController(
             if (TabById(id) is { } t) tabs.Move(tabs.IndexOf(t), to);
             window.Redraw();
         };
-        bar.Rename = (id, title) => { if (TabById(id) is { } t) { t.CustomTitle = title; t.TransientTitle = false; } window.Redraw(); };
+        bar.Rename = (id, title) => { TabById(id)?.Rename(title); window.Redraw(); };
         // Tear-off: drag a tab out of the bar into a window of its own, or onto another window's bar (App.TearOff.cs).
         bar.CanDetach = window.CanDetachTab;
         bar.DragOutside = (id, x, y) => { if (TabById(id) is not null) window.OnTabDragged(x, y); };

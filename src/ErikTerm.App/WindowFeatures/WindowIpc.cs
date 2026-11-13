@@ -337,7 +337,7 @@ internal sealed class WindowIpc(IIpcWindow window, IPaneLauncher launcher, IPane
     private IpcResponse IpcSetTabTitle(IpcRequest r)
     {
         var tab = targets.Tab(r);
-        tab.CustomTitle = string.IsNullOrEmpty(r.Title) ? null : r.Title;
+        tab.Rename(string.IsNullOrEmpty(r.Title) ? null : r.Title); // also tmux rename-window (Tmux/TmuxShim.cs)
         tab.TitleAt = 0;
         return IpcResponse.Success();
     }

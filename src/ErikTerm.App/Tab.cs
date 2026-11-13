@@ -37,6 +37,19 @@ internal sealed class Tab : ITabView
 
     public string Title => CustomTitle ?? AutoTitle;
 
+    /// <summary>
+    /// The user named the tab (tab bar, Rename Tab, <c>erikterm cli set-tab-title</c>, tmux rename-window); null goes back to
+    /// the automatic title. Their name is saved with the session, also on a tool tab that had a transient label.
+    /// </summary>
+    public void Rename(string? title)
+    {
+        CustomTitle = title;
+        TransientTitle = false;
+    }
+
+    /// <summary>The title session.json keeps: a name given to the tab, never a tool tab's own label or a program's title (<see cref="AutoTitle"/>).</summary>
+    public string? SessionTitle => TransientTitle ? null : CustomTitle;
+
     ErikTerm.Ui.AgentStatus.AgentState ITabView.AgentState => AgentState;
     bool ITabView.Activity => Activity;
     bool ITabView.Unread => Unread;
