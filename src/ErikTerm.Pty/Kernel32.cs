@@ -165,6 +165,11 @@ internal static unsafe partial class Ntdll
     [LibraryImport("ntdll.dll")]
     public static partial int NtQueryInformationProcess(nint processHandle, int processInformationClass, void* processInformation,
         uint processInformationLength, uint* returnLength);
+
+    // The same for a SafeHandle: the marshaller keeps the handle alive (AddRef / Release) for the call.
+    [LibraryImport("ntdll.dll")]
+    public static partial int NtQueryInformationProcess(SafeProcessHandle processHandle, int processInformationClass, void* processInformation,
+        uint processInformationLength, uint* returnLength);
 }
 
 /// <summary>

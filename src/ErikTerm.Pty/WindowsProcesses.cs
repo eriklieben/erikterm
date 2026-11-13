@@ -344,17 +344,14 @@ internal static unsafe class WindowsProcesses
     /// </summary>
     public static int ConsoleHostProcessId(SafeProcessHandle process)
     {
-        bool added = false;
+        nuint value = 0;
+        uint returned;
         try
         {
-            process.DangerousAddRef(ref added);
-            return ConsoleHostProcessId(process.DangerousGetHandle());
+            if (Ntdll.NtQueryInformationProcess(process, ProcessConsoleHostProcess, &value, (uint)sizeof(nuint), &returned) < 0) return 0;
         }
         catch (ObjectDisposedException) { return 0; }
-        finally
-        {
-            if (added) process.DangerousRelease();
-        }
+        return (int)(value & ~(nuint)3);
     }
 
     /// <summary>
