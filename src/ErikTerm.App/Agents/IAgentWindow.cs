@@ -49,6 +49,8 @@ internal interface IAgentWindow<TPane> : IWindowPanes<TPane>, IWindowChrome, ITa
     /// <summary>The window is the app's focused one (the last focused one while another application has focus).</summary>
     bool IsCurrentWindow { get; }
     bool TabBarShown { get; }
+    /// <summary>The window's size in pixels: the waiting rim stays inside it.</summary>
+    (int Width, int Height) PixelSize { get; }
     /// <summary>The zoom badge is showing in the top-right corner, where the pill would go.</summary>
     bool ZoomBadgeShown(long now);
     int? ActiveTabId { get; }

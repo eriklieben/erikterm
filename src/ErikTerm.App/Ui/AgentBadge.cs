@@ -128,12 +128,32 @@ internal static class AgentBadge
     /// <summary>Corner radius of a pane's rim, in UI points: it sits just inside a window with rounded corners.</summary>
     public const float RimRadius = 8;
 
-    /// <summary>A thin rim around a waiting pane (no halo: a 1.5 px line just inside its edge).</summary>
-    public static void Rim(DrawList dl, Theme th, AgentPane a, RectF pane, long now)
+    /// <summary>
+    /// A thin rim around a waiting pane (no halo: a 1.5 px line). It runs in the gutter just outside the pane, so it
+    /// neither covers the first and last columns and rows nor moves them: the window padding at the window's edges,
+    /// half the gap between split panes (<see cref="RimRect"/>). Only fades: the pane's content never shifts.
+    /// </summary>
+    public static void Rim(DrawList dl, Theme th, AgentPane a, RectF pane, RectF window, long now)
     {
         float v = a.Rim.Value(now);
         if (v <= 0.002f) return;
-        float t = MathF.Max(1, MathF.Round(th.S(1.5f)));
-        dl.RoundedOutline(pane, th.S(RimRadius), t, th.Danger, 0.75f * v);
+        float t = RimThickness(th);
+        dl.RoundedOutline(RimRect(pane, window, th), th.S(RimRadius), t, th.Danger, 0.75f * v);
+    }
+
+    private static float RimThickness(Theme th) => MathF.Max(1, MathF.Round(th.S(1.5f)));
+
+    /// <summary>
+    /// The rectangle the rim's line is drawn just inside of: the pane grown by 3.5 px (scaled, whole pixels), so the line
+    /// lies 2 to 3.5 px outside the pane. That fits the 4 px below the tab bar, the default 6 px window padding and half
+    /// the 9 px split gap, where a neighbour's rim keeps a pixel of its own. Kept inside the window (with no window
+    /// padding the rim then sits on the edge columns again rather than off-screen).
+    /// </summary>
+    public static RectF RimRect(RectF pane, RectF window, Theme th)
+    {
+        float o = MathF.Max(RimThickness(th), MathF.Round(th.S(3.5f)));
+        float left = MathF.Max(window.X, MathF.Round(pane.X) - o), top = MathF.Max(window.Y, MathF.Round(pane.Y) - o);
+        float right = MathF.Min(window.Right, MathF.Round(pane.Right) + o), bottom = MathF.Min(window.Bottom, MathF.Round(pane.Bottom) + o);
+        return new RectF(left, top, MathF.Max(0, right - left), MathF.Max(0, bottom - top));
     }
 }

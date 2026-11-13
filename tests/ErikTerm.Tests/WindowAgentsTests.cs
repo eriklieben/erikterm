@@ -53,6 +53,7 @@ public class WindowAgentsTests
         public bool IsFocused { get; set; } = true;
         public bool IsCurrentWindow { get; set; } = true;
         public bool TabBarShown => false;
+        public (int Width, int Height) PixelSize => (1000, 800);
         public int? ActiveTabId => 100 + ActiveTabIndex;
         public Theme Theme { get; } = new();
         public bool SuppressText { get; set; }

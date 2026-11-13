@@ -146,12 +146,14 @@ internal sealed class WindowAgents<TPane>(IAgentWindow<TPane> window, IAgentProc
     public void DrawBadges(DrawList dl, long now)
     {
         if (!_anyAgents || !process.Settings.AgentStatus) return;
+        var (w, h) = window.PixelSize;
+        var bounds = new RectF(0, 0, w, h);
         foreach (var pane in window.VisiblePanes())
         {
             var a = pane.Agent;
             if (!a.Active && a.Pill.Value(now) <= 0.002f) continue;
             var r = pane.AgentBounds(now);
-            AgentBadge.Rim(dl, window.Theme, a, r, now);
+            AgentBadge.Rim(dl, window.Theme, a, r, bounds, now);
             AgentBadge.Pill(dl, window.Theme, a, r, window.ZoomBadgeShown(now), now);
         }
     }

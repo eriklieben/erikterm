@@ -2369,6 +2369,7 @@ internal sealed unsafe class TermWindow
     bool IAgentWindow<Pane>.IsFocused => _windowFocused;
     bool IAgentWindow<Pane>.IsCurrentWindow => ReferenceEquals(_app.Windows.Focused, this);
     bool IAgentWindow<Pane>.TabBarShown => _tabCtl.Shown;
+    (int Width, int Height) IAgentWindow<Pane>.PixelSize => WindowPixels();
     bool IAgentWindow<Pane>.ZoomBadgeShown(long now) => _zoomed is not null && _zoomBadge.Value(now) > 0.01f;
     int? IAgentWindow<Pane>.ActiveTabId => _tabs.Active?.Id;
     int IAgentWindow<Pane>.TabId(int tabIndex) => _tabs.Items[tabIndex].Id;
