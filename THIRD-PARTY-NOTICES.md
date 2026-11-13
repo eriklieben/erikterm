@@ -43,5 +43,6 @@ Compiled into the binary as data:
 | The colours of the built-in scheme *GitHub Light*, from GitHub VS Code theme (Primer), Copyright © 2020 Primer | MIT | https://github.com/primer/github-vscode-theme |
 | The colours of the built-in scheme *Gruvbox Dark*, from gruvbox, By Pavel Pertsev (morhetz) | MIT | https://github.com/morhetz/gruvbox |
 | The colours of the built-in scheme *Gruvbox Light*, from gruvbox, By Pavel Pertsev (morhetz) | MIT | https://github.com/morhetz/gruvbox |
+| The colours of the built-in scheme *Kanagawa Lotus*, from kanagawa.nvim, Copyright © 2021 Tommaso Laurenzi | MIT | https://github.com/rebelot/kanagawa.nvim |
 
 Portions of this software are copyright © The FreeType Project (https://freetype.org). All rights reserved.

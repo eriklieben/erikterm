@@ -103,6 +103,7 @@ public static partial class ColorSchemes
             GraphiteAndBlush,
             GruvboxDark,
             GruvboxLight,
+            KanagawaLotus,
         ];
         All = [builtIn[0], .. builtIn.Skip(1).OrderBy(s => s.Name, StringComparer.OrdinalIgnoreCase)];
     }
