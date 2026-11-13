@@ -141,7 +141,7 @@ The files must be byte-identical to the Linux ones. Check SHA-256 before going o
 
 ## 6. The two tools to write
 
-Put the source under `tools\`. Write both in C# on .NET 10. The child must be published with Native AOT if the MSVC
+Put the source under `tools\`. Write both in C# on .NET 11. The child must be published with Native AOT if the MSVC
 linker is present, because its own startup counts in the startup figure. If it can't be, use ReadyToRun and say so.
 
 ### `perfchild.exe`: runs inside the terminal under test

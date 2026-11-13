@@ -7,6 +7,7 @@ namespace ErikTerm.Tests;
 
 /// <summary>Drives /bin/sh through a Unix98 pty: Linux and macOS (skipped on Windows).</summary>
 [RunOn(OS.Linux | OS.MacOs)]
+[System.Runtime.Versioning.UnsupportedOSPlatform("windows")]
 [NotInParallel(Isolation.Processes)]
 public class PtyTests
 {

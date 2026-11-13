@@ -42,7 +42,7 @@ gh run download --repo eriklieben/erikterm -n erikterm-osx-arm64   # macOS (Appl
 
 **Build from source — Windows.** Native AOT can't cross-compile, so build on the Windows machine:
 
-1. .NET SDK **10.0.403 or newer** (`global.json`; `dotnet --version`), plus the MSVC linker: Visual Studio 2022+
+1. .NET SDK **11.0.100 or newer** (`global.json`; `dotnet --version`), plus the MSVC linker: Visual Studio 2022+
    or *Build Tools for Visual Studio* with the *Desktop development with C++* workload.
 2. Native DLLs in `deps\win-x64\`: `SDL3.dll`, `freetype.dll` (or MSYS2's `libfreetype-6.dll`), optionally
    `harfbuzz.dll` (ligatures), plus whatever those depend on. CI gets them from vcpkg:
@@ -54,7 +54,7 @@ gh run download --repo eriklieben/erikterm -n erikterm-osx-arm64   # macOS (Appl
    (With a standalone vcpkg clone, use its folder instead of `$env:VCPKG_INSTALLATION_ROOT`.)
 3. `scripts\publish-windows.ps1` → `artifacts\app-win\erikterm.exe` with every DLL from `deps\win-x64` copied next to it.
 
-**Build from source — macOS.** Xcode command line tools, the .NET 10 SDK, then:
+**Build from source — macOS.** Xcode command line tools, the .NET 11 SDK, then:
 
 ```sh
 brew install sdl3 freetype harfbuzz fontconfig

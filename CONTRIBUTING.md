@@ -17,7 +17,7 @@ scope and maintenance, not about your work.
 
 ## Build and test
 
-You need the .NET 10 SDK (`global.json` pins the version), and SDL3, FreeType and HarfBuzz from your system's package
+You need the .NET 11 SDK (`global.json` pins the version), and SDL3, FreeType and HarfBuzz from your system's package
 manager. [Developing erikterm](docs/development/README.md) has the architecture and debugging tips,
 [Testing and benchmarking](bench/README.md) the test conventions.
 

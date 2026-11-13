@@ -3,7 +3,7 @@
     Native AOT-publishes erikterm for Windows and puts SDL3.dll and freetype.dll next to erikterm.exe.
 
 .DESCRIPTION
-    Run this on Windows: Native AOT can't cross-compile from Linux. Needs the .NET 10 SDK and the
+    Run this on Windows: Native AOT can't cross-compile from Linux. Needs the .NET 11 SDK and the
     MSVC linker (Visual Studio 2022+ or "Build Tools for Visual Studio" with the
     "Desktop development with C++" workload).
 

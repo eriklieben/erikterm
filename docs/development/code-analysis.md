@@ -166,7 +166,7 @@ Renovate is the better choice once there are many packages to group or rules per
 | --- | --- |
 | build, CodeQL | the repository is public (workflow badges of a private repository don't load for others) and, for CodeQL, the workflow has run on main |
 | release | the repository is public and has a release (shields.io can't see private repositories) |
-| license, platforms, .NET 10, semantic-release | always (static) |
+| license, platforms, .NET 11, semantic-release | always (static) |
 | SonarQube Cloud (quality gate, coverage, ratings) | the project is public on SonarQube Cloud and main has been analysed |
 | OpenSSF Scorecard | the repository is public and scorecard.yml has published a result |
 

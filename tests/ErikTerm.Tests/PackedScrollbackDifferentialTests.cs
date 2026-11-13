@@ -302,7 +302,7 @@ public class PackedScrollbackDifferentialTests
     {
         for (long line = a.FirstLine; line < a.EndLine; line++)
         {
-            string? diff = SameRow(a, b, line, a.GetLine(line), b.GetLine(line));
+            string? diff = SameRow(a, b, a.GetLine(line), b.GetLine(line));
             if (diff is not null) return $"line {line}: {diff}";
         }
         return null;
@@ -312,13 +312,13 @@ public class PackedScrollbackDifferentialTests
     {
         for (int y = 0; y < a.Rows; y++)
         {
-            string? diff = SameRow(a, b, y, a.GetVisibleRow(y), b.GetVisibleRow(y));
+            string? diff = SameRow(a, b, a.GetVisibleRow(y), b.GetVisibleRow(y));
             if (diff is not null) return $"visible row {y}: {diff}";
         }
         return null;
     }
 
-    private static string? SameRow(Terminal ta, Terminal tb, long line, Row? a, Row? b)
+    private static string? SameRow(Terminal ta, Terminal tb, Row? a, Row? b)
     {
         if (a is null || b is null) return a is null && b is null ? null : "missing on one side";
         string? head = Field("wrapped", a.Wrapped, b.Wrapped) ?? Field("width", a.Width, b.Width) ?? Field("marks", a.Marks, b.Marks)

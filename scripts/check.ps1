@@ -37,7 +37,7 @@ Step 'tests' {
     if ($IsWindows -and (Test-Path 'deps\win-x64')) {
         dotnet build tests/ErikTerm.Tests -nologo -v q
         if ($LASTEXITCODE -ne 0) { return }
-        Copy-Item 'deps\win-x64\*.dll' 'tests\ErikTerm.Tests\bin\Debug\net10.0\'
+        Copy-Item 'deps\win-x64\*.dll' 'tests\ErikTerm.Tests\bin\Debug\net11.0\'
         dotnet test --project tests/ErikTerm.Tests --no-build
     } else {
         dotnet test --project tests/ErikTerm.Tests

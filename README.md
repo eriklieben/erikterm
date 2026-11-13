@@ -14,7 +14,7 @@
   <a href="https://github.com/eriklieben/erikterm/releases"><img src="https://img.shields.io/github/v/release/eriklieben/erikterm?sort=semver&label=release" alt="Latest release"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT License"></a>
   <img src="https://img.shields.io/badge/platforms-Linux%20%7C%20Windows%20%7C%20macOS-555" alt="Linux, Windows and macOS">
-  <img src="https://img.shields.io/badge/.NET%2010-Native%20AOT-512BD4?logo=dotnet" alt=".NET 10, Native AOT">
+  <img src="https://img.shields.io/badge/.NET%2011-Native%20AOT-512BD4?logo=dotnet" alt=".NET 11, Native AOT">
   <a href="https://github.com/semantic-release/semantic-release"><img src="https://img.shields.io/badge/semantic--release-angular-e10079?logo=semantic-release" alt="semantic-release: angular"></a>
 </p>
 
@@ -158,7 +158,7 @@ built and tested in CI.
 
 ## Build from source
 
-You need the [.NET 10 SDK](https://dotnet.microsoft.com/download), and SDL3, FreeType and HarfBuzz from your system's
+You need the [.NET 11 SDK](https://dotnet.microsoft.com/download), and SDL3, FreeType and HarfBuzz from your system's
 package manager (`fontconfig` is used for font lookup on Linux).
 
 ```sh

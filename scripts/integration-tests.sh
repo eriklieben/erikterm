@@ -32,7 +32,7 @@ export SDL_VIDEODRIVER=offscreen SDL_RENDER_DRIVER=software
 export DOTNET_NOLOGO=1 DOTNET_CLI_TELEMETRY_OPTOUT=1
 
 dotnet build tests/ErikTerm.IntegrationTests -nologo -v q -clp:NoSummary
-runner=tests/ErikTerm.IntegrationTests/bin/Debug/net10.0/ErikTerm.IntegrationTests
+runner=tests/ErikTerm.IntegrationTests/bin/Debug/net11.0/ErikTerm.IntegrationTests
 # Windows (Git Bash): the .exe by its full name. MSYS2's -x test would also accept the bare name, which
 # dotnet-coverage can't start.
 [[ -f $runner.exe ]] && runner="$runner.exe"

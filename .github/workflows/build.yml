@@ -104,7 +104,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
-          dotnet-version: '10.0.x'
+          dotnet-version: '11.0.x'
       - name: Native libraries the tests load
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libfreetype6 libharfbuzz0b fontconfig fonts-dejavu-core
       - name: Test
@@ -129,7 +129,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
-          dotnet-version: '10.0.x'
+          dotnet-version: '11.0.x'
       - name: Native libraries the tests load
         run: brew install freetype harfbuzz
       - name: Test
@@ -155,7 +155,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
-          dotnet-version: '10.0.x'
+          dotnet-version: '11.0.x'
       # The same packages and cache key as the win-x64 build, so whichever job saves the cache saves all of them.
       - name: Cache vcpkg packages
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -175,7 +175,7 @@ jobs:
       # erikterm loads these only from its own directory (NativeLibraries.cs); for the tests that is the output folder.
       - name: DLLs next to the test assembly
         shell: pwsh
-        run: Copy-Item "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\bin\*.dll" tests\ErikTerm.Tests\bin\Debug\net10.0\
+        run: Copy-Item "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\bin\*.dll" tests\ErikTerm.Tests\bin\Debug\net11.0\
       - name: Test
         run: dotnet test --project tests/ErikTerm.Tests --no-build --coverage --coverage-output-format cobertura --coverage-output coverage.xml --coverage-settings tests/ErikTerm.Tests/coverage.config --results-directory coverage
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -196,7 +196,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
-          dotnet-version: '10.0.x'
+          dotnet-version: '11.0.x'
       - name: Build with the analyzers
         shell: bash
         run: dotnet build src/ErikTerm.App -p:Quality=true --no-incremental -nologo -v q -clp:NoSummary | tee quality.log
@@ -327,7 +327,7 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $app = 'src\ErikTerm.App\bin\Debug\net10.0'
+          $app = 'src\ErikTerm.App\bin\Debug\net11.0'
           New-Item -ItemType Directory -Force $app | Out-Null
           Copy-Item "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\bin\*.dll" $app
           $publish = Get-Content scripts\publish-windows.ps1 -Raw

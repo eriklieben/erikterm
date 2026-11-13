@@ -10,7 +10,7 @@
 # first-frame PNG stay in artifacts/demos/CLIP/ for checking.
 # Environment: KEEP_FRAMES=1 keeps the BMP frames; FPS (default 20), SCALE (default 1.0), TRIM=START_MS:END_MS,
 # MIN_MS (shortest gap between recorded frames, default 30), TIMEOUT (seconds, default 120).
-# Needs bash, git, the .NET 10 SDK and ffmpeg (with libwebp). Runs off-screen: no window opens.
+# Needs bash, git, the .NET 11 SDK and ffmpeg (with libwebp). Runs off-screen: no window opens.
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 root=$(cd "$here/../.." && pwd)

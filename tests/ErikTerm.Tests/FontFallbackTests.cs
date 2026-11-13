@@ -315,6 +315,7 @@ public class FontSetFallbackTests
 }
 
 [RunOn(OS.Linux | OS.MacOs)]
+[System.Runtime.Versioning.UnsupportedOSPlatform("windows")]
 public class FontLookupCacheTests
 {
     /// <summary>A stand-in for fontconfig that records every time it is started.</summary>

@@ -82,7 +82,7 @@ too, each with a `NAME.exe` copy of `tests/ErikTerm.IntegrationTests.StandIn` be
 .exe), and the link opener is `explorer.exe`. Each run's `%LOCALAPPDATA%` and `%APPDATA%` are its own `state\` and
 `config\` (Windows resolves erikterm's `Environment.GetFolderPath` from them), so control sockets, sessions and crash
 logs stay in the run's directory as on Linux. `SDL3.dll`, FreeType,
-HarfBuzz and the console host (`conpty.dll`, `OpenConsole.exe`) must be in `src/ErikTerm.App/bin/Debug/net10.0/`,
+HarfBuzz and the console host (`conpty.dll`, `OpenConsole.exe`) must be in `src/ErikTerm.App/bin/Debug/net11.0/`,
 and JetBrains Mono installed (build.yml's `integration (windows)` job shows how). `Scenarios/PlatformTests.cs` covers
 what only those systems do off-screen (the system shell, batch files and cmd, the font lookup);
 `Scenarios/DesktopTests.cs` needs a real window (UI Automation, the Win32 hit test, the Cocoa window) and runs only with
