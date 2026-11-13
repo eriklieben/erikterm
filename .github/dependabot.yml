@@ -2,7 +2,7 @@
 #
 # The PR title is the squash-merge commit message, so it decides about releases:
 # - ci(deps): ...        GitHub Actions, the CI tools in .config/dotnet-tools.json (the SonarQube Cloud scanner,
-#                        SharpFuzz) and the fuzz harness's SharpFuzz package.
+#                        SharpFuzz), the fuzz harness's SharpFuzz package and coverage.py for the fuzz report's tests.
 # - build(deps): ...     the .NET SDK (global.json) and the test project's NuGet packages (TUnit).
 # - build(deps-dev): ... the release and commit tooling in package.json (devDependencies).
 # None of them releases: the shipped binary takes no packages (src/ and bench/ have no PackageReference), so there is
@@ -84,6 +84,21 @@ updates:
     commit-message:
       # NuGet updates come without a scope (and then with a capital "Bump"): give the scope here.
       prefix: build(deps)
+    labels: [dependencies]
+
+  # coverage.py for the fuzz report's tests in CI (fuzz/requirements-coverage.txt, pinned with hashes).
+  - package-ecosystem: pip
+    directory: /fuzz
+    schedule:
+      interval: weekly
+      day: monday
+      time: '05:00'
+      timezone: Europe/Amsterdam
+    cooldown:
+      default-days: 3
+    commit-message:
+      prefix: ci
+      include: scope
     labels: [dependencies]
 
   # The root package.json holds the release and commit tooling (semantic-release, commitlint), not part of erikterm.

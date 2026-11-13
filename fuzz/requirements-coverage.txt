@@ -1,0 +1,7 @@
+# coverage.py for the fuzz report's tests in CI (build.yml, release scripts job): line and branch coverage of
+# fuzz/report.py for SonarQube Cloud. Pinned with hashes (pip --require-hashes): the wheel for the runner's Python 3.12,
+# the pure-Python wheel and the source. Dependabot (pip) keeps it current.
+coverage==7.17.3 \
+    --hash=sha256:0860a5f27ceccd53ee4070acc182588ed4f15b7401cdcca09d8c0cece9c2ad7d \
+    --hash=sha256:21745c08f2835b847a16887b748d3084dddeb0571ae2a0d62e33644413568b99 \
+    --hash=sha256:6695d1bb2a9a2fbd7806d69d78cf30f35eb0f65045da0ec5b5045242fadd6a78

@@ -13,6 +13,8 @@
   <!-- The release tooling's line coverage (eng/*.mjs, release.config.mjs): node's own lcov from the release scripts job,
        with paths relative to the checkout. -->
   <Property Name="sonar.javascript.lcov.reportPaths">coverage/coverage-eng/lcov.info</Property>
+  <!-- The fuzz report's (fuzz/report.py) line and branch coverage: coverage.py's Cobertura XML, from the same job. -->
+  <Property Name="sonar.python.coverage.reportPaths">coverage/coverage-eng/python-coverage.xml</Property>
   <!-- Compiler and analyzer warnings aren't imported: build.yml's quality job gates the SDK analyzers
        (build/quality.globalconfig), and they would show up twice next to Sonar's own rules. -->
   <Property Name="sonar.cs.roslyn.ignoreIssues">true</Property>

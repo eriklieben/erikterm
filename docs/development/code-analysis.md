@@ -135,6 +135,11 @@ the compositor's drag-and-drop between processes, real tmux handoff, and key eve
 `coverage/lcov.info` (the test files left out, paths relative to the checkout), uploaded as `coverage-eng`; the sonar
 job passes it to SonarQube Cloud as `sonar.javascript.lcov.reportPaths` (build/SonarQube.Analysis.xml).
 
+**Python.** The same job runs the fuzz report's tests (`fuzz/test_report.py`, standard library `unittest`) under
+coverage.py, installed from the hash-pinned `fuzz/requirements-coverage.txt`, and adds `coverage/python-coverage.xml`
+(Cobertura) to `coverage-eng`; SonarQube Cloud reads it as `sonar.python.coverage.reportPaths`. Locally:
+`python3 -m unittest discover -s fuzz -p 'test_*.py'` (also a step of `scripts/check.sh`).
+
 **SonarQube Cloud** imports the same reports. It knows every app file from its own build of `src/ErikTerm.App`, so app
 files missing from the reports count as uncovered there, and its `src/ErikTerm.App` percentage is over the whole app.
 That is the honest figure for the app; the one in the `coverage` job says how well the linked part is tested.
