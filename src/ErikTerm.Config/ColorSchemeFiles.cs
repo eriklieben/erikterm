@@ -75,18 +75,22 @@ public static class ColorSchemeFiles
         var result = new List<ColorScheme>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (string dir in directories)
-        {
-            if (ListSchemeFiles(dir, diagnostics) is not { } files) continue;
-            bool catalogue = IsCatalogDirectory(dir);
-            Array.Sort(files, StringComparer.Ordinal);
-            foreach (string file in files)
-            {
-                if (ReadSchemeFile(file, diagnostics) is not { } text || Parse(text, file, diagnostics) is not { } scheme) continue;
-                if (catalogue && IsBuiltInName(scheme.Name)) continue;
-                if (seen.Add(scheme.Name)) result.Add(scheme);
-            }
-        }
+            LoadDirectory(dir, result, seen, diagnostics);
         return result;
+    }
+
+    /// <summary>One directory of <see cref="LoadDirectories"/>: its schemes whose names aren't in <paramref name="seen"/> yet.</summary>
+    private static void LoadDirectory(string dir, List<ColorScheme> result, HashSet<string> seen, List<string> diagnostics)
+    {
+        if (ListSchemeFiles(dir, diagnostics) is not { } files) return;
+        bool catalogue = IsCatalogDirectory(dir);
+        Array.Sort(files, StringComparer.Ordinal);
+        foreach (string file in files)
+        {
+            if (ReadSchemeFile(file, diagnostics) is not { } text || Parse(text, file, diagnostics) is not { } scheme) continue;
+            if (catalogue && IsBuiltInName(scheme.Name)) continue;
+            if (seen.Add(scheme.Name)) result.Add(scheme);
+        }
     }
 
     /// <summary>Whether a directory is a downloaded catalogue (Browse Themes… › Download puts it in a folder of that name).</summary>

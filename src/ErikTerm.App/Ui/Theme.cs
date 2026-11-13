@@ -104,21 +104,25 @@ internal sealed class Theme
         bool light = Contrast.Luminance(Background) > Contrast.Luminance(Foreground);
         TabActiveFill = Colors.Mix(light ? Background : PanelBg, Accent, 0.20f);
         uint tab = TabBackgrounds().Tab;
-        for (float alpha = FadedBadgeAlpha; ; alpha = MathF.Min(1, alpha + 0.05f))
+        float alpha = FadedBadgeAlpha;
+        var k = TabColors(alpha);
+        while (alpha < 1 && !BadgesReadable(k, tab, alpha))
         {
-            var k = TabColors(alpha);
-            bool readable = Contrast.Ratio(Colors.Mix(tab, k.Accent, alpha), tab) >= 4.5f &&
-                            Contrast.Ratio(Colors.Mix(tab, Colors.Mix(k.PanelFg, k.Muted, 0.35f), alpha), tab) >= 4.5f &&
-                            Contrast.Ratio(Colors.Mix(tab, Colors.Mix(k.PanelFg, k.Accent, 0.35f), alpha), tab) >= 4.5f;
-            if (!readable && alpha < 1) continue;
-            BadgeAlpha = alpha;
-            TabOutline = k.TabOutline;
-            k.BadgeAlpha = alpha;
-            k._tabs = null; // its own tab colours
-            _tabs = k;
-            return;
+            alpha = MathF.Min(1, alpha + 0.05f);
+            k = TabColors(alpha);
         }
+        BadgeAlpha = alpha;
+        TabOutline = k.TabOutline;
+        k.BadgeAlpha = alpha;
+        k._tabs = null; // its own tab colours
+        _tabs = k;
     }
+
+    /// <summary>Whether <paramref name="k"/>'s badges, drawn at <paramref name="alpha"/> on a tab pill, read at 4.5:1.</summary>
+    private static bool BadgesReadable(Theme k, uint tab, float alpha) =>
+        Contrast.Ratio(Colors.Mix(tab, k.Accent, alpha), tab) >= 4.5f &&
+        Contrast.Ratio(Colors.Mix(tab, Colors.Mix(k.PanelFg, k.Muted, 0.35f), alpha), tab) >= 4.5f &&
+        Contrast.Ratio(Colors.Mix(tab, Colors.Mix(k.PanelFg, k.Accent, 0.35f), alpha), tab) >= 4.5f;
 
     /// <summary>This theme's colours moved just far enough to read on every tab pill, with badges at <paramref name="badgeAlpha"/>.</summary>
     private Theme TabColors(float badgeAlpha)

@@ -72,12 +72,17 @@ public static partial class ColorSchemes
     /// </summary>
     public const double BuiltInInactiveMinimumContrast = 3;
 
-    public static readonly ColorScheme[] All;
+    /// <summary>Every built-in scheme: erikterm's own first, then by name.</summary>
+    public static ColorScheme[] All => Registry.All;
 
-    static ColorSchemes()
+    /// <summary>
+    /// The registry: one line per built-in scheme (Schemes/*.cs). A class of its own, so its list is made on first use,
+    /// once every part of <see cref="ColorSchemes"/> has its fields (the order of field initializers across the files
+    /// of a partial class isn't defined).
+    /// </summary>
+    private static class Registry
     {
-        // The registry: one line per built-in scheme (Schemes/*.cs). Field initializers of every part run first.
-        ColorScheme[] builtIn =
+        public static readonly ColorScheme[] All = Sorted(
         [
             Erik,
             CatppuccinMacchiato,
@@ -126,8 +131,10 @@ public static partial class ColorSchemes
             SynthWave84,
             TokyoNightDay,
             TokyoNightStorm,
-        ];
-        All = [builtIn[0], .. builtIn.Skip(1).OrderBy(s => s.Name, StringComparer.OrdinalIgnoreCase)];
+        ]);
+
+        private static ColorScheme[] Sorted(ColorScheme[] builtIn) =>
+            [builtIn[0], .. builtIn.Skip(1).OrderBy(s => s.Name, StringComparer.OrdinalIgnoreCase)];
     }
 
     /// <summary>A built-in scheme: the built-in contrast default and, for one from another project, its credit.</summary>
