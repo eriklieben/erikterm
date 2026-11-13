@@ -49,5 +49,6 @@ Compiled into the binary as data:
 | The colours of the built-in scheme *Lumina Oxblood Light*, from Lumina themes, Copyright © 2026 Razik Ikhlef | MIT | https://github.com/RazikSF/lumina-themes |
 | The colours of the built-in scheme *Night Owl*, from Night Owl, Copyright © 2018 Sarah Drasner | MIT | https://github.com/sdras/night-owl-vscode-theme |
 | The colours of the built-in scheme *Nightfox*, from nightfox.nvim, Copyright © 2021 James Simpson | MIT | https://github.com/EdenEast/nightfox.nvim |
+| The colours of the built-in scheme *Nord*, from Nord for Alacritty, Copyright © 2016-present Sven Greb | MIT | https://github.com/nordtheme/alacritty |
 
 Portions of this software are copyright © The FreeType Project (https://freetype.org). All rights reserved.
