@@ -38,5 +38,6 @@ Compiled into the binary as data:
 | The colours of the built-in scheme *Dracula*, from Dracula for wezterm, Copyright © 2022 Dracula Theme | MIT | https://github.com/dracula/wezterm |
 | The colours of the built-in scheme *Everforest Dark*, from Everforest, Copyright © 2019 sainnhe | MIT | https://github.com/sainnhe/everforest |
 | The colours of the built-in scheme *Everforest Light*, from Everforest, Copyright © 2019 sainnhe | MIT | https://github.com/sainnhe/everforest |
+| The colours of the built-in scheme *Fairy Floss*, from fairyfloss, Copyright © Amy Wibowo (sailorhg) | MIT | https://github.com/sailorhg/fairyfloss |
 
 Portions of this software are copyright © The FreeType Project (https://freetype.org). All rights reserved.

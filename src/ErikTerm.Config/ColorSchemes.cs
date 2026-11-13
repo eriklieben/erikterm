@@ -97,6 +97,7 @@ public static partial class ColorSchemes
             Dracula,
             EverforestDark,
             EverforestLight,
+            FairyFloss,
         ];
         All = [builtIn[0], .. builtIn.Skip(1).OrderBy(s => s.Name, StringComparer.OrdinalIgnoreCase)];
     }
