@@ -92,6 +92,7 @@ public static partial class ColorSchemes
             CatppuccinLatte,
             CherryBlossom,
             CoralNavy,
+            CreamAndRose,
         ];
         All = [builtIn[0], .. builtIn.Skip(1).OrderBy(s => s.Name, StringComparer.OrdinalIgnoreCase)];
     }
