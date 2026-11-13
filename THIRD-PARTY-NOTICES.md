@@ -30,5 +30,6 @@ Compiled into the binary as data:
 | The colours of the built-in scheme *erik*, from Atom One Dark (one-dark-syntax), Copyright © 2016 GitHub Inc. | MIT | https://github.com/atom/one-dark-syntax |
 | The colours of the built-in scheme *Ayu Dark*, from ayu for VS Code, Copyright © 2016 Ike Kurghinyan | MIT | https://github.com/ayu-theme/vscode-ayu |
 | The colours of the built-in scheme *Ayu Light*, from ayu for VS Code, Copyright © 2016 Ike Kurghinyan | MIT | https://github.com/ayu-theme/vscode-ayu |
+| The colours of the built-in scheme *Carbonfox*, from nightfox.nvim, Copyright © 2021 James Simpson | MIT | https://github.com/EdenEast/nightfox.nvim |
 
 Portions of this software are copyright © The FreeType Project (https://freetype.org). All rights reserved.
