@@ -46,5 +46,6 @@ Compiled into the binary as data:
 | The colours of the built-in scheme *Kanagawa Lotus*, from kanagawa.nvim, Copyright © 2021 Tommaso Laurenzi | MIT | https://github.com/rebelot/kanagawa.nvim |
 | The colours of the built-in scheme *Kanagawa Wave*, from kanagawa.nvim, Copyright © 2021 Tommaso Laurenzi | MIT | https://github.com/rebelot/kanagawa.nvim |
 | The colours of the built-in scheme *LaserWave*, from LaserWave, Copyright © 2019 Jared Jones | MIT | https://github.com/Jaredk3nt/laserwave |
+| The colours of the built-in scheme *Lumina Oxblood Light*, from Lumina themes, Copyright © 2026 Razik Ikhlef | MIT | https://github.com/RazikSF/lumina-themes |
 
 Portions of this software are copyright © The FreeType Project (https://freetype.org). All rights reserved.
