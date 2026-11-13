@@ -1,6 +1,6 @@
 # Color schemes
 
-erikterm ships 39 built-in color schemes, dark and light. `erik` is the default.
+erikterm ships 40 built-in color schemes, dark and light. `erik` is the default.
 
 ## Picking one
 
@@ -92,3 +92,4 @@ measured contrast of the statusline in erikterm's standard scene, focused and di
 | [Lumina Oxblood Light](lumina-oxblood-light.md) | Lumina | MIT |
 | [Blossom](blossom.md) | erikterm original | MIT (erikterm) |
 | [Cream & Rose](cream-and-rose.md) | erikterm original | MIT (erikterm) |
+| [Sage Garden](sage-garden.md) | erikterm original | MIT (erikterm) |
