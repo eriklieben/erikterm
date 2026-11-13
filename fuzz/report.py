@@ -63,31 +63,49 @@ def progress(line):
     return (int(c.group(1)), c.group(2)) if rate >= 0 and line[rate + 8:rate + 9].isdigit() else None
 
 
+def trace_start(lines, i):
+    """(exception type, message) when a stack trace starts at lines[i], else None."""
+    if lines[i].startswith('Stack overflow.'):
+        return 'System.StackOverflowException', ''
+    m = EXCEPTION.match(lines[i])
+    if m and i + 1 < len(lines) and frame(lines[i + 1]):
+        return m.group(1), m.group(2) or ''
+    return None
+
+
+def in_trace(line):
+    """Whether a line still belongs to a stack trace: a frame, or a stack overflow's repeat marks."""
+    return frame(line) is not None or line.startswith(('Repeated ', '----', '   at '))
+
+
+def frame_line(line):
+    """A trace line as the summary shows it (methods and file:line only), or None for a separator."""
+    f = frame(line)
+    if f:
+        method, file, number = f
+        where = f' ({os.path.basename(file)}:{number})' if file else ''
+        return '   at ' + printable(method, 200) + where
+    if line.startswith('Repeated '):
+        return printable(line.strip(), 60)  # a stack overflow's recursion
+    return None
+
+
 def stack_traces(lines):
     """Each .NET stack trace in the log: (exception type, message, frames)."""
     traces = []
     i = 0
     while i < len(lines):
-        line = lines[i]
-        if line.startswith('Stack overflow.'):
-            exc, message = 'System.StackOverflowException', ''
-        elif (m := EXCEPTION.match(line)) and i + 1 < len(lines) and frame(lines[i + 1]):
-            exc, message = m.group(1), m.group(2) or ''
-        else:
-            i += 1
+        start = trace_start(lines, i)
+        i += 1
+        if start is None:
             continue
         frames = []
-        i += 1
-        while i < len(lines) and (frame(lines[i]) or lines[i].startswith(('Repeated ', '----', '   at '))):
-            f = frame(lines[i])
-            if f:
-                method, file, number = f
-                where = f' ({os.path.basename(file)}:{number})' if file else ''
-                frames.append('   at ' + printable(method, 200) + where)
-            elif lines[i].startswith('Repeated '):
-                frames.append(printable(lines[i].strip(), 60))  # a stack overflow's recursion
+        while i < len(lines) and in_trace(lines[i]):
+            shown = frame_line(lines[i])
+            if shown is not None:
+                frames.append(shown)
             i += 1
-        traces.append((exc, printable(message, MAX_MESSAGE), frames))
+        traces.append((start[0], printable(start[1], MAX_MESSAGE), frames))
     return traces
 
 
@@ -127,6 +145,58 @@ def read_findings(findings_dir):
     return found
 
 
+def read_log(path):
+    """The libFuzzer log, or '' when there is none (the run didn't get that far)."""
+    try:
+        with open(path, encoding='utf-8', errors='replace') as f:
+            return f.read()
+    except FileNotFoundError:
+        return ''
+
+
+def run_stats(lines):
+    """libFuzzer's closing stat:: lines as a dict, and the corpus of its last progress line (or None)."""
+    stats = {m.group(1): int(m.group(2)) for m in map(STAT.match, lines) if m}
+    corpus = None
+    for line in lines:
+        corpus = progress(line) or corpus
+    return stats, corpus
+
+
+def stats_table(stats, corpus):
+    """The run's statistics as a Markdown table, '?' for what the log doesn't say."""
+    corp = f'{corpus[0]} files, {corpus[1]}' if corpus else '?'
+    return [
+        '| executions | per second | corpus | new inputs | peak RSS |',
+        '|---:|---:|---:|---:|---:|',
+        f'| {stats.get("number_of_executed_units", "?")} | {stats.get("average_exec_per_sec", "?")} | {corp} '
+        f'| {stats.get("new_units_added", "?")} | {stats.get("peak_rss_mb", "?")} MB |',
+        '',
+    ]
+
+
+def finding_lines(name, data, log_text, traces):
+    """One finding: its kind, size and SHA-256, and the last stack trace (never the input itself)."""
+    out = [f'**{kind_of(name, log_text)}**: {len(data)} bytes, SHA-256 `{hashlib.sha256(data).hexdigest()}`', '']
+    if traces:
+        exc, message, frames = traces[-1]
+        out.extend(['```', f'{exc}: {message}' if message else exc, *frames[:MAX_FRAMES]])
+        if len(frames) > MAX_FRAMES:
+            out.append(f'   ... {len(frames) - MAX_FRAMES} more')
+        out.append('```')
+    elif name.startswith('timeout'):
+        out.append('One input ran for more than the 10 s timeout (no stack trace: libFuzzer stops the .NET process).')
+    out.append('')
+    return out
+
+
+def error_lines(exit_code, lines):
+    """Not a finding (the build failed, or the driver did): the end of the log, without the input-shaped lines."""
+    safe = [l for l in lines if not re.match(r'^(Base64:|0x[0-9a-f]{2},|MS: |#\d+\s+(NEW|REDUCE))', l)]
+    return [f'libFuzzer exited with {exit_code} without a finding. The end of its log:', '', '```',
+            *(printable(l, 300) for l in safe[-30:]), '```']
+
+
 def main():
     if len(sys.argv) != 3:
         sys.exit('usage: report.py <target> <libFuzzer exit code>')
@@ -137,57 +207,27 @@ def main():
     log_path = os.path.join(os.environ.get('RUNNER_TEMP') or tempfile.gettempdir(), 'fuzz.log')
     work = os.environ.get('FUZZ_WORK') or os.path.join(os.path.dirname(HERE), 'artifacts', 'fuzz')
     findings_dir = os.path.realpath(os.path.join(work, 'findings', target))
-    try:
-        with open(log_path, encoding='utf-8', errors='replace') as f:
-            log_text = f.read()
-    except FileNotFoundError:
-        log_text = ''
+    log_text = read_log(log_path)
     lines = log_text.splitlines()
-
-    stats = {m.group(1): int(m.group(2)) for m in map(STAT.match, lines) if m}
-    corpus = None
-    for line in lines:
-        corpus = progress(line) or corpus
+    stats, corpus = run_stats(lines)
 
     findings = read_findings(findings_dir)
-    status = 'finding' if findings else ('ok' if exit_code == 0 else 'error')
+    if findings:
+        status = 'finding'
+    else:
+        status = 'ok' if exit_code == 0 else 'error'
 
     out = [f'### Fuzz target `{target}`: {"FAILED" if status != "ok" else "no findings"}', '']
-    out.append('| executions | per second | corpus | new inputs | peak RSS |')
-    out.append('|---:|---:|---:|---:|---:|')
-    corp = f'{corpus[0]} files, {corpus[1]}' if corpus else '?'
-    out.append(f'| {stats.get("number_of_executed_units", "?")} | {stats.get("average_exec_per_sec", "?")} | {corp} '
-               f'| {stats.get("new_units_added", "?")} | {stats.get("peak_rss_mb", "?")} MB |')
-    out.append('')
-
+    out.extend(stats_table(stats, corpus))
     traces = stack_traces(lines)
     for name, data in findings:
-        out.append(f'**{kind_of(name, log_text)}**: {len(data)} bytes, SHA-256 `{hashlib.sha256(data).hexdigest()}`')
-        out.append('')
-        if traces:
-            exc, message, frames = traces[-1]
-            out.append('```')
-            out.append(f'{exc}: {message}' if message else exc)
-            out.extend(frames[:MAX_FRAMES])
-            if len(frames) > MAX_FRAMES:
-                out.append(f'   ... {len(frames) - MAX_FRAMES} more')
-            out.append('```')
-        elif name.startswith('timeout'):
-            out.append('One input ran for more than the 10 s timeout (no stack trace: libFuzzer stops the .NET process).')
-        out.append('')
-
+        out.extend(finding_lines(name, data, log_text, traces))
     if findings:
         out.append('The input is not published: it stays on the runner (docs/development/fuzzing.md, "Findings"). '
                    'Treat this as a possible security issue until it is understood, and track it in a private '
                    'security advisory, not a public issue.')
     elif status == 'error':
-        # Not a finding (the build failed, or the driver did): the end of the log, without the input-shaped lines.
-        out.append(f'libFuzzer exited with {exit_code} without a finding. The end of its log:')
-        out.append('')
-        out.append('```')
-        safe = [l for l in lines if not re.match(r'^(Base64:|0x[0-9a-f]{2},|MS: |#\d+\s+(NEW|REDUCE))', l)]
-        out.extend(printable(l, 300) for l in safe[-30:])
-        out.append('```')
+        out.extend(error_lines(exit_code, lines))
 
     print('\n'.join(out))
     return 1 if status != 'ok' else 0
