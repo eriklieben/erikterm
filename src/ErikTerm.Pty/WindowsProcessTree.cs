@@ -4,8 +4,10 @@ namespace ErikTerm.Pty;
 /// One process from a Toolhelp snapshot, with what the foreground pick needs. <paramref name="CreationTime"/> is a
 /// FILETIME (100 ns ticks since 1601, UTC; GetProcessTimes), 0 when it couldn't be read. <paramref name="Windowed"/>:
 /// the image is a GUI-subsystem program (notepad started from the shell), which has no part in the console.
+/// <paramref name="ConsoleHost"/>: the pid of the console host (conhost.exe / OpenConsole.exe) the process is attached
+/// to, 0 when unknown or not asked (see <see cref="WindowsProcessTree"/>, step 2).
 /// </summary>
-internal readonly record struct ProcessEntry(int Pid, int ParentPid, string ExeName, long CreationTime, bool Windowed = false);
+internal readonly record struct ProcessEntry(int Pid, int ParentPid, string ExeName, long CreationTime, bool Windowed = false, int ConsoleHost = 0);
 
 /// <summary>
 /// Which program a ConPTY pane is running. A console has no foreground process group (nothing like <c>tcgetpgrp</c>),
@@ -17,6 +19,11 @@ internal readonly record struct ProcessEntry(int Pid, int ParentPid, string ExeN
 /// process got that pid next. Console hosts (conhost.exe, OpenConsole.exe), GUI programs and anything they started
 /// are left out, and so are processes younger than <see cref="SettleTicks"/>: prompt helpers (oh-my-posh, starship,
 /// posh-git's <c>git status</c>) that live for a moment at every prompt would otherwise flash through tab titles.</item>
+/// <item>Adopted into it, as children of the root: processes attached to the pane's console (their console host is the
+/// root's) whose parent is gone. MSYS2 and Cygwin emulate fork: a program Git Bash's sh starts the usual way (fork, then
+/// exec) is a Windows process created by the forked sh, which exits once it has handed over, so <c>sleep</c>,
+/// <c>vim</c> or <c>npm run dev</c> would otherwise never be reached from the root. Its console says where it belongs,
+/// whoever its parent was.</item>
 /// <item>The youngest process in that tree (by creation time, never by pid). It is always a leaf, since a child is
 /// created after its parent. With none, the root itself.</item>
 /// <item>On the path from the root down to it, the first process that isn't a shell: like the leader of a Unix
@@ -42,11 +49,13 @@ internal static class WindowsProcessTree
     /// The foreground process of the tree rooted at <paramref name="rootPid"/> (see the class summary), or null when
     /// the root isn't in <paramref name="processes"/> as the process created at <paramref name="rootCreated"/> (it has
     /// exited). <paramref name="now"/> is the snapshot's time (FILETIME) for <see cref="SettleTicks"/>.
+    /// <paramref name="consoleHost"/> is the root's <see cref="ProcessEntry.ConsoleHost"/> (0: none adopted).
     /// </summary>
-    public static ProcessEntry? Foreground(IReadOnlyList<ProcessEntry> processes, int rootPid, long rootCreated, long now)
+    public static ProcessEntry? Foreground(IReadOnlyList<ProcessEntry> processes, int rootPid, long rootCreated, long now, int consoleHost = 0)
     {
         var children = ChildrenByParent(processes, rootPid, rootCreated, out int root);
         if (root < 0) return null;
+        if (consoleHost > 0) Adopt(processes, children, root, consoleHost);
 
         var parentOf = new Dictionary<int, int> { [root] = -1 }; // also the visited set: a pid-reuse cycle can't loop
         int youngest = FindYoungest(processes, children, root, now - SettleTicks, parentOf);
@@ -77,6 +86,40 @@ internal static class WindowsProcessTree
         }
         return children;
     }
+
+    /// <summary>
+    /// Makes the processes on the root's console whose parent isn't among <paramref name="processes"/> (exited, or its
+    /// pid reused by a younger process) children of the root. Only ones created after the root: an older process on the
+    /// same console host can't be the pane's.
+    /// </summary>
+    private static void Adopt(IReadOnlyList<ProcessEntry> processes, Dictionary<int, List<int>> children, int root, int consoleHost)
+    {
+        var top = processes[root];
+        Dictionary<int, int>? indexOf = null;
+        List<int>? adopted = null;
+        for (int i = 0; i < processes.Count; i++)
+        {
+            var p = processes[i];
+            if (p.ConsoleHost != consoleHost || p.Pid == top.Pid || p.CreationTime <= 0 || p.CreationTime < top.CreationTime) continue;
+            indexOf ??= IndexOfPid(processes);
+            if (indexOf.TryGetValue(p.ParentPid, out int parent) && IsParent(processes[parent], p)) continue; // reached through it
+            (adopted ??= []).Add(i);
+        }
+        if (adopted is null) return;
+        if (!children.TryGetValue(top.Pid, out var list)) children[top.Pid] = list = [];
+        list.AddRange(adopted);
+    }
+
+    private static Dictionary<int, int> IndexOfPid(IReadOnlyList<ProcessEntry> processes)
+    {
+        var indexOf = new Dictionary<int, int>(processes.Count);
+        for (int i = 0; i < processes.Count; i++) indexOf.TryAdd(processes[i].Pid, i);
+        return indexOf;
+    }
+
+    /// <summary>Whether <paramref name="parent"/> (the process with the child's parent pid) is its parent: not created after it.</summary>
+    private static bool IsParent(in ProcessEntry parent, in ProcessEntry child) =>
+        parent.Pid != child.Pid && parent.CreationTime > 0 && parent.CreationTime <= child.CreationTime;
 
     /// <summary>Walks the tree below the root, filling <paramref name="parentOf"/>; returns the youngest process's index.</summary>
     private static int FindYoungest(IReadOnlyList<ProcessEntry> processes, Dictionary<int, List<int>> children, int root, long settled, Dictionary<int, int> parentOf)

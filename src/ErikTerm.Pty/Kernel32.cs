@@ -153,7 +153,7 @@ internal static unsafe partial class Kernel32
     public static partial int Process32NextW(nint hSnapshot, PROCESSENTRY32W* lppe);
 }
 
-/// <summary>ntdll: NtQueryInformationProcess, for the PEB address (see <see cref="WindowsPeb"/>).</summary>
+/// <summary>ntdll: NtQueryInformationProcess, for the PEB address (see <see cref="WindowsPeb"/>) and the console host.</summary>
 [SupportedOSPlatform("windows")]
 #pragma warning disable S6640 // the ntdll signatures take raw pointers
 internal static unsafe partial class Ntdll
