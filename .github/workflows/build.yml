@@ -202,6 +202,10 @@ jobs:
         run: dotnet build src/ErikTerm.App -p:Quality=true --no-incremental -nologo -v q -clp:NoSummary | tee quality.log
       - name: Check method complexity
         run: python3 scripts/check-complexity.py quality.log build/complexity-baseline.txt
+      # The fuzz harness (fuzz/ErikTerm.Fuzz) is in no solution and only fuzz.yml runs it, weekly: compiling it here
+      # keeps it from falling behind the code it calls. No fuzzing. docs/development/fuzzing.md.
+      - name: Build the fuzz harness
+        run: dotnet build fuzz/ErikTerm.Fuzz -nologo -v q -clp:NoSummary
 
   # The release tooling in eng/ (release gate, API release commit, SBOMs, release assets, packages), against mocks.
   release-scripts:

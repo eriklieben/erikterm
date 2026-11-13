@@ -28,4 +28,5 @@ New to erikterm? Start with the [README](../README.md) to install it, then [Pane
 - [Developing erikterm](development/README.md): architecture, building and debugging.
 - [Testing and benchmarking](../bench/README.md): the test suite, benchmarks and the Windows and macOS test plan.
 - [Code analysis](development/code-analysis.md): CodeQL, OpenSSF Scorecard, SonarQube Cloud and dependency updates.
+- [Fuzzing](development/fuzzing.md): what is fuzzed, the weekly CI run, how findings stay private, running it locally.
 - [The Windows console host](development/windows-console-host.md): why erikterm ships its own ConPTY, and what it taught us about performance.

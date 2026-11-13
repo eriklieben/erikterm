@@ -7,7 +7,8 @@
       1. the tests:            dotnet test --project tests/ErikTerm.Tests
       2. the analyzers:        dotnet build src/ErikTerm.App -p:Quality=true (build/quality.globalconfig)
       3. method complexity:    scripts/check-complexity.py against build/complexity-baseline.txt
-      4. the release tooling:  node --test eng/ (skipped when node isn't installed)
+      4. the fuzz harness:     dotnet build fuzz/ErikTerm.Fuzz (it compiles; fuzzing is fuzz/run.sh, Linux)
+      5. the release tooling:  node --test eng/ (skipped when node isn't installed)
 
     Every check runs, also after one fails. Exits 1 when any of them failed.
 
@@ -53,6 +54,7 @@ try {
 } finally {
     Remove-Item $log -ErrorAction Ignore
 }
+Step 'fuzz harness' { dotnet build fuzz/ErikTerm.Fuzz -nologo -v q -clp:NoSummary }
 
 if (Get-Command node -ErrorAction Ignore) {
     Step 'release scripts' { node --test eng/ }

@@ -9,7 +9,11 @@ platforms, the quality gate, coverage) is [build.yml](../../.github/workflows/bu
 | CodeQL | [codeql.yml](../../.github/workflows/codeql.yml) | pushes to main, pull requests, Mondays | a public repository (or GitHub Advanced Security) |
 | OpenSSF Scorecard | [scorecard.yml](../../.github/workflows/scorecard.yml) | pushes to main, branch protection changes, Mondays | a public repository |
 | SonarQube Cloud | the `sonar` job in [build.yml](../../.github/workflows/build.yml) | pushes to main, after the tests | the secret `SONAR_TOKEN` |
+| Fuzzing | [fuzz.yml](../../.github/workflows/fuzz.yml) | Saturdays, by hand | a public repository (the schedule) |
 | Dependabot | [dependabot.yml](../../.github/dependabot.yml) | Mondays | nothing |
+
+Fuzzing (libFuzzer on the VT parser, the image decoders and the TOML reader, and how its findings are kept private)
+has its own page: [Fuzzing](fuzzing.md).
 
 ## CodeQL
 

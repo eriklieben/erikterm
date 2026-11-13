@@ -5,8 +5,9 @@
 #   1. the tests:            dotnet test --project tests/ErikTerm.Tests
 #   2. the analyzers:        dotnet build src/ErikTerm.App -p:Quality=true (build/quality.globalconfig)
 #   3. method complexity:    scripts/check-complexity.py against build/complexity-baseline.txt
-#   4. the release tooling:  node --test eng/ (skipped when node isn't installed)
-#   5. the integration scenarios (Linux): scripts/integration-tests.sh, the real app off-screen (no window opens)
+#   4. the fuzz harness:     dotnet build fuzz/ErikTerm.Fuzz (it compiles; fuzzing is fuzz/run.sh)
+#   5. the release tooling:  node --test eng/ (skipped when node isn't installed)
+#   6. the integration scenarios (Linux): scripts/integration-tests.sh, the real app off-screen (no window opens)
 #
 #   scripts/check.sh
 #
@@ -40,6 +41,7 @@ quality_build() {
 step "tests" dotnet test --project tests/ErikTerm.Tests
 step "analyzers" quality_build
 step "method complexity" python3 scripts/check-complexity.py "$log" build/complexity-baseline.txt
+step "fuzz harness" dotnet build fuzz/ErikTerm.Fuzz -nologo -v q -clp:NoSummary
 if command -v node >/dev/null; then
     step "release scripts" node --test eng/
 else

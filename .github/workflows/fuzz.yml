@@ -1,0 +1,226 @@
+name: fuzz
+
+# Continuous fuzzing of what erikterm reads from programs and files (fuzz/ErikTerm.Fuzz: the VT parser behind
+# Terminal.Feed, the PNG, GIF, JPEG and sixel decoders, the TOML reader) with libFuzzer through SharpFuzz. Every target
+# runs in its own job for a fixed time; its corpus is kept between runs in the Actions cache. A crash, timeout or
+# out-of-memory fails the job. docs/development/fuzzing.md.
+#
+# Findings are not published: libFuzzer's raw log (it prints the failing input) stays on the runner, and the job summary
+# has only the target, the kind, the input's size and SHA-256 and the top of the .NET stack trace. Anyone with a GitHub
+# account can download a public repository's artifacts, so the input itself is uploaded only when a manual run asks
+# for it (keep_reproduction).
+#
+# Like CodeQL and Scorecard, the schedule waits for the repository variable PUBLIC_REPO = true: public repositories
+# don't pay for Linux minutes, a private one would pay about 110 of them per run.
+on:
+  schedule:
+    - cron: '37 2 * * 6' # early Saturday (UTC), when the runners are quiet: fuzz every target
+    - cron: '37 2 * * 3' # Wednesday: only read the corpus caches, so they are never unused for the 7 days after
+                         # which GitHub evicts a cache
+  workflow_dispatch:
+    inputs:
+      targets:
+        description: 'Targets (space or comma separated): terminal png gif jpeg sixel toml'
+        type: string
+        default: 'terminal png gif jpeg sixel toml'
+      minutes:
+        description: 'Minutes of fuzzing per target (1-300)'
+        type: number
+        default: 15
+      keep_reproduction:
+        description: 'On a finding, upload the minimized input as an artifact. Any logged-in GitHub user can download it: only for a finding that is known not to be a security issue'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+# One fuzz run at a time: two would race to save the same corpus. A running one is never cancelled.
+concurrency:
+  group: fuzz
+  cancel-in-progress: false
+
+env:
+  DOTNET_NOLOGO: '1'
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+
+jobs:
+  # The targets and time of this run, from the inputs of a manual run (checked, as they become paths and cache keys).
+  plan:
+    name: plan
+    if: (github.event_name == 'schedule' && vars.PUBLIC_REPO == 'true' && github.event.schedule == '37 2 * * 6') || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      targets: ${{ steps.plan.outputs.targets }}
+      minutes: ${{ steps.plan.outputs.minutes }}
+      job-minutes: ${{ steps.plan.outputs.job-minutes }}
+    steps:
+      - name: Targets and time
+        id: plan
+        env:
+          TARGETS: ${{ inputs.targets }}
+          MINUTES: ${{ inputs.minutes }}
+        run: |
+          all="terminal png gif jpeg sixel toml"
+          requested=${TARGETS:-$all}
+          read -r -a targets <<< "${requested//,/ }"
+          minutes=${MINUTES:-15}
+          for t in "${targets[@]}"; do
+            case " $all " in
+              *" $t "*) ;;
+              *) echo "::error::unknown fuzz target '$t' (known: $all)"; exit 1 ;;
+            esac
+          done
+          if ! [[ "$minutes" =~ ^[0-9]+$ ]] || (( minutes < 1 || minutes > 300 )); then
+            echo "::error::minutes must be a whole number from 1 to 300, not '$minutes'"
+            exit 1
+          fi
+          if [ "${#targets[@]}" = 0 ]; then echo "::error::no targets"; exit 1; fi
+          json=$(printf '%s\n' "${targets[@]}" | jq -R . | jq -cs 'unique')
+          # job-minutes, the fuzz job's limit: the fuzzing, plus the build, the corpus merge (at most 10 minutes) and
+          # minimizing a finding (5).
+          {
+            echo "targets=$json"
+            echo "minutes=$minutes"
+            echo "job-minutes=$(( minutes + 25 ))"
+          } >> "$GITHUB_OUTPUT"
+          echo "Fuzzing $json for $minutes minutes each."
+
+  fuzz:
+    name: fuzz (${{ matrix.target }})
+    needs: plan
+    runs-on: ubuntu-24.04
+    timeout-minutes: ${{ fromJSON(needs.plan.outputs.job-minutes) }}
+    strategy:
+      fail-fast: false # one target's finding doesn't stop the others
+      matrix:
+        target: ${{ fromJSON(needs.plan.outputs.targets) }}
+    env:
+      TARGET: ${{ matrix.target }}
+      FUZZ_WORK: ${{ github.workspace }}/artifacts/fuzz
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          global-json-file: global.json
+
+      # SharpFuzz.CommandLine is pinned in .config/dotnet-tools.json; the libFuzzer driver is built from the commit
+      # fuzz/build-driver.sh pins, after checking the source file's SHA-256 (the runner's clang has libFuzzer).
+      - name: Tools
+        run: |
+          dotnet tool restore
+          clang --version | head -n 1
+          fuzz/build-driver.sh "$RUNNER_TEMP/tools/libfuzzer-dotnet"
+          echo "LIBFUZZER_DOTNET=$RUNNER_TEMP/tools/libfuzzer-dotnet" >> "$GITHUB_ENV"
+
+      # The newest corpus of this target (a new key per run: a cache entry can't be overwritten); fuzz/run.sh adds
+      # fuzz/seeds/<target> to it, so the first run, or one after an eviction, starts from the seeds.
+      - name: Restore the corpus
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: artifacts/fuzz/corpus/${{ matrix.target }}
+          key: fuzz-corpus-${{ matrix.target }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: fuzz-corpus-${{ matrix.target }}-
+
+      # libFuzzer's own output goes to a file on the runner only: it prints the failing input, and the dictionary
+      # entries of every new input. The log shows the progress lines that have neither.
+      - name: Fuzz
+        id: fuzz
+        env:
+          MINUTES: ${{ needs.plan.outputs.minutes }}
+        run: |
+          mkdir -p "$FUZZ_WORK/corpus/$TARGET"
+          echo "corpus before: $(find "$FUZZ_WORK/corpus/$TARGET" -type f | wc -l) files"
+          set +e
+          fuzz/run.sh "$TARGET" $(( MINUTES * 60 )) 2>&1 | tee "$RUNNER_TEMP/fuzz.log" \
+            | grep --line-buffered -E '^(#[0-9]+[[:space:]]+(INITED|pulse|DONE) |stat::|Done [0-9]+ runs)'
+          code=${PIPESTATUS[0]}
+          set -e
+          echo "exit=$code" >> "$GITHUB_OUTPUT"
+          echo "libFuzzer exited with $code"
+
+      # Keep only the inputs that add coverage (libFuzzer -merge), so the cache stays small. Failing inputs are never
+      # in the corpus (libFuzzer writes them to findings/ only), so the cache holds no finding.
+      - name: Merge the corpus
+        if: always() && steps.fuzz.outcome == 'success'
+        run: |
+          corpus=$FUZZ_WORK/corpus/$TARGET
+          merged=$RUNNER_TEMP/merged
+          mkdir -p "$merged"
+          before=$(find "$corpus" -type f | wc -l)
+          if DOTNET_GCHeapHardLimit=0x40000000 timeout 600 "$LIBFUZZER_DOTNET" --target_path="$FUZZ_WORK/bin/ErikTerm.Fuzz" \
+              --target_arg="$TARGET" -merge=1 -timeout=10 "$merged" "$corpus" > "$RUNNER_TEMP/merge.log" 2>&1; then
+            rm -rf "$corpus"
+            mv "$merged" "$corpus"
+            echo "corpus: $before files, $(find "$corpus" -type f | wc -l) after the merge ($(du -sh "$corpus" | cut -f1))"
+          else
+            echo "::warning::the corpus merge failed; the corpus is saved as it is ($before files)"
+          fi
+
+      - name: Save the corpus
+        if: always() && steps.fuzz.outcome == 'success'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: artifacts/fuzz/corpus/${{ matrix.target }}
+          key: fuzz-corpus-${{ matrix.target }}-${{ github.run_id }}-${{ github.run_attempt }}
+
+      # The job summary (and this log): statistics, and per finding its kind, size, SHA-256 and stack trace, but not
+      # the input (fuzz/report.py).
+      - name: Report
+        if: always() && steps.fuzz.outcome == 'success'
+        env:
+          EXIT: ${{ steps.fuzz.outputs.exit }}
+        run: |
+          status=0
+          python3 fuzz/report.py "$TARGET" "$RUNNER_TEMP/fuzz.log" "$FUZZ_WORK/findings/$TARGET" "$EXIT" > "$RUNNER_TEMP/summary.md" || status=$?
+          cat "$RUNNER_TEMP/summary.md" >> "$GITHUB_STEP_SUMMARY"
+          cat "$RUNNER_TEMP/summary.md"
+          if [ "$status" != 0 ]; then
+            echo "::error title=fuzz $TARGET::a finding, or libFuzzer failed: see the job summary (docs/development/fuzzing.md)"
+            exit 1
+          fi
+
+      # Only when a manual run asked for it: the finding, minimized, as an artifact for a day. Download it, then delete
+      # it (the run's page, Artifacts) once it is on your machine.
+      - name: Minimize the finding
+        if: failure() && inputs.keep_reproduction
+        run: |
+          mkdir -p "$RUNNER_TEMP/reproduction"
+          for file in "$FUZZ_WORK/findings/$TARGET"/*; do
+            [ -f "$file" ] || continue
+            name=$(basename "$file")
+            out="$RUNNER_TEMP/reproduction/$TARGET-$name"
+            DOTNET_GCHeapHardLimit=0x40000000 timeout 300 "$LIBFUZZER_DOTNET" --target_path="$FUZZ_WORK/bin/ErikTerm.Fuzz" \
+              --target_arg="$TARGET" -minimize_crash=1 -max_total_time=240 -timeout=10 -exact_artifact_path="$out.min" \
+              "$file" > "$RUNNER_TEMP/minimize.log" 2>&1 || true
+            if [ -s "$out.min" ]; then mv "$out.min" "$out"; else cp "$file" "$out"; fi
+            echo "$name: $(stat -c %s "$file") bytes, kept $(stat -c %s "$out")"
+          done
+      - name: Keep the reproduction
+        if: failure() && inputs.keep_reproduction
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: fuzz-reproduction-${{ matrix.target }}
+          path: ${{ runner.temp }}/reproduction/
+          retention-days: 1
+          if-no-files-found: ignore
+
+  # Wednesday: restore every target's newest corpus, which counts as using it, so the cache isn't evicted before
+  # Saturday's run (GitHub drops a cache entry nobody used for 7 days). No fuzzing, no build.
+  keep-corpus:
+    name: keep corpus (${{ matrix.target }})
+    if: github.event_name == 'schedule' && vars.PUBLIC_REPO == 'true' && github.event.schedule == '37 2 * * 3'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    strategy:
+      matrix:
+        target: [terminal, png, gif, jpeg, sixel, toml]
+    steps:
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: artifacts/fuzz/corpus/${{ matrix.target }}
+          key: fuzz-corpus-${{ matrix.target }}-keep
+          restore-keys: fuzz-corpus-${{ matrix.target }}-

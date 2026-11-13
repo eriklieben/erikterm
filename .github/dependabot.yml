@@ -1,7 +1,8 @@
 # Dependabot: dependency update pull requests. docs/development/code-analysis.md, "Dependency updates".
 #
 # The PR title is the squash-merge commit message, so it decides about releases:
-# - ci(deps): ...        GitHub Actions and the CI tools in .config/dotnet-tools.json (the SonarQube Cloud scanner).
+# - ci(deps): ...        GitHub Actions, the CI tools in .config/dotnet-tools.json (the SonarQube Cloud scanner,
+#                        SharpFuzz) and the fuzz harness's SharpFuzz package.
 # - build(deps): ...     the .NET SDK (global.json) and the test project's NuGet packages (TUnit).
 # - build(deps-dev): ... the release and commit tooling in package.json (devDependencies).
 # None of them releases: the shipped binary takes no packages (src/ and bench/ have no PackageReference), so there is
@@ -48,10 +49,12 @@ updates:
       tunit:
         patterns: ['TUnit', 'TUnit.*']
 
-  # The root: only the .NET tool manifest (.config/dotnet-tools.json). The allow list keeps the test project's
-  # packages, which the solution also leads to, in the entry above.
+  # The root: only the .NET tool manifest (.config/dotnet-tools.json), and the fuzz harness (fuzz/ErikTerm.Fuzz, not
+  # shipped). The allow list keeps the test project's packages, which the solution also leads to, in the entry above.
+  # SharpFuzz (the harness's library) and SharpFuzz.CommandLine (the tool that instruments for it) come in one pull
+  # request: they must stay at the same version.
   - package-ecosystem: nuget
-    directory: /
+    directories: [/, /fuzz/ErikTerm.Fuzz]
     schedule:
       interval: weekly
       day: monday
@@ -65,6 +68,11 @@ updates:
     labels: [dependencies]
     allow:
       - dependency-name: dotnet-sonarscanner
+      - dependency-name: SharpFuzz
+      - dependency-name: SharpFuzz.CommandLine
+    groups:
+      sharpfuzz:
+        patterns: ['SharpFuzz', 'SharpFuzz.*']
 
   - package-ecosystem: dotnet-sdk
     directory: /

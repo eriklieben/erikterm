@@ -173,7 +173,8 @@ icon resource.
 ## Tests and benchmarks
 
 How to run the test suite, the benchmarks and the cross-platform test plan is in [bench/README.md](../../bench/README.md).
-CodeQL, OpenSSF Scorecard, SonarQube Cloud and Dependabot are in [Code analysis](code-analysis.md).
+CodeQL, OpenSSF Scorecard, SonarQube Cloud and Dependabot are in [Code analysis](code-analysis.md); the fuzz targets,
+the weekly fuzzing and how to run it locally in [Fuzzing](fuzzing.md).
 
 ## Commit messages and releases
 

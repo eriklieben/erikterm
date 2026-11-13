@@ -1,0 +1,2 @@
+# Fuzzing seeds are raw input bytes: no line-ending conversion, no text diffs.
+fuzz/seeds/** binary

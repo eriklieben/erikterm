@@ -5,6 +5,8 @@
 //   dotnet run -c Release --project fuzz/ErikTerm.Fuzz -- <target> --repro <file>   one input, no fuzzer
 //   fuzz/run.sh <target> [seconds]                                                     instrument and fuzz
 //
+// CI fuzzes every target weekly (.github/workflows/fuzz.yml); docs/development/fuzzing.md.
+//
 // Targets: terminal (Terminal.Feed: CSI, OSC, DCS, APC, kitty graphics, sixel, iTerm2 images, synchronized output,
 // then a resize and the text read back), png, gif, jpeg, sixel, toml.
 //

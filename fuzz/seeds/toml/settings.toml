@@ -1,0 +1,13 @@
+font = "JetBrains Mono"
+font_size = 12.5
+harfbuzz_features = ["calt=1", "liga=0"]
+window_padding = { left = 6, right = 6, top = 6, bottom = 6 }
+color_scheme = "erik"
+
+[colors]
+foreground = "#c0c0c0"
+ansi = ["#000000", "#cc0000"]
+
+[[keys]]
+key = "ctrl+shift+t"
+action = "NewTab"

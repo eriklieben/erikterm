@@ -1,0 +1,10 @@
+# comment
+a.b."c d" = 'literal'
+ml = """
+line \u00e9 \U0001F600 \t"""
+lit = '''raw \n'''
+ints = [0x1F, 1_000, -3, +4]
+floats = [1e3, -0.5, inf, nan, 6.02E+23]
+nested = [[1, 2], ["a"], { x = 1 }]
+[table."quoted key"]
+t = true
