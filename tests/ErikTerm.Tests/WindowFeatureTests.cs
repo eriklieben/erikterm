@@ -1043,8 +1043,9 @@ public class WindowEditorTests
         using var pane = TestPanes.Spawn(workingDirectory: dir);
         var editor = New(window);
         const string text = "src/parser.c:3:5: error: expected one";
-        // The shell's directory is read from the running process: give a slow runner a moment to start it.
-        for (int i = 0; i < 100 && PaneTracks.PaneDirectory(pane) is null; i++) await Task.Delay(50);
+        // The directory is read from the running program: wait until the pane's own program runs (on macOS the spawn
+        // helper is in the foreground for a moment, still in the test's directory).
+        for (int i = 0; i < 100 && pane.Pty.ForegroundProcessName != "sleep"; i++) await Task.Delay(50);
 
         try
         {
