@@ -114,8 +114,8 @@ public static class SettingsCatalog
             "Single colours on top of the scheme: foreground, background, cursor, selection, the 16 ANSI colours. They go in the file under [colors]."),
         Toggle(Colors, "bold_brightens_ansi_colors", "Bold uses bright colours", true,
             "Bold text in one of the 8 basic colours is drawn in its bright variant, as most terminals do."),
-        Number(Colors, "minimum_contrast", "Minimum contrast", 1, new(1, 21, 0.5, ""),
-            "Moves text colours just far enough from their background to stay readable: 1 is off, 4.5 is WCAG AA, 7 is AAA. Box drawing and powerline glyphs are left alone."),
+        Number(Colors, "minimum_contrast", "Minimum contrast", ColorSchemes.BuiltInMinimumContrast, new(1, 21, 0.5, ""),
+            "Moves text colours just far enough from their background to stay readable: 1 is off, 4.5 is WCAG AA, 7 is AAA. Box drawing and powerline glyphs are left alone. Not set, the colour scheme decides: 4.5 for the built-in schemes, off for scheme files."),
 
         Number(Window, "window_background_opacity", "Background opacity", 1, new(0, 1, 0.05, ""),
             "0 is fully clear, 1 is solid. The blur behind it comes from your compositor; on Windows, Backdrop asks for it."),

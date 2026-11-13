@@ -17,6 +17,7 @@ New to erikterm? Start with the [README](../README.md) to install it, then [Pane
 - [Images](guide/images.md): kitty graphics, iTerm2 and sixel images.
 - [Terminal type and terminfo](guide/terminfo.md): TERM and the terminfo entry.
 - [Configuration](guide/configuration.md): the config file and its options.
+- [Color schemes](guide/themes/README.md): the built-in schemes, their origins, accents and contrast.
 - [Scripting](guide/scripting.md): `erikterm cli`, the tmux emulation and Neovim splits.
 - [Compatibility](guide/compatibility.md): the escape sequences and protocols erikterm supports.
 - [Accessibility](guide/accessibility.md): contrast, text size, motion and the cursor; screen readers on Windows (new).

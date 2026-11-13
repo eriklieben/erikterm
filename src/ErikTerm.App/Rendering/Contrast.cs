@@ -57,6 +57,26 @@ internal static class Contrast
         return Colors.Mix(fg, target, hi);
     }
 
+    /// <summary>
+    /// <see cref="Adjust"/> for a color drawn at <paramref name="alpha"/> over <paramref name="under"/>: the nearest color
+    /// toward white or black whose blend has <paramref name="minimum"/> contrast with what it is drawn on.
+    /// </summary>
+    public static uint AdjustOver(uint fg, uint under, float alpha, float minimum)
+    {
+        if (Ratio(Colors.Mix(under, fg, alpha), under) >= minimum) return fg;
+        uint reachable = Adjust(Colors.Mix(under, fg, alpha), under, minimum);
+        uint target = Luminance(reachable) >= Luminance(under) ? 0xFFFFFFu : 0x000000u;
+        if (Ratio(Colors.Mix(under, target, alpha), under) < minimum) return target; // as far as it goes
+        float lo = 0, hi = 1;
+        for (int i = 0; i < 12; i++)
+        {
+            float mid = (lo + hi) / 2;
+            if (Ratio(Colors.Mix(under, Colors.Mix(fg, target, mid), alpha), under) >= minimum) hi = mid;
+            else lo = mid;
+        }
+        return Colors.Mix(fg, target, hi);
+    }
+
     /// <summary>Glyphs minimum_contrast leaves alone: box drawing, block elements, legacy computing, powerline.</summary>
     public static bool IsGraphic(int rune) =>
         rune is >= 0x2500 and <= 0x259F       // box drawing, block elements

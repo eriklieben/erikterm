@@ -65,7 +65,7 @@ public static class AccessibilityPolicy
         if (decided.ReduceMotion)
             s = s with { AnimationDurationMs = 0, CursorAnimation = false, SmoothScrolling = false, CursorBlinkRate = 0 };
         if (decided.HighContrast)
-            s = s with { MinimumContrast = Math.Max(s.MinimumContrast, HighContrastMinimum) };
+            s = s with { MinimumContrast = Math.Max(s.MinimumContrastFor(s.Colors), HighContrastMinimum) };
         if (decided.UsesSystemColors)
             s = s with { Colors = WithSystemColors(s.Colors, system.HighContrastColors!) };
 #pragma warning disable S1244 // 1 is exactly what UsableScale returns for "no scaling"; any other value scales.

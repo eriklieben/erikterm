@@ -18,12 +18,41 @@ internal sealed class Theme
     public int PaletteRows = 12;
     public float AnimationMs = 160;
     public bool VisualBell = true;
-    /// <summary>minimum_contrast: text against its cell background (1 = off; PaneRenderer, Rendering/Contrast.cs).</summary>
+    /// <summary>minimum_contrast: text against its cell background (1 = off; PaneRenderer, Rendering/Contrast.cs) — the config's, else the scheme's default.</summary>
     public float MinimumContrast = 1;
+    /// <summary>
+    /// The scheme's floor for text in an inactive pane, applied after the dimming (1 = none): only when minimum_contrast
+    /// comes from the scheme, not from the config.
+    /// </summary>
+    public float InactiveMinimumContrast = 1;
     public IReadOnlyList<string> HarfbuzzFeatures = FontFeatures.Default;
 
     /// <summary>high_contrast is on (AccessibilityPolicy): the chrome's colours were strengthened.</summary>
     public bool HighContrast;
+
+    // The tab bar (Ui/TabBar.cs): its pills are the foreground (inactive, hovered, the + button) or the active fill drawn
+    // see-through over the background; the active tab's outline is drawn at OutlineAlpha.
+    public const float TabTint = 0.045f, TabHoverTint = 0.105f, ButtonTint = 0.03f, ButtonHoverTint = 0.11f;
+    public const float ActiveFillAlpha = 0.92f, OutlineAlpha = 0.55f, FadedBadgeAlpha = 0.75f;
+
+    /// <summary>
+    /// How see-through repository badges are on an inactive tab: <see cref="FadedBadgeAlpha"/>, or more opaque where
+    /// their text couldn't reach 4.5:1 otherwise.
+    /// </summary>
+    public float BadgeAlpha = FadedBadgeAlpha;
+
+    /// <summary>The active tab's fill: the accent over the panel on a dark scheme, over the background on a light one.</summary>
+    public uint TabActiveFill;
+
+    /// <summary>The active tab's outline: the accent, at 3:1 against the bar once drawn at <see cref="OutlineAlpha"/>.</summary>
+    public uint TabOutline;
+
+    /// <summary>
+    /// What the tab bar draws with: this theme with its text colours (PanelFg, Muted, Accent) at 4.5:1 and its status
+    /// colours at 3:1 against every tab pill, moved toward white or black only as far as needed (Contrast.AdjustOver).
+    /// </summary>
+    public Theme Tabs => _tabs ?? this;
+    private Theme? _tabs;
 
     public static Theme From(Settings s, ColorScheme colors, float scale, bool highContrast = false)
     {
@@ -57,10 +86,65 @@ internal sealed class Theme
         t.PaletteRows = s.CommandPaletteRows;
         t.AnimationMs = s.AnimationDurationMs;
         t.VisualBell = s.VisualBell;
-        t.MinimumContrast = (float)s.MinimumContrast;
+        t.MinimumContrast = (float)s.MinimumContrastFor(colors);
+        t.InactiveMinimumContrast = s.MinimumContrast is null ? (float)colors.InactiveMinimumContrast : 1;
         t.HarfbuzzFeatures = s.HarfbuzzFeatures;
         if (highContrast) t.StrengthenContrast();
+        t.DeriveTabs();
         return t;
+    }
+
+    /// <summary>The tab pills as drawn over the background: inactive, hovered, active, and the + / "more" buttons.</summary>
+    public (uint Tab, uint Hover, uint Active, uint Button) TabBackgrounds() =>
+        (Colors.Mix(Background, Foreground, TabTint), Colors.Mix(Background, Foreground, TabHoverTint),
+         Colors.Mix(Background, TabActiveFill, ActiveFillAlpha), Colors.Mix(Background, Foreground, ButtonTint));
+
+    private void DeriveTabs()
+    {
+        bool light = Contrast.Luminance(Background) > Contrast.Luminance(Foreground);
+        TabActiveFill = Colors.Mix(light ? Background : PanelBg, Accent, 0.20f);
+        uint tab = TabBackgrounds().Tab;
+        for (float alpha = FadedBadgeAlpha; ; alpha = MathF.Min(1, alpha + 0.05f))
+        {
+            var k = TabColors(alpha);
+            bool readable = Contrast.Ratio(Colors.Mix(tab, k.Accent, alpha), tab) >= 4.5f &&
+                            Contrast.Ratio(Colors.Mix(tab, Colors.Mix(k.PanelFg, k.Muted, 0.35f), alpha), tab) >= 4.5f &&
+                            Contrast.Ratio(Colors.Mix(tab, Colors.Mix(k.PanelFg, k.Accent, 0.35f), alpha), tab) >= 4.5f;
+            if (!readable && alpha < 1) continue;
+            BadgeAlpha = alpha;
+            TabOutline = k.TabOutline;
+            k.BadgeAlpha = alpha;
+            k._tabs = null; // its own tab colours
+            _tabs = k;
+            return;
+        }
+    }
+
+    /// <summary>This theme's colours moved just far enough to read on every tab pill, with badges at <paramref name="badgeAlpha"/>.</summary>
+    private Theme TabColors(float badgeAlpha)
+    {
+        var (tab, hover, active, button) = TabBackgrounds();
+        uint[] pills = [tab, hover, active, button];
+        var k = (Theme)MemberwiseClone();
+        for (int pass = 0; pass < 2; pass++)
+        {
+            foreach (uint pill in pills)
+            {
+                k.PanelFg = Contrast.Adjust(k.PanelFg, pill, 4.5f);
+                k.Muted = Contrast.Adjust(k.Muted, pill, 4.5f);
+                k.Accent = Contrast.Adjust(k.Accent, pill, 4.5f);
+                k.Danger = Contrast.AdjustOver(k.Danger, pill, badgeAlpha, 3);
+                k.Warning = Contrast.AdjustOver(k.Warning, pill, badgeAlpha, 3);
+                k.Success = Contrast.AdjustOver(k.Success, pill, badgeAlpha, 3);
+                k.Info = Contrast.AdjustOver(k.Info, pill, badgeAlpha, 3);
+            }
+            // Repository badges are see-through on an inactive tab; the active tab's outline on the bar's background.
+            k.PanelFg = Contrast.AdjustOver(k.PanelFg, tab, badgeAlpha, 4.5f);
+            k.Muted = Contrast.AdjustOver(k.Muted, tab, badgeAlpha, 4.5f);
+            k.Accent = Contrast.AdjustOver(k.Accent, tab, badgeAlpha, 4.5f);
+        }
+        k.TabOutline = Contrast.AdjustOver(Accent, Background, OutlineAlpha, 3);
+        return k;
     }
 
     /// <summary>
@@ -92,6 +176,7 @@ internal sealed class Theme
         t.Scale = Scale * zoom;
         t.UiPx = UiPx * zoom;
         t.PaneSelectPx = PaneSelectPx * zoom;
+        t._tabs = _tabs?.WithOverlayZoom(zoom);
         return t;
     }
 }

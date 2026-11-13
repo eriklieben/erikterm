@@ -27,5 +27,6 @@ Compiled into the binary as data:
 | Unicode Character Database (character widths, emoji properties) | Unicode License v3 | https://www.unicode.org/license.txt |
 | The colours of the built-in schemes *Catppuccin Macchiato* and *Catppuccin Mocha*, copyright © 2021 Catppuccin | MIT | https://github.com/catppuccin/catppuccin |
 | The colours of the built-in scheme *Tokyo Night*, from tokyonight.nvim | Apache License 2.0 (https://www.apache.org/licenses/LICENSE-2.0) | https://github.com/folke/tokyonight.nvim |
+| The colours of the built-in scheme *erik*, from Atom One Dark (one-dark-syntax), Copyright © 2016 GitHub Inc. | MIT | https://github.com/atom/one-dark-syntax |
 
 Portions of this software are copyright © The FreeType Project (https://freetype.org). All rights reserved.

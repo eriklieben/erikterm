@@ -58,8 +58,13 @@ A dotted key (`colors.split`) changes one entry of a table; an inline table repl
 black only as far as needed, so it keeps its hue.
 
 ```toml
-minimum_contrast = 4.5   # 1 = off (the default); 4.5 is WCAG AA, 7 is AAA
+minimum_contrast = 4.5   # 1 = off; 4.5 is WCAG AA, 7 is AAA
 ```
+
+When you don't set it, the color scheme decides: the built-in schemes bring 4.5, so text in a prompt or statusline
+block stays readable in every one of them, and keep text at 3:1 in an inactive pane after `inactive_pane_hsb` dims it;
+a scheme file brings none (1). Whatever you set wins, so `minimum_contrast = 1` turns it off for the built-in schemes
+too, and a value of your own leaves inactive panes dimmed as they are.
 
 Hidden text stays hidden, and images, color emoji, box drawing and powerline glyphs keep their colors.
 
@@ -81,6 +86,8 @@ your `animation_duration_ms` stays in the file, and it's used again when reduce 
 
 **Browse Themes…** in the palette (`BrowseThemes`) lists every scheme with live preview: move through the list to
 try one, `Enter` keeps it for this session, `Esc` goes back. It includes the built-in schemes, your own files and wezterm's.
+
+[Color schemes](themes/README.md) shows each built-in scheme, where it comes from, its accent and its contrast.
 
 ### Your own scheme files
 

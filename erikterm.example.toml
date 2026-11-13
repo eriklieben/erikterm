@@ -26,8 +26,9 @@ harfbuzz_features = ["calt=1", "liga=1", "clig=1"]
 # Browse Themes… previews them all and can download the iTerm2-Color-Schemes catalogue.
 color_scheme = "erik"
 bold_brightens_ansi_colors = true
-minimum_contrast = 1.0               # text vs. its cell background: 1 = off, 4.5 = WCAG AA, 7 = AAA (colors move toward
-                                     # white/black just enough; box drawing, blocks and powerline glyphs are left alone)
+# minimum_contrast = 4.5             # text vs. its cell background: 1 = off, 4.5 = WCAG AA, 7 = AAA (colors move toward
+                                     # white/black just enough; box drawing, blocks and powerline glyphs are left alone).
+                                     # Left out, the scheme decides: 4.5 for the built-in schemes, off for scheme files
 
 # Overrides on top of color_scheme; every key is optional.
 # [colors]

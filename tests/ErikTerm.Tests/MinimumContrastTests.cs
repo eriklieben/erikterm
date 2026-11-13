@@ -154,13 +154,14 @@ public class MinimumContrastTests
     // ---- The setting --------------------------------------------------------------------------
 
     [Test]
-    public async Task MinimumContrastDefaultsToOff()
+    public async Task MinimumContrastIsLeftToTheSchemeByDefault()
     {
         // Act
         var s = SettingsLoader.Parse("").Settings;
 
-        // Assert
-        await Assert.That(s.MinimumContrast).IsEqualTo(1.0);
+        // Assert: unset, so the scheme's default applies (BuiltInSchemeContrastTests)
+        await Assert.That(s.MinimumContrast).IsNull();
+        await Assert.That(s.MinimumContrastFor(s.Colors)).IsEqualTo(ColorSchemes.BuiltInMinimumContrast);
     }
 
     [Test]

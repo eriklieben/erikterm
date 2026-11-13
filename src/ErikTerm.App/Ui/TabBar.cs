@@ -364,6 +364,7 @@ internal sealed class TabBar
 
     public void Draw(DrawList dl, Theme th, RectF bar, long now)
     {
+        th = th.Tabs; // colours readable on the tab pills (Theme.DeriveTabs)
         float v = _visible.Value(now);
         if (v <= 0.001f) return;
         float slide = (1 - Ease.OutCubic(v)) * th.S(-8);
@@ -452,9 +453,10 @@ internal sealed class TabBar
         var r = it.Rect;
         uint accent = it.Color ?? th.Accent;
         if (it.Color is { } tint) dl.RoundRect(r, radius, tint, (0.13f + 0.07f * hover) * (1 - lit) * a);
-        else dl.RoundRect(r, radius, th.Foreground, (0.045f + 0.06f * hover) * (1 - lit) * a);
+        else dl.RoundRect(r, radius, th.Foreground, (Theme.TabTint + (Theme.TabHoverTint - Theme.TabTint) * hover) * (1 - lit) * a);
         if (lit > 0.001f)
-            dl.Panel(r, radius, Colors.Mix(th.PanelBg, accent, it.Color is null ? 0.20f : 0.28f), 0.92f * lit * a, accent, (it.Color is null ? 0.55f : 0.8f) * lit * a);
+            dl.Panel(r, radius, it.Color is null ? th.TabActiveFill : Colors.Mix(th.PanelBg, accent, 0.28f), Theme.ActiveFillAlpha * lit * a,
+                it.Color is null ? th.TabOutline : accent, (it.Color is null ? Theme.OutlineAlpha : 0.8f) * lit * a);
     }
 
     private void DrawRenameField(DrawList dl, Theme th, RectF r, in TabPaint p)
@@ -497,7 +499,7 @@ internal sealed class TabBar
     {
         float dot = it.Agent == AgentState.None && it.Activity && !it.Active && p.Hover <= 0.01f ? th.S(14) : 0; // the agent dot has its room in textRight
         float room = textRight - dot - p.X;
-        var ink = new RepoBadge.BadgeInk(p.Baseline, p.Px * 0.92f, p.Alpha * (0.75f + 0.25f * MathF.Max(p.Lit, p.Hover)), p.Now);
+        var ink = new RepoBadge.BadgeInk(p.Baseline, p.Px * 0.92f, p.Alpha * (th.BadgeAlpha + (1 - th.BadgeAlpha) * MathF.Max(p.Lit, p.Hover)), p.Now);
         float used = RepoBadge.DrawCompact(dl, th, badge, textRight - dot, MathF.Max(room * 0.45f, room - dl.Measure(it.Title, p.Px) - th.S(12)), in ink);
         return used > 0 ? textRight - (used + dot + th.S(8)) : textRight;
     }
@@ -532,7 +534,7 @@ internal sealed class TabBar
     private void DrawPlus(DrawList dl, Theme th, float px, FontSet.Metrics m, float v, long now)
     {
         float ph = _plusHover.Value(now);
-        dl.RoundRect(_plus, th.S(8), th.Foreground, (0.03f + 0.08f * ph) * v);
+        dl.RoundRect(_plus, th.S(8), th.Foreground, (Theme.ButtonTint + (Theme.ButtonHoverTint - Theme.ButtonTint) * ph) * v);
         var pg = dl.Atlas.Get(Icons.Add, FontStyle.Regular, px);
         dl.Glyph(Icons.Add, _plus.X + (_plus.W - pg.Advance) / 2, MathF.Round(_plus.Y + (_plus.H - m.Height) / 2 + m.Ascender), px,
             Colors.Mix(th.Muted, th.PanelFg, ph), v);
@@ -545,7 +547,7 @@ internal sealed class TabBar
         if (fade <= 0.002f || _moreLabel.Length == 0) return;
         float a = v * fade;
         float hover = _moreHover.Value(now);
-        dl.RoundRect(_more, th.S(8), th.Foreground, (0.03f + 0.08f * hover) * a);
+        dl.RoundRect(_more, th.S(8), th.Foreground, (Theme.ButtonTint + (Theme.ButtonHoverTint - Theme.ButtonTint) * hover) * a);
         float baseline = MathF.Round(_more.Y + (_more.H - m.Height) / 2 + m.Ascender);
         var g = dl.Atlas.Get(Icons.ChevronDown, FontStyle.Regular, px);
         float x = _more.X + th.S(8);
@@ -570,11 +572,12 @@ internal sealed class TabBar
     /// <summary>A lifted tab: the ghost while dragging (here, and in the popup that follows the pointer outside the window).</summary>
     public static void DrawPill(DrawList dl, Theme th, RectF r, string number, string title, float px, float v)
     {
+        th = th.Tabs;
         var m = dl.MetricsFor(px);
         float radius = th.S(8);
 
         dl.Shadow(r.Offset(0, th.S(6)), radius, th.S(16), 0.5f * v);
-        dl.Panel(r, radius, Colors.Mix(th.PanelBg, th.Accent, 0.20f), 0.95f * v, th.Accent, 0.8f * v);
+        dl.Panel(r, radius, th.TabActiveFill, 0.95f * v, th.Accent, 0.8f * v);
         dl.PushClip(r);
         float baseline = MathF.Round(r.Y + (r.H - m.Height) / 2 + m.Ascender);
         float x = r.X + th.S(10);

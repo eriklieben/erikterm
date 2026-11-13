@@ -83,7 +83,10 @@ gsettings get org.gnome.desktop.a11y.interface high-contrast
 ## What there is
 
 **Contrast.** `minimum_contrast` moves text colors toward white or black until they reach a contrast ratio against
-their background, keeping the hue. 4.5 is WCAG AA, 7 is AAA. It works with any color scheme. `high_contrast = "on"` sets it to at least 7 and strengthens the chrome as well
+their background, keeping the hue. 4.5 is WCAG AA, 7 is AAA. It works with any color scheme, and the built-in
+schemes bring 4.5 when you don't set it ([Color schemes](themes/README.md#contrast)). In every scheme, the text on
+the tabs (titles, numbers, branch and pull request badges) reads at 4.5:1 against its tab, and the tab bar's icons and
+dots at 3:1. `high_contrast = "on"` sets it to at least 7 and strengthens the chrome as well
 (above). erikterm has no built-in high-contrast scheme; you can write your own or look for one in the catalogue that Browse Themes downloads
 ([Color schemes](configuration.md#color-schemes)).
 

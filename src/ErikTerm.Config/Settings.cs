@@ -179,9 +179,14 @@ public sealed record Settings
     public bool VisualBell { get; init; } = true;
     /// <summary>
     /// Text is drawn with at least this contrast ratio (WCAG: 1 = off, 4.5 = AA, 7 = AAA) against its cell's background,
-    /// moving its color toward white or black as far as needed (kitty / ghostty's minimum_contrast).
+    /// moving its color toward white or black as far as needed (kitty / ghostty's minimum_contrast). Null when the config
+    /// doesn't set it: the color scheme's own default applies (<see cref="ColorScheme.MinimumContrast"/>, 4.5 for the
+    /// built-in schemes, off for scheme files); a value the user sets always wins.
     /// </summary>
-    public double MinimumContrast { get; init; } = 1.0;
+    public double? MinimumContrast { get; init; }
+
+    /// <summary>The minimum_contrast panes in <paramref name="scheme"/> are drawn with: the config's, else the scheme's.</summary>
+    public double MinimumContrastFor(ColorScheme scheme) => MinimumContrast ?? scheme.MinimumContrast;
     /// <summary>Length of UI animations (splits, menus, focus dimming). 0 disables them.</summary>
     public int AnimationDurationMs { get; init; } = 160;
     public bool EnableTabBar { get; init; } = true;

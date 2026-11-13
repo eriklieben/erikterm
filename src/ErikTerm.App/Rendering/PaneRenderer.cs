@@ -15,6 +15,7 @@ internal sealed class PaneRenderer
 {
     private readonly ColorTransformCache _dim = new();
     private readonly ContrastCache _contrast = new(); // minimum_contrast (Contrast.cs)
+    private readonly ContrastCache _dimmedContrast = new(); // the scheme's floor in an inactive pane (Theme.InactiveMinimumContrast)
     private readonly GridText _text = new();
     private readonly ImageRenderer _images = new();
 
@@ -51,6 +52,7 @@ internal sealed class PaneRenderer
         float dimH = 1 + (hsb.H - 1) * inactive, dimS = 1 + (hsb.S - 1) * inactive, dimB = 1 + (hsb.B - 1) * inactive;
         _dim.Configure(dimH, dimS, dimB);
         _contrast.Configure(theme.MinimumContrast); // part of the row cache's key through the theme
+        _dimmedContrast.Configure(theme.InactiveMinimumContrast);
         float appear = pane.Appear.Value(now);
 
         dl.PushClip(rect);
@@ -245,8 +247,14 @@ internal sealed class PaneRenderer
         if ((flags & CellAttributes.Dim) != 0) fg = Colors.Mix(fg, bg, 0.5f);
         // minimum_contrast against the cell's own background (faint text too), before inactive-pane dimming;
         // graphics characters keep their colors (Contrast.cs).
-        if (_contrast.Enabled && !Contrast.IsGraphic(c.Rune)) fg = _contrast.Apply(fg, bg);
-        return _dim.Apply(fg);
+        if (Contrast.IsGraphic(c.Rune)) return _dim.Apply(fg);
+        if (_contrast.Enabled) fg = _contrast.Apply(fg, bg);
+        fg = _dim.Apply(fg);
+        // A scheme's own floor holds in an inactive pane too: against what the cell shows there, the window's
+        // undimmed background for default cells (unless OSC 11 painted the pane), else the dimmed cell background.
+        if (_dimmedContrast.Enabled && !_dim.IsIdentity)
+            fg = _dimmedContrast.Apply(fg, bg == pal.Background && !pal.HasBackgroundOverride ? bg : _dim.Apply(bg));
+        return fg;
     }
 
     /// <summary>The underline, strikethrough and overline of cell <paramref name="x"/> of a row whose top is at <paramref name="py"/>.</summary>

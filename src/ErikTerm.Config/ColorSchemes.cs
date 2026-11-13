@@ -18,36 +18,78 @@ public sealed record ColorScheme(
     public uint? CursorBorder { get; init; }
     /// <summary>The scheme file it came from; null for a built-in scheme.</summary>
     public string? SourcePath { get; init; }
+
+    /// <summary>
+    /// The minimum_contrast this scheme is drawn with when the config doesn't set one (1 = off). The built-in schemes
+    /// carry <see cref="ColorSchemes.BuiltInMinimumContrast"/>; a scheme file has none.
+    /// </summary>
+    public double MinimumContrast { get; init; } = 1;
+
+    /// <summary>
+    /// With <see cref="MinimumContrast"/> from the scheme: the contrast text keeps in an inactive pane, against what it is
+    /// drawn on after inactive_pane_hsb dims it (1 = none). The built-in schemes carry
+    /// <see cref="ColorSchemes.BuiltInInactiveMinimumContrast"/>.
+    /// </summary>
+    public double InactiveMinimumContrast { get; init; } = 1;
+
+    /// <summary>Where a built-in scheme's colours come from; null for erikterm's own schemes and for scheme files.</summary>
+    public SchemeCredit? Credit { get; init; }
 }
 
-/// <summary>Built-in schemes, selectable with <c>color_scheme = "..."</c> (wezterm-style names).</summary>
-public static class ColorSchemes
+/// <summary>
+/// The project a built-in scheme's colours come from, for THIRD-PARTY-NOTICES.md and the About screen's Licenses tab.
+/// <paramref name="License"/> is one of <see cref="SchemeLicenses"/>.
+/// </summary>
+public sealed record SchemeCredit(string Project, string Copyright, string License, string Url)
 {
-    public static readonly ColorScheme Erik = new(
-        "erik", 0xD4D7DE, 0x16181D, 0xF5C26B, 0x16181D, 0x3A4150,
-        [0x23262E, 0xE06C75, 0x98C379, 0xE5C07B, 0x61AFEF, 0xC678DD, 0x56B6C2, 0xC8CCD4],
-        [0x5C6370, 0xEF7B85, 0xA9D48A, 0xF0CF8F, 0x7CC0F5, 0xD391EA, 0x6CCAD6, 0xFFFFFF],
-        Split: 0x3A4150, Accent: 0x61AFEF);
+    /// <summary>What erikterm took or changed beyond the published palette (null: the colours as published).</summary>
+    public string? Notes { get; init; }
+}
 
-    public static readonly ColorScheme CatppuccinMacchiato = new(
-        "Catppuccin Macchiato", 0xCAD3F5, 0x24273A, 0xF4DBD6, 0x24273A, 0x5B6078,
-        [0x494D64, 0xED8796, 0xA6DA95, 0xEED49F, 0x8AADF4, 0xF5BDE6, 0x8BD5CA, 0xB8C0E0],
-        [0x5B6078, 0xED8796, 0xA6DA95, 0xEED49F, 0x8AADF4, 0xF5BDE6, 0x8BD5CA, 0xA5ADCB],
-        Split: 0x494D64, Accent: 0xB7BDF8);
+/// <summary>The licenses the built-in schemes' colours are used under.</summary>
+public static class SchemeLicenses
+{
+    public const string Mit = "MIT License";
+    public const string Apache2 = "Apache License 2.0";
+    public const string Bsd3 = "BSD 3-Clause License";
+}
 
-    public static readonly ColorScheme CatppuccinMocha = new(
-        "Catppuccin Mocha", 0xCDD6F4, 0x1E1E2E, 0xF5E0DC, 0x1E1E2E, 0x585B70,
-        [0x45475A, 0xF38BA8, 0xA6E3A1, 0xF9E2AF, 0x89B4FA, 0xF5C2E7, 0x94E2D5, 0xBAC2DE],
-        [0x585B70, 0xF38BA8, 0xA6E3A1, 0xF9E2AF, 0x89B4FA, 0xF5C2E7, 0x94E2D5, 0xA6ADC8],
-        Split: 0x45475A, Accent: 0xB4BEFE);
+/// <summary>
+/// Built-in schemes, selectable with <c>color_scheme = "..."</c> (wezterm-style names). Each one is a file under
+/// Schemes/ and a line in the registry below; the list is "erik" (the default) first, then the rest by name.
+/// </summary>
+public static partial class ColorSchemes
+{
+    /// <summary>
+    /// The minimum_contrast every built-in scheme brings (WCAG AA): text on any ANSI background reads at 4.5:1 in the
+    /// focused pane (BuiltInSchemeContrastTests).
+    /// </summary>
+    public const double BuiltInMinimumContrast = 4.5;
 
-    public static readonly ColorScheme TokyoNight = new(
-        "Tokyo Night", 0xC0CAF5, 0x1A1B26, 0xC0CAF5, 0x1A1B26, 0x33467C,
-        [0x15161E, 0xF7768E, 0x9ECE6A, 0xE0AF68, 0x7AA2F7, 0xBB9AF7, 0x7DCFFF, 0xA9B1D6],
-        [0x414868, 0xF7768E, 0x9ECE6A, 0xE0AF68, 0x7AA2F7, 0xBB9AF7, 0x7DCFFF, 0xC0CAF5],
-        Split: 0x3B4261, Accent: 0x7AA2F7);
+    /// <summary>
+    /// What the built-in schemes keep in an inactive pane (WCAG's level for large text and non-text marks): dimming darkens
+    /// text but not the window's background, so text on the plain background needs this second floor.
+    /// </summary>
+    public const double BuiltInInactiveMinimumContrast = 3;
 
-    public static readonly ColorScheme[] All = [Erik, CatppuccinMacchiato, CatppuccinMocha, TokyoNight];
+    public static readonly ColorScheme[] All;
+
+    static ColorSchemes()
+    {
+        // The registry: one line per built-in scheme (Schemes/*.cs). Field initializers of every part run first.
+        ColorScheme[] builtIn =
+        [
+            Erik,
+            CatppuccinMacchiato,
+            CatppuccinMocha,
+            TokyoNight,
+        ];
+        All = [builtIn[0], .. builtIn.Skip(1).OrderBy(s => s.Name, StringComparer.OrdinalIgnoreCase)];
+    }
+
+    /// <summary>A built-in scheme: the built-in contrast default and, for one from another project, its credit.</summary>
+    private static ColorScheme BuiltIn(ColorScheme scheme, SchemeCredit? credit = null) =>
+        scheme with { MinimumContrast = BuiltInMinimumContrast, InactiveMinimumContrast = BuiltInInactiveMinimumContrast, Credit = credit };
 
     /// <summary>Case-insensitive; also accepts wezterm's "(Gogh)" / "(base16)" suffixed variants.</summary>
     public static ColorScheme? Find(string name)
