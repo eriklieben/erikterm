@@ -1281,3 +1281,141 @@ public class PaneCwdTests
         await Assert.That(cwd).IsEqualTo(expected);
     }
 }
+
+/// <summary>The title a tab's capture keeps (Windowing/WindowSession.cs saves <see cref="ErikTerm.App.Tab.SessionTitle"/>).</summary>
+public class SessionTabTitleTests
+{
+    [Test]
+    public async Task ARenamedTabSavesTheNameNotTheProgramsTitle()
+    {
+        // Arrange
+        var tab = new ErikTerm.App.Tab { AutoTitle = "program-title" };
+
+        // Act
+        tab.Rename("logs");
+
+        // Assert
+        await Assert.That(tab.SessionTitle).IsEqualTo("logs");
+    }
+
+    [Test]
+    public async Task AnAutomaticTitleIsNotSaved()
+    {
+        // Arrange
+        var tab = new ErikTerm.App.Tab { AutoTitle = "program-title" };
+
+        // Act
+        string? saved = tab.SessionTitle;
+
+        // Assert
+        await Assert.That(saved).IsNull();
+    }
+
+    [Test]
+    public async Task AToolTabsOwnLabelIsNotSaved()
+    {
+        // Arrange
+        var tab = new ErikTerm.App.Tab { CustomTitle = "Settings", TransientTitle = true };
+
+        // Act
+        string? saved = tab.SessionTitle;
+
+        // Assert
+        await Assert.That(saved).IsNull();
+    }
+
+    [Test]
+    public async Task AToolTabRenamedByTheUserSavesTheName()
+    {
+        // Arrange: the Settings tab, renamed (tab bar, palette, or erikterm cli set-tab-title).
+        var tab = new ErikTerm.App.Tab { CustomTitle = "Settings", TransientTitle = true };
+
+        // Act
+        tab.Rename("config");
+
+        // Assert
+        await Assert.That(tab.SessionTitle).IsEqualTo("config");
+    }
+
+    [Test]
+    public async Task ATabNamedBackToAutomaticSavesNoTitle()
+    {
+        // Arrange
+        var tab = new ErikTerm.App.Tab { CustomTitle = "logs" };
+
+        // Act
+        tab.Rename(null);
+
+        // Assert
+        await Assert.That(tab.SessionTitle).IsNull();
+    }
+}
+
+/// <summary>The directory a pane's capture keeps (<see cref="ErikTerm.App.Panes.Pane.SessionDirectory"/>), with real shells (sh: no OSC 7).</summary>
+[RunOn(OS.Linux | OS.MacOs)]
+[NotInParallel(Isolation.Processes)]
+public class SessionPaneDirectoryTests
+{
+    private readonly string _dir = Path.GetFullPath(Directory.CreateTempSubdirectory("erikterm-session-cwd-").FullName);
+
+    [After(Test)]
+    public void Cleanup() => Directory.Delete(_dir, recursive: true);
+
+    private static ErikTerm.App.Panes.Pane Shell(string cwd)
+    {
+        var pty = ErikTerm.Pty.Pty.Spawn(new ErikTerm.Pty.PtyOptions
+        {
+            Program = "/bin/sh",
+            Arguments = ["sh", "-i"],
+            WorkingDirectory = cwd,
+            Columns = 80,
+            Rows = 24,
+        });
+        return new ErikTerm.App.Panes.Pane(new Terminal(80, 24, 100), pty);
+    }
+
+    private static void Type(ErikTerm.App.Panes.Pane pane, string line) => pane.Pty.Write(Encoding.UTF8.GetBytes(line + "\n"));
+
+    /// <summary>macOS reports /private/var/… for a temp directory under /var/….</summary>
+    private static bool Same(string? reported, string expected) =>
+        reported is not null && (reported == expected || reported == "/private" + expected);
+
+    [Test]
+    public async Task EachPaneKeepsTheFolderItsOwnShellCdInto()
+    {
+        // Arrange: two panes started in the same folder; only the first cds.
+        string start = Directory.CreateDirectory(Path.Combine(_dir, "start")).FullName;
+        string moved = Directory.CreateDirectory(Path.Combine(_dir, "moved")).FullName;
+        using var first = Shell(start);
+        using var second = Shell(start);
+
+        // Act
+        Type(first, $"cd '{moved}'");
+        bool firstMoved = await Eventually.True(() => Same(first.SessionDirectory, moved));
+        string? secondDir = second.SessionDirectory;
+
+        // Assert
+        await Assert.That(firstMoved).IsTrue().Because(first.SessionDirectory ?? "(none)");
+        await Assert.That(Same(secondDir, start)).IsTrue().Because(secondDir ?? "(none)");
+    }
+
+    [Test]
+    public async Task APaneKeepsTheFolderAChildShellCdInto()
+    {
+        // Arrange: the pane's shell starts another sh (its own process group, in the foreground).
+        string start = Directory.CreateDirectory(Path.Combine(_dir, "start")).FullName;
+        string moved = Directory.CreateDirectory(Path.Combine(_dir, "moved")).FullName;
+        using var pane = Shell(start);
+        Type(pane, "sh -i");
+        bool childRuns = await Eventually.True(() =>
+            ErikTerm.Pty.ProcessInfo.ForegroundProcessGroup(pane.Pty) is > 0 and var pgid && pgid != pane.Pty.ProcessId);
+
+        // Act: the child cds; the pane's own shell stays in start.
+        Type(pane, $"cd '{moved}'");
+        bool childMoved = await Eventually.True(() => Same(pane.SessionDirectory, moved), TimeSpan.FromSeconds(5));
+
+        // Assert
+        await Assert.That(childRuns).IsTrue();
+        await Assert.That(childMoved).IsTrue().Because(pane.SessionDirectory ?? "(none)");
+    }
+}

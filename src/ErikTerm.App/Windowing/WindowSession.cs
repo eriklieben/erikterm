@@ -205,7 +205,7 @@ internal sealed unsafe class WindowSession(IWindowHost window, Lock gate, TabLis
             int zoomed = SessionLayout.LeafIndex(tab.Layout, tab.Zoomed, IsTeammate);
             captured.Tabs.Add(new SessionTab
             {
-                Title = tab.TransientTitle ? null : tab.CustomTitle,
+                Title = tab.SessionTitle,
                 Color = tab.Color,
                 Focused = Math.Max(0, SessionLayout.LeafIndex(tab.Layout, tab.Focused, IsTeammate)),
                 Zoomed = zoomed >= 0 ? zoomed : null,
@@ -220,7 +220,7 @@ internal sealed unsafe class WindowSession(IWindowHost window, Lock gate, TabLis
     private SessionPane CapturePane(Pane pane, bool includeScrollback)
     {
         var settings = window.Settings;
-        var saved = new SessionPane { Cwd = pane.WorkingDirectory ?? ProcessInfo.WorkingDirectory(pane.Pty.ProcessId) };
+        var saved = new SessionPane { Cwd = pane.SessionDirectory };
         saved.Container = window.CaptureContainer(pane); // WindowFeatures/WindowContainers.cs
         if (saved.Container is null && pane.Pty.ForegroundProcessName is { } fg && !RestorePrograms.IsShell(fg))
             saved.Program = RestorePrograms.Capture(fg, pane.Pty.ForegroundArguments(), settings.RestorePrograms, pane.LaunchedAgent); // Worktrees/WindowWorktrees.cs

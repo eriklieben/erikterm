@@ -6,9 +6,10 @@ you your layout.
 ## What is restored
 
 erikterm saves when it exits and shortly after the layout changes. The next start shows "Restored 3 tabs, 5 panes"
-and brings back every window's tabs (order, active tab, custom titles), splits, zoomed and focused pane, size, full
-screen and font zoom. Each pane gets a fresh shell in its directory, or the program it was running if that program is
-in `restore_programs`.
+and brings back every window's tabs (order, active tab, the names you gave them), splits, zoomed and focused pane,
+size, full screen and font zoom. Each pane gets a fresh shell in its directory (the one its shell reported, else the
+foreground program's, such as a shell started from it, else its shell's), or the program it was running if that
+program is in `restore_programs`.
 
 ```toml
 restore_session = true                                     # --no-restore skips it once; -e never restores

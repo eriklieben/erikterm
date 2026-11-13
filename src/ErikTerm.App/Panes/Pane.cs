@@ -344,6 +344,12 @@ internal sealed class Pane : IDisposable, IVimPane, IWorktreePane, IAgentPane, I
         () => ProcessInfo.WorkingDirectory(Pty.ProcessId),
         defaultCwd);
 
+    /// <summary>
+    /// The directory session.json keeps for the pane: where a split from it would start (<see cref="StartDirectory"/>),
+    /// so a cd made in a shell started from the pane's shell (no OSC 7) comes back too, not the outer shell's folder.
+    /// </summary>
+    public string? SessionDirectory => StartDirectory(null);
+
     /// <summary>A short label: the foreground program, or the title the app set.</summary>
     public string Label => Pty.ForegroundProcessName ?? Term.Title;
 
