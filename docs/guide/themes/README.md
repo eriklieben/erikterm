@@ -1,6 +1,6 @@
 # Color schemes
 
-erikterm ships 46 built-in color schemes, dark and light. `erik` is the default.
+erikterm ships 47 built-in color schemes, dark and light. `erik` is the default.
 
 ## Picking one
 
@@ -64,6 +64,7 @@ measured contrast of the statusline in erikterm's standard scene, focused and di
 | [Everforest Dark](everforest-dark.md) | Everforest | MIT |
 | [Night Owl](night-owl.md) | Night Owl | MIT |
 | [Ayu Dark](ayu-dark.md) | Ayu | MIT |
+| [Tokyo Night Storm](tokyo-night-storm.md) | Tokyo Night | Apache-2.0 |
 | [One Half Dark](one-half-dark.md) | One Half | MIT |
 | [Nightfox](nightfox.md) | Nightfox | MIT |
 | [Carbonfox](carbonfox.md) | Nightfox | MIT |
