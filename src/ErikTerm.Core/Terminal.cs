@@ -1853,8 +1853,9 @@ public sealed class Terminal : ISynchronizedOutputTarget, ILinkedRows, ITerminal
     {
         int startX = _x;
         for (int r = 1; r < p.Rows; r++) Index();
-        _x = startX + p.Columns;
-        if (_x >= _cols) { _x = _cols - 1; _pendingWrap = _autoWrap; }
+        long right = (long)startX + p.Columns; // never wraps around to a negative column
+        if (right >= _cols) { _x = _cols - 1; _pendingWrap = _autoWrap; }
+        else _x = (int)right;
     }
 
     void IImageGrid.PruneImages() => PruneImages();

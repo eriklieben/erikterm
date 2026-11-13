@@ -401,7 +401,7 @@ internal sealed class KittyGraphics(ImageStore images, IImageGrid grid, Terminal
     /// <summary>The placement <paramref name="c"/> describes, sized in cells; not positioned or registered yet.</summary>
     private KittyPlacement NewKittyPlacement(KittyCommand c, TerminalImage image, int sx, int sy, int sw, int sh)
     {
-        int cols = Math.Max(0, c.Columns), rows = Math.Max(0, c.Rows);
+        int cols = Math.Clamp(c.Columns, 0, MaxPlacementCells), rows = Math.Clamp(c.Rows, 0, MaxPlacementCells);
         var p = new KittyPlacement
         {
             Image = image,
@@ -420,10 +420,19 @@ internal sealed class KittyGraphics(ImageStore images, IImageGrid grid, Terminal
         };
         int cellW = grid.CellWidth, cellH = grid.CellHeight;
         var (w, h) = p.DisplaySize(cellW, cellH);
-        p.Columns = cols > 0 ? cols : Math.Max(1, (int)MathF.Ceiling((p.OffsetX + w) / cellW));
-        p.Rows = rows > 0 ? rows : Math.Max(1, (int)MathF.Ceiling((p.OffsetY + h) / cellH));
+        p.Columns = cols > 0 ? cols : CellsFor(p.OffsetX + w, cellW);
+        p.Rows = rows > 0 ? rows : CellsFor(p.OffsetY + h, cellH);
         return p;
     }
+
+    /// <summary>
+    /// Most cells a placement covers in either direction. The cursor moves past a placement one line feed per row and
+    /// to its right edge, so a size a program makes up (c=, r=, or one derived from an extreme aspect ratio) must stay
+    /// small enough for both: far more than any screen, far less than int.MaxValue.
+    /// </summary>
+    private const int MaxPlacementCells = ImageLimits.MaxDimension;
+
+    private static int CellsFor(float pixels, int cellPixels) => (int)Math.Clamp(MathF.Ceiling(pixels / cellPixels), 1, MaxPlacementCells);
 
     private void KittyDelete(KittyCommand c)
     {
