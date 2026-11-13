@@ -220,6 +220,7 @@ public static class Jpeg
         private int cnt;
         private bool marker;
         private int overrun; // bytes of zero padding fed after hitting a marker / the end (or "corrupt")
+        private bool scanEnded; // a restart found no RSTn marker: nothing of this scan is left to decode
 
         private readonly Huffman?[] dcTables = new Huffman?[4], acTables = new Huffman?[4];
         private readonly int[]?[] quant = new int[]?[4];
@@ -474,6 +475,7 @@ public static class Jpeg
             marker = false;
             overrun = 0;
             eobrun = 0;
+            scanEnded = false;
         }
 
         private void DecodeScan(Component[] sc, ScanMode mode)
@@ -489,8 +491,9 @@ public static class Jpeg
                 if (restartInterval > 0) todo = CountRestartInterval(sc, todo);
                 if (overrun > 64)
                 {
-                    // Data ran out or is corrupt: leave the rest of this interval as it is.
-                    if (restartInterval == 0) break;
+                    // Data ran out or is corrupt: leave the rest of this interval as it is (of the scan, when no
+                    // restart marker is left to pick it up again).
+                    if (restartInterval == 0 || scanEnded) break;
                     continue;
                 }
                 DecodeMcu(sc, mx, my, mode);
@@ -533,7 +536,11 @@ public static class Jpeg
                     }
         }
 
-        /// <summary>Drops buffered bits and consumes the next RSTn marker, if that is what comes next.</summary>
+        /// <summary>
+        /// Drops buffered bits and consumes the next RSTn marker, if that is what comes next. Without one (another
+        /// marker, or the end of the data) the scan is over: decoding the zero padding for every interval left would
+        /// cost as much as real data, for each of up to <see cref="MaxScans"/> scans.
+        /// </summary>
         private void Restart()
         {
             ResetReader();
@@ -543,10 +550,12 @@ public static class Jpeg
                 {
                     int nx = d[pos + 1];
                     if (nx is >= 0xD0 and <= 0xD7) { pos += 2; return; }
-                    if (nx is not (0 or 0xFF)) return; // some other marker: leave it for the bit reader to stop at
+                    if (nx is not (0 or 0xFF)) break; // some other marker: leave it for the bit reader to stop at
                 }
                 pos++;
             }
+            scanEnded = true;
+            Corrupt();
         }
 
         private void DecodeBlock(Component c, Span<short> blk, ScanMode mode)

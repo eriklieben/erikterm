@@ -152,4 +152,44 @@ public class FuzzFindingTests
         await Assert.That(allocated).IsLessThan(1L << 20).Because("the frame's 49 MB of indices were held before painting");
     }
 
+    // ---- Found next to them --------------------------------------------------------------------------------------
+
+    private static byte[] JpegSegment(byte marker, params byte[] body) =>
+        [0xFF, marker, (byte)((body.Length + 2) >> 8), (byte)(body.Length + 2), .. body];
+
+    /// <summary>
+    /// A progressive grayscale JPEG of <paramref name="size"/>² with a restart interval of one MCU and
+    /// <paramref name="scans"/> DC scans that each carry a single byte of data.
+    /// </summary>
+    private static byte[] JpegOfEmptyScans(int size, int scans)
+    {
+        byte[] oneCode = [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]; // one code of length 1, symbol 0
+        var jpg = new List<byte> { 0xFF, 0xD8 };
+        jpg.AddRange(JpegSegment(0xDB, [0, .. Enumerable.Repeat((byte)1, 64)]));
+        jpg.AddRange(JpegSegment(0xC2, 8, (byte)(size >> 8), (byte)size, (byte)(size >> 8), (byte)size, 1, 1, 0x11, 0));
+        jpg.AddRange(JpegSegment(0xC4, [0x00, .. oneCode, 0x10, .. oneCode]));
+        jpg.AddRange(JpegSegment(0xDD, 0, 1));
+        for (int i = 0; i < scans; i++)
+        {
+            jpg.AddRange(JpegSegment(0xDA, 1, 1, 0x00, 0, 0, 0));
+            jpg.Add(0);
+        }
+        jpg.AddRange([0xFF, 0xD9]);
+        return [.. jpg];
+    }
+
+    [Test]
+    public async Task Jpeg_scans_without_data_are_not_decoded_restart_interval_by_restart_interval()
+    {
+        // Arrange
+        byte[] jpg = JpegOfEmptyScans(2048, 1000);
+        DecodedImage? image = null;
+
+        // Act
+        var cpu = ThreadCpuTime.Measure(() => image = Jpeg.Decode(jpg));
+
+        // Assert
+        await Assert.That(image!.Width).IsEqualTo(2048);
+        await Assert.That(cpu).IsLessThan(TimeSpan.FromSeconds(2)).Because("16 KB of scan headers decoded 65 million MCUs of padding");
+    }
 }
