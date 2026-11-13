@@ -107,6 +107,7 @@ public static partial class ColorSchemes
             KanagawaWave,
             LaserWave,
             LuminaOxbloodLight,
+            NeonGrid,
         ];
         All = [builtIn[0], .. builtIn.Skip(1).OrderBy(s => s.Name, StringComparer.OrdinalIgnoreCase)];
     }
