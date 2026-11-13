@@ -1,6 +1,6 @@
 # Color schemes
 
-erikterm ships 45 built-in color schemes, dark and light. `erik` is the default.
+erikterm ships 46 built-in color schemes, dark and light. `erik` is the default.
 
 ## Picking one
 
@@ -93,6 +93,7 @@ measured contrast of the statusline in erikterm's standard scene, focused and di
 | [Solarized Light](solarized-light.md) | Solarized | MIT |
 | [Everforest Light](everforest-light.md) | Everforest | MIT |
 | [Ayu Light](ayu-light.md) | Ayu | MIT |
+| [Tokyo Night Day](tokyo-night-day.md) | Tokyo Night | Apache-2.0 |
 | [One Half Light](one-half-light.md) | One Half | MIT |
 | [Lumina Oxblood Light](lumina-oxblood-light.md) | Lumina | MIT |
 | [Blossom](blossom.md) | erikterm original | MIT (erikterm) |

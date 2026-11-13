@@ -60,5 +60,6 @@ Compiled into the binary as data:
 | The colours of the built-in scheme *Solarized Dark*, from Solarized, Copyright © 2011 Ethan Schoonover | MIT | https://github.com/altercation/solarized |
 | The colours of the built-in scheme *Solarized Light*, from Solarized, Copyright © 2011 Ethan Schoonover | MIT | https://github.com/altercation/solarized |
 | The colours of the built-in scheme *SynthWave '84*, from SynthWave '84, Copyright © 2019 Robb Owen | MIT | https://github.com/robb0wen/synthwave-vscode |
+| The colours of the built-in scheme *Tokyo Night Day*, from tokyonight.nvim, By Folke Lemaitre and the tokyonight.nvim contributors | Apache License 2.0 (https://www.apache.org/licenses/LICENSE-2.0) | https://github.com/folke/tokyonight.nvim |
 
 Portions of this software are copyright © The FreeType Project (https://freetype.org). All rights reserved.
