@@ -53,6 +53,7 @@ Compiled into the binary as data:
 | The colours of the built-in scheme *One Half Dark*, from One Half, Copyright © 2019 Son A. Pham | MIT | https://github.com/sonph/onehalf |
 | The colours of the built-in scheme *One Half Light*, from One Half, Copyright © 2019 Son A. Pham | MIT | https://github.com/sonph/onehalf |
 | The colours of the built-in scheme *Rosé Pine Dawn*, from Rosé Pine for Ghostty, Copyright © Rosé Pine | MIT | https://github.com/rose-pine/ghostty |
+| The colours of the built-in scheme *Rosé Pine Moon*, from Rosé Pine for Ghostty, Copyright © Rosé Pine | MIT | https://github.com/rose-pine/ghostty |
 | The colours of the built-in scheme *Rosé Pine*, from Rosé Pine for Ghostty, Copyright © Rosé Pine | MIT | https://github.com/rose-pine/ghostty |
 
 Portions of this software are copyright © The FreeType Project (https://freetype.org). All rights reserved.
