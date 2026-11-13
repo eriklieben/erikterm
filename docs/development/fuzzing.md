@@ -25,7 +25,9 @@ into `ImageDecodeException`), so a bug the wrapper would hide still shows. A fin
 - **crash**: an exception other than the target's own "bad input" error (`ImageDecodeException`, `TomlException`), a
   decoded image whose size doesn't match its pixels, or the .NET process dying (a stack overflow);
 - **out of memory**: the .NET heap is limited to 1 GB. One image may legitimately reach `ImageLimits.MaxPixels`
-  (200 MB of RGBA plus the decoder's canvas), so needing more means an input got past the limits;
+  (200 MB of RGBA plus the decoder's canvas), so needing more means an input got past the limits. After an input that
+  allocated more than 32 MB the harness compacts the large object heap, which the GC otherwise never does: without
+  that, the free space left by thousands of large images fragments until one well within the limits no longer fits;
 - **timeout**: one input running for more than 10 seconds.
 
 The seeds in [fuzz/seeds](../../fuzz/seeds) are tiny valid samples (under 3 KB together) made for this: the images are

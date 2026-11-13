@@ -38,8 +38,31 @@ public static class Program
             Console.WriteLine("no failure");
             return 0;
         }
-        Fuzzer.LibFuzzer.Run(span => target(span));
+        Fuzzer.LibFuzzer.Run(span =>
+        {
+            target(span);
+            CompactAfterLargeInput();
+        });
         return 0;
+    }
+
+    private static long _allocatedBefore;
+
+    /// <summary>
+    /// After an input that allocated a lot, collects with large object heap compaction. The GC never compacts that heap
+    /// by itself, so under the fuzz run's heap limit (fuzz/run.sh) the free space thousands of large images leave behind
+    /// gets too fragmented for the next one, and an input well within the limits failed with an out-of-memory error
+    /// that no single input causes. Compacting keeps an out-of-memory finding to what one input needs.
+    /// </summary>
+    private static void CompactAfterLargeInput()
+    {
+        long allocated = GC.GetTotalAllocatedBytes();
+        if (allocated - _allocatedBefore > 32 << 20)
+        {
+            System.Runtime.GCSettings.LargeObjectHeapCompactionMode = System.Runtime.GCLargeObjectHeapCompactionMode.CompactOnce;
+            GC.Collect();
+        }
+        _allocatedBefore = GC.GetTotalAllocatedBytes();
     }
 
     private static ReadOnlySpanAction? Target(string name) => name switch
