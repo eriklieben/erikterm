@@ -29,5 +29,6 @@ Compiled into the binary as data:
 | The colours of the built-in scheme *Tokyo Night*, from tokyonight.nvim | Apache License 2.0 (https://www.apache.org/licenses/LICENSE-2.0) | https://github.com/folke/tokyonight.nvim |
 | The colours of the built-in scheme *erik*, from Atom One Dark (one-dark-syntax), Copyright © 2016 GitHub Inc. | MIT | https://github.com/atom/one-dark-syntax |
 | The colours of the built-in scheme *Ayu Dark*, from ayu for VS Code, Copyright © 2016 Ike Kurghinyan | MIT | https://github.com/ayu-theme/vscode-ayu |
+| The colours of the built-in scheme *Ayu Light*, from ayu for VS Code, Copyright © 2016 Ike Kurghinyan | MIT | https://github.com/ayu-theme/vscode-ayu |
 
 Portions of this software are copyright © The FreeType Project (https://freetype.org). All rights reserved.
