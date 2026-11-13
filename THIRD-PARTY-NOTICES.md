@@ -48,5 +48,6 @@ Compiled into the binary as data:
 | The colours of the built-in scheme *LaserWave*, from LaserWave, Copyright © 2019 Jared Jones | MIT | https://github.com/Jaredk3nt/laserwave |
 | The colours of the built-in scheme *Lumina Oxblood Light*, from Lumina themes, Copyright © 2026 Razik Ikhlef | MIT | https://github.com/RazikSF/lumina-themes |
 | The colours of the built-in scheme *Night Owl*, from Night Owl, Copyright © 2018 Sarah Drasner | MIT | https://github.com/sdras/night-owl-vscode-theme |
+| The colours of the built-in scheme *Nightfox*, from nightfox.nvim, Copyright © 2021 James Simpson | MIT | https://github.com/EdenEast/nightfox.nvim |
 
 Portions of this software are copyright © The FreeType Project (https://freetype.org). All rights reserved.
