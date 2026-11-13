@@ -55,5 +55,6 @@ Compiled into the binary as data:
 | The colours of the built-in scheme *Rosé Pine Dawn*, from Rosé Pine for Ghostty, Copyright © Rosé Pine | MIT | https://github.com/rose-pine/ghostty |
 | The colours of the built-in scheme *Rosé Pine Moon*, from Rosé Pine for Ghostty, Copyright © Rosé Pine | MIT | https://github.com/rose-pine/ghostty |
 | The colours of the built-in scheme *Rosé Pine*, from Rosé Pine for Ghostty, Copyright © Rosé Pine | MIT | https://github.com/rose-pine/ghostty |
+| The colours of the built-in scheme *Shades of Purple*, from Shades of Purple, Copyright © 2015-present Ahmad Awais | MIT | https://github.com/ahmadawais/shades-of-purple-vscode |
 
 Portions of this software are copyright © The FreeType Project (https://freetype.org). All rights reserved.
