@@ -847,6 +847,58 @@ public class SettingsScreenTests
     }
 
     [Test]
+    public async Task AClickOnAToggleValueInADrawnFrameTurnsItOff()
+    {
+        // Arrange: the frame as the view draws it, so the row's own region is there too.
+        var host = new MemoryHost("");
+        var (screen, frame) = Rendered(host);
+        int entry = screen.Visible.ToList().FindIndex(s => s.Key == "cursor_animation");
+        var value = frame.Hits.First(h => h.Action == SettingsView.ActionValue && h.Arg == entry);
+
+        // Act
+        screen.OnMouse(new MouseEvent(MouseKind.Press, value.X + value.Width / 2, value.Y), frame);
+
+        // Assert
+        await Assert.That(screen.Selected.Key).IsEqualTo("cursor_animation");
+        await Assert.That(host.Text).IsEqualTo("cursor_animation = false\n");
+    }
+
+    [Test]
+    public async Task AClickOnAChoiceValueInADrawnFrameCyclesIt()
+    {
+        // Arrange
+        var host = new MemoryHost("ctrl_tab_order = \"position\"\n");
+        var (screen, frame) = Rendered(host);
+        int entry = screen.Visible.ToList().FindIndex(s => s.Key == "ctrl_tab_order");
+        var value = frame.Hits.First(h => h.Action == SettingsView.ActionValue && h.Arg == entry);
+
+        // Act
+        screen.OnMouse(new MouseEvent(MouseKind.Press, value.X + value.Width / 2, value.Y), frame);
+
+        // Assert
+        await Assert.That(host.Text).IsNotEqualTo("ctrl_tab_order = \"position\"\n");
+        await Assert.That(host.Writes).IsEqualTo(1);
+    }
+
+    [Test]
+    public async Task AClickOnARowsLabelOnlySelectsIt()
+    {
+        // Arrange
+        var host = new MemoryHost("");
+        var (screen, frame) = Rendered(host);
+        int entry = screen.Visible.ToList().FindIndex(s => s.Key == "cursor_animation");
+        var value = frame.Hits.First(h => h.Action == SettingsView.ActionValue && h.Arg == entry);
+        var row = frame.Hits.First(h => h.Action == SettingsView.ActionSelect && h.Arg == entry && h.Y == value.Y);
+
+        // Act
+        screen.OnMouse(new MouseEvent(MouseKind.Press, row.X + 5, row.Y), frame);
+
+        // Assert
+        await Assert.That(screen.Selected.Key).IsEqualTo("cursor_animation");
+        await Assert.That(host.Writes).IsEqualTo(0);
+    }
+
+    [Test]
     public async Task ClickingARowSelectsIt()
     {
         // Arrange

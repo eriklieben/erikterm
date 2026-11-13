@@ -164,6 +164,8 @@ internal sealed class SettingsView
         bool selected = line.Entry == _selected && line.Kind is LineKind.Label or LineKind.Help;
         uint bg = selected ? _theme.Surface0 : _theme.Base;
         f.Fill(x, y, width, 1, _theme.Text, bg);
+        // The row's region first: the value's, added by the label, is on top of it (Frame.HitAt takes the last one).
+        if (line.Entry >= 0) f.AddHit(x, y, width, 1, ActionSelect, line.Entry);
         switch (line.Kind)
         {
             case LineKind.Group:
@@ -176,7 +178,6 @@ internal sealed class SettingsView
                 f.Text(x + 4, y, width - 6, line.Text, _theme.Subtext, bg);
                 break;
         }
-        if (line.Entry >= 0) f.AddHit(x, y, width, 1, ActionSelect, line.Entry);
     }
 
     private void DrawLabel(Frame f, int x, int y, int width, int entry, uint bg)
