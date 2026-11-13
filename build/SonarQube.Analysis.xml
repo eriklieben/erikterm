@@ -15,6 +15,11 @@
   <Property Name="sonar.javascript.lcov.reportPaths">coverage/coverage-eng/lcov.info</Property>
   <!-- The fuzz report's (fuzz/report.py) line and branch coverage: coverage.py's Cobertura XML, from the same job. -->
   <Property Name="sonar.python.coverage.reportPaths">coverage/coverage-eng/python-coverage.xml</Property>
+  <!-- Rules switched off where they don't apply. S1075 (hardcoded URIs) in the built-in color schemes: each one's URL
+       is its credit (where it comes from, shown in the About screen's Licenses tab), not a location to configure. -->
+  <Property Name="sonar.issue.ignore.multicriteria">schemeCredits</Property>
+  <Property Name="sonar.issue.ignore.multicriteria.schemeCredits.ruleKey">csharpsquid:S1075</Property>
+  <Property Name="sonar.issue.ignore.multicriteria.schemeCredits.resourceKey">src/ErikTerm.Config/Schemes/**</Property>
   <!-- Compiler and analyzer warnings aren't imported: build.yml's quality job gates the SDK analyzers
        (build/quality.globalconfig), and they would show up twice next to Sonar's own rules. -->
   <Property Name="sonar.cs.roslyn.ignoreIssues">true</Property>

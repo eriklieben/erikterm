@@ -62,7 +62,10 @@ Why this shape:
 
 The settings are in [build/SonarQube.Analysis.xml](../../build/SonarQube.Analysis.xml): the benchmark, scripts,
 packaging, `contrib/` and generated code are left out, compiler warnings aren't imported (the quality job gates the
-SDK analyzers), and the coverage comes from the four Cobertura reports and the lcov of `eng/` (see [Coverage](#coverage)). The scanner is a CI tool in
+SDK analyzers), the coverage comes from the four Cobertura reports, the lcov of `eng/` and the fuzz report's
+coverage.py report (see [Coverage](#coverage)), and one rule is switched off where it doesn't apply: S1075 (hardcoded
+URIs) in `src/ErikTerm.Config/Schemes/`, where each built-in scheme's URL is its credit, shown in the About screen's
+Licenses tab. Elsewhere a URL on purpose gets a `#pragma warning disable S1075` with the reason. The scanner is a CI tool in
 [.config/dotnet-tools.json](../../.config/dotnet-tools.json); it isn't part of erikterm. Only `src/ErikTerm.App` is
 built, which brings in the libraries; the test project compiles some app files a second time, and building it too
 would report those files twice.
