@@ -90,6 +90,7 @@ public static partial class ColorSchemes
             Carbonfox,
             CatppuccinFrappe,
             CatppuccinLatte,
+            CherryBlossom,
         ];
         All = [builtIn[0], .. builtIn.Skip(1).OrderBy(s => s.Name, StringComparer.OrdinalIgnoreCase)];
     }
