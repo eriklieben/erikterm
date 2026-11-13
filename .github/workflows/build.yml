@@ -410,7 +410,7 @@ jobs:
           brew install sdl3 freetype harfbuzz
           if brew list fontconfig >/dev/null 2>&1; then brew unlink fontconfig; fi
           zip="$RUNNER_TEMP/jetbrains-mono.zip"
-          curl -fsSL -o "$zip" https://github.com/JetBrains/JetBrainsMono/releases/download/v2.304/JetBrainsMono-2.304.zip
+          curl --proto "=https" --tlsv1.2 -fsSL -o "$zip" https://github.com/JetBrains/JetBrainsMono/releases/download/v2.304/JetBrainsMono-2.304.zip
           echo "6f6376c6ed2960ea8a963cd7387ec9d76e3f629125bc33d1fdcd7eb7012f7bbf  $zip" | shasum -a 256 -c -
           unzip -q -o "$zip" 'fonts/ttf/*' -d "$RUNNER_TEMP/jetbrains-mono"
           sudo cp "$RUNNER_TEMP"/jetbrains-mono/fonts/ttf/*.ttf /Library/Fonts/
