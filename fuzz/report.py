@@ -13,6 +13,7 @@ import hashlib
 import os
 import re
 import sys
+import tempfile
 
 MAX_FRAMES = 12
 MAX_MESSAGE = 160
@@ -69,8 +70,48 @@ def kind_of(name, log_text):
     return 'crash (unhandled exception)'
 
 
+TARGET = re.compile(r'^[A-Za-z0-9_-]{1,64}$')
+
+
+def allowed_roots():
+    """Where the log and the findings may be: the checkout (the working directory) and the runner's temp directory."""
+    roots = [os.getcwd(), tempfile.gettempdir()]
+    if os.environ.get('RUNNER_TEMP'):
+        roots.append(os.environ['RUNNER_TEMP'])
+    return [os.path.realpath(r) for r in roots]
+
+
+def inside(path, roots):
+    """The resolved path when it is in one of roots (symbolic links followed), else None."""
+    real = os.path.realpath(path)
+    for root in roots:
+        if os.path.commonpath([real, root]) == root:
+            return real
+    return None
+
+
+def read_findings(findings_dir):
+    """(name, contents) of each regular file in the findings directory, none that leave it through a link."""
+    if not os.path.isdir(findings_dir):
+        return []
+    found = []
+    for name in sorted(os.listdir(findings_dir)):
+        path = inside(os.path.join(findings_dir, name), [findings_dir])
+        if path is None or not os.path.isfile(path):
+            continue
+        with open(path, 'rb') as f:
+            found.append((name, f.read()))
+    return found
+
+
 def main():
-    target, log_path, findings_dir, exit_code = sys.argv[1], sys.argv[2], sys.argv[3], int(sys.argv[4])
+    target, log_arg, findings_arg, exit_code = sys.argv[1], sys.argv[2], sys.argv[3], int(sys.argv[4])
+    if not TARGET.match(target):
+        sys.exit(f'report.py: not a fuzz target name: {target!r}')
+    roots = allowed_roots()
+    log_path, findings_dir = inside(log_arg, roots), inside(findings_arg, roots)
+    if log_path is None or findings_dir is None:
+        sys.exit('report.py: the log and the findings directory must be in the working directory or the temp directory')
     try:
         with open(log_path, encoding='utf-8', errors='replace') as f:
             log_text = f.read()
@@ -84,7 +125,7 @@ def main():
         if m:
             corpus = (int(m.group(2)), m.group(3))
 
-    findings = sorted(os.listdir(findings_dir)) if os.path.isdir(findings_dir) else []
+    findings = read_findings(findings_dir)
     status = 'finding' if findings else ('ok' if exit_code == 0 else 'error')
 
     out = [f'### Fuzz target `{target}`: {"FAILED" if status != "ok" else "no findings"}', '']
@@ -96,9 +137,7 @@ def main():
     out.append('')
 
     traces = stack_traces(lines)
-    for name in findings:
-        with open(os.path.join(findings_dir, name), 'rb') as f:
-            data = f.read()
+    for name, data in findings:
         out.append(f'**{kind_of(name, log_text)}**: {len(data)} bytes, SHA-256 `{hashlib.sha256(data).hexdigest()}`')
         out.append('')
         if traces:
