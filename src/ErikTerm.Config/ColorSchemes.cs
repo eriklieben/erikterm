@@ -94,6 +94,7 @@ public static partial class ColorSchemes
             CoralNavy,
             CreamAndRose,
             Cyberpunk,
+            Dracula,
         ];
         All = [builtIn[0], .. builtIn.Skip(1).OrderBy(s => s.Name, StringComparer.OrdinalIgnoreCase)];
     }
