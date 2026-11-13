@@ -50,5 +50,6 @@ Compiled into the binary as data:
 | The colours of the built-in scheme *Night Owl*, from Night Owl, Copyright © 2018 Sarah Drasner | MIT | https://github.com/sdras/night-owl-vscode-theme |
 | The colours of the built-in scheme *Nightfox*, from nightfox.nvim, Copyright © 2021 James Simpson | MIT | https://github.com/EdenEast/nightfox.nvim |
 | The colours of the built-in scheme *Nord*, from Nord for Alacritty, Copyright © 2016-present Sven Greb | MIT | https://github.com/nordtheme/alacritty |
+| The colours of the built-in scheme *One Half Dark*, from One Half, Copyright © 2019 Son A. Pham | MIT | https://github.com/sonph/onehalf |
 
 Portions of this software are copyright © The FreeType Project (https://freetype.org). All rights reserved.
