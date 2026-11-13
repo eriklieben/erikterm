@@ -122,4 +122,5 @@ saved with the files). It needs `git`, and nothing touches the network until you
 
 The files go to `~/.config/erikterm/colors/iTerm2-Color-Schemes` (the `colors/` directory next to your config file).
 Downloading again updates them, and deleting the directory removes them. Your own scheme files win over a catalogue
-scheme with the same name.
+scheme with the same name. A catalogue scheme named like a built-in one (Dracula, Nord, …) is left out: the built-in
+keeps its accent and contrast. To use the catalogue's version anyway, copy its file into `colors/` yourself.

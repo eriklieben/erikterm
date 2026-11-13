@@ -66,6 +66,9 @@ public static class ColorSchemeFiles
     /// <summary>
     /// Loads every <c>*.toml</c> in the directories that exist. Earlier directories win when two files
     /// use the same name; within a directory files load in name order. Problems go to <paramref name="diagnostics"/>.
+    /// A file of your own may shadow a built-in scheme of the same name (on purpose), but one in the downloaded
+    /// catalogue (<see cref="CatalogFolderName"/>) is left out then: the download brings its own copy of schemes
+    /// erikterm has built in (Dracula, …), which would replace the built-in's accent and contrast default unasked.
     /// </summary>
     public static List<ColorScheme> LoadDirectories(IEnumerable<string> directories, List<string> diagnostics)
     {
@@ -74,15 +77,23 @@ public static class ColorSchemeFiles
         foreach (string dir in directories)
         {
             if (ListSchemeFiles(dir, diagnostics) is not { } files) continue;
+            bool catalogue = IsCatalogDirectory(dir);
             Array.Sort(files, StringComparer.Ordinal);
             foreach (string file in files)
             {
-                if (ReadSchemeFile(file, diagnostics) is { } text && Parse(text, file, diagnostics) is { } scheme && seen.Add(scheme.Name))
-                    result.Add(scheme);
+                if (ReadSchemeFile(file, diagnostics) is not { } text || Parse(text, file, diagnostics) is not { } scheme) continue;
+                if (catalogue && IsBuiltInName(scheme.Name)) continue;
+                if (seen.Add(scheme.Name)) result.Add(scheme);
             }
         }
         return result;
     }
+
+    /// <summary>Whether a directory is a downloaded catalogue (Browse Themes… › Download puts it in a folder of that name).</summary>
+    private static bool IsCatalogDirectory(string dir) => Path.GetFileName(Path.TrimEndingDirectorySeparator(dir)) == CatalogFolderName;
+
+    /// <summary>A built-in scheme's exact name (ignoring case): "Dracula (Gogh)" is another scheme, and stays.</summary>
+    private static bool IsBuiltInName(string name) => ColorSchemes.All.Any(s => s.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>The <c>*.toml</c> files of a directory; null when it doesn't exist or can't be read (the latter with a diagnostic).</summary>
     private static string[]? ListSchemeFiles(string dir, List<string> diagnostics)

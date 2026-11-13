@@ -286,6 +286,40 @@ public class ColorSchemeFileTests
     }
 
     [Test]
+    public async Task ADownloadedSchemeNamedLikeABuiltInDoesNotShadowIt()
+    {
+        // Arrange: the iTerm2-Color-Schemes catalogue has its own Dracula, and a scheme erikterm hasn't built in.
+        string catalogue = Dir(Path.Combine("colors", ColorSchemeFiles.CatalogFolderName));
+        File.WriteAllText(Path.Combine(catalogue, "Dracula.toml"), Wezterm.Replace("My Scheme", "Dracula"));
+        File.WriteAllText(Path.Combine(catalogue, "Zenburn.toml"), Wezterm.Replace("My Scheme", "Zenburn"));
+
+        // Act
+        var schemes = ColorSchemeFiles.LoadDirectories([catalogue], []);
+        var dracula = ColorSchemes.Find("Dracula", schemes);
+
+        // Assert: the built-in, with its accent and contrast default; the other one still loads.
+        await Assert.That(schemes.Select(s => s.Name)).IsEquivalentTo(new[] { "Zenburn" }, CollectionOrdering.Matching);
+        await Assert.That(dracula).IsSameReferenceAs(ColorSchemes.Dracula);
+        await Assert.That(dracula!.MinimumContrast).IsEqualTo(ColorSchemes.BuiltInMinimumContrast);
+    }
+
+    [Test]
+    public async Task YourOwnSchemeFileNamedLikeABuiltInStillShadowsIt()
+    {
+        // Arrange: a file you put in your colors directory yourself is a deliberate override.
+        string mine = Dir("colors");
+        File.WriteAllText(Path.Combine(mine, "Dracula.toml"), Wezterm.Replace("My Scheme", "Dracula"));
+
+        // Act
+        var schemes = ColorSchemeFiles.LoadDirectories([mine], []);
+        var dracula = ColorSchemes.Find("Dracula", schemes);
+
+        // Assert
+        await Assert.That(dracula!.SourcePath).IsEqualTo(Path.Combine(mine, "Dracula.toml"));
+        await Assert.That(dracula.Background).IsEqualTo(0x101010u);
+    }
+
+    [Test]
     public async Task ColorSchemeResolvesAgainstFiles()
     {
         // Act
