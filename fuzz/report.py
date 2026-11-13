@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 """Summarizes one fuzz run of fuzz/run.sh without disclosing the inputs that failed.
 
-    python3 fuzz/report.py <target> <libFuzzer log> <findings directory> <libFuzzer exit code>
+    python3 fuzz/report.py <target> <libFuzzer exit code>
+
+The log is $RUNNER_TEMP/fuzz.log (else fuzz.log in the temp directory) and the findings are in
+$FUZZ_WORK/findings/<target>/ (FUZZ_WORK defaults to artifacts/fuzz, as in fuzz/run.sh). The target must be one of
+the folders in fuzz/seeds/.
 
 Writes Markdown to stdout (the workflow appends it to the job summary): the run's statistics, and per finding its kind,
 size, SHA-256 and the top frames of the .NET stack trace. libFuzzer's log has the failing input in it (as hex, as text
@@ -20,14 +24,43 @@ MAX_MESSAGE = 160
 
 # The first line of a .NET exception as SharpFuzz prints it, and what the runtime prints for a stack overflow.
 EXCEPTION = re.compile(r'^(?:Unhandled exception\. )?([A-Za-z_][\w.`]*(?:Exception|Error))(?:: (.*))?$')
-FRAME = re.compile(r'^\s+at (.+?)(?: in (.+):line (\d+))?$')
 STAT = re.compile(r'^stat::(\w+):\s+(\d+)$')
-PROGRESS = re.compile(r'^#(\d+)\s+(?:INITED|DONE|pulse|NEW|REDUCE).*?corp: (\d+)/(\S+).*?exec/s: (\d+)')
+PROGRESS = re.compile(r'#\d+\s+(?:INITED|DONE|pulse|NEW|REDUCE)')
+CORPUS = re.compile(r'(\d+)/(\S+)')
 
 
 def printable(text, limit):
     text = ''.join(c if ' ' <= c <= '~' else '?' for c in text)
     return text if len(text) <= limit else text[:limit] + '...'
+
+
+def frame(line):
+    """An indented '   at Method(...) in File.cs:line 12' line as (method, file, line), file and line None when
+    absent; None for any other line. Plain string scanning: no regular expression that could backtrack."""
+    body = line.lstrip()
+    if body == line or not body.startswith('at ') or len(body) == 3:
+        return None
+    body = body[3:]
+    start = body.find(' in ', 1)
+    while start > 0:
+        where, sep, number = body[start + 4:].rpartition(':line ')
+        if sep and where and number.isdigit():
+            return body[:start], where, number
+        start = body.find(' in ', start + 1)
+    return body, None, None
+
+
+def progress(line):
+    """The corpus (files, size) of a libFuzzer progress line ('#123 NEW ... corp: 45/6789b ... exec/s: 10'), or None."""
+    m = PROGRESS.match(line)
+    if not m:
+        return None
+    at = line.find('corp: ', m.end())
+    c = CORPUS.match(line, at + 6) if at >= 0 else None
+    if not c:
+        return None
+    rate = line.find('exec/s: ', c.end())
+    return (int(c.group(1)), c.group(2)) if rate >= 0 and line[rate + 8:rate + 9].isdigit() else None
 
 
 def stack_traces(lines):
@@ -38,18 +71,19 @@ def stack_traces(lines):
         line = lines[i]
         if line.startswith('Stack overflow.'):
             exc, message = 'System.StackOverflowException', ''
-        elif (m := EXCEPTION.match(line)) and i + 1 < len(lines) and FRAME.match(lines[i + 1]):
+        elif (m := EXCEPTION.match(line)) and i + 1 < len(lines) and frame(lines[i + 1]):
             exc, message = m.group(1), m.group(2) or ''
         else:
             i += 1
             continue
         frames = []
         i += 1
-        while i < len(lines) and (FRAME.match(lines[i]) or lines[i].startswith(('Repeated ', '----', '   at '))):
-            f = FRAME.match(lines[i])
+        while i < len(lines) and (frame(lines[i]) or lines[i].startswith(('Repeated ', '----', '   at '))):
+            f = frame(lines[i])
             if f:
-                where = f' ({os.path.basename(f.group(2))}:{f.group(3)})' if f.group(2) else ''
-                frames.append('   at ' + printable(f.group(1), 200) + where)
+                method, file, number = f
+                where = f' ({os.path.basename(file)}:{number})' if file else ''
+                frames.append('   at ' + printable(method, 200) + where)
             elif lines[i].startswith('Repeated '):
                 frames.append(printable(lines[i].strip(), 60))  # a stack overflow's recursion
             i += 1
@@ -70,24 +104,13 @@ def kind_of(name, log_text):
     return 'crash (unhandled exception)'
 
 
-TARGET = re.compile(r'^[A-Za-z0-9_-]{1,64}$')
+HERE = os.path.dirname(os.path.realpath(__file__))
 
 
-def allowed_roots():
-    """Where the log and the findings may be: the checkout (the working directory) and the runner's temp directory."""
-    roots = [os.getcwd(), tempfile.gettempdir()]
-    if os.environ.get('RUNNER_TEMP'):
-        roots.append(os.environ['RUNNER_TEMP'])
-    return [os.path.realpath(r) for r in roots]
-
-
-def inside(path, roots):
-    """The resolved path when it is in one of roots (symbolic links followed), else None."""
-    real = os.path.realpath(path)
-    for root in roots:
-        if os.path.commonpath([real, root]) == root:
-            return real
-    return None
+def known_target(name):
+    """The fuzz target called name, taken from the folders in fuzz/seeds/ (one per target), or None."""
+    seeds = os.path.join(HERE, 'seeds')
+    return next((t for t in sorted(os.listdir(seeds)) if t == name and os.path.isdir(os.path.join(seeds, t))), None)
 
 
 def read_findings(findings_dir):
@@ -96,8 +119,8 @@ def read_findings(findings_dir):
         return []
     found = []
     for name in sorted(os.listdir(findings_dir)):
-        path = inside(os.path.join(findings_dir, name), [findings_dir])
-        if path is None or not os.path.isfile(path):
+        path = os.path.realpath(os.path.join(findings_dir, name))
+        if os.path.dirname(path) != findings_dir or not os.path.isfile(path):
             continue
         with open(path, 'rb') as f:
             found.append((name, f.read()))
@@ -105,13 +128,15 @@ def read_findings(findings_dir):
 
 
 def main():
-    target, log_arg, findings_arg, exit_code = sys.argv[1], sys.argv[2], sys.argv[3], int(sys.argv[4])
-    if not TARGET.match(target):
-        sys.exit(f'report.py: not a fuzz target name: {target!r}')
-    roots = allowed_roots()
-    log_path, findings_dir = inside(log_arg, roots), inside(findings_arg, roots)
-    if log_path is None or findings_dir is None:
-        sys.exit('report.py: the log and the findings directory must be in the working directory or the temp directory')
+    if len(sys.argv) != 3:
+        sys.exit('usage: report.py <target> <libFuzzer exit code>')
+    target, exit_code = known_target(sys.argv[1]), int(sys.argv[2])
+    if target is None:
+        sys.exit(f'report.py: not a fuzz target (no fuzz/seeds/ folder of that name): {sys.argv[1]!r}')
+    # Where fuzz/run.sh and the workflow put them: the log in the runner's temp directory, the findings in FUZZ_WORK.
+    log_path = os.path.join(os.environ.get('RUNNER_TEMP') or tempfile.gettempdir(), 'fuzz.log')
+    work = os.environ.get('FUZZ_WORK') or os.path.join(os.path.dirname(HERE), 'artifacts', 'fuzz')
+    findings_dir = os.path.realpath(os.path.join(work, 'findings', target))
     try:
         with open(log_path, encoding='utf-8', errors='replace') as f:
             log_text = f.read()
@@ -121,9 +146,8 @@ def main():
 
     stats = {m.group(1): int(m.group(2)) for m in map(STAT.match, lines) if m}
     corpus = None
-    for m in map(PROGRESS.match, lines):
-        if m:
-            corpus = (int(m.group(2)), m.group(3))
+    for line in lines:
+        corpus = progress(line) or corpus
 
     findings = read_findings(findings_dir)
     status = 'finding' if findings else ('ok' if exit_code == 0 else 'error')

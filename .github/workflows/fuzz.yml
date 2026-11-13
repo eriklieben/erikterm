@@ -175,7 +175,7 @@ jobs:
           EXIT: ${{ steps.fuzz.outputs.exit }}
         run: |
           status=0
-          python3 fuzz/report.py "$TARGET" "$RUNNER_TEMP/fuzz.log" "$FUZZ_WORK/findings/$TARGET" "$EXIT" > "$RUNNER_TEMP/summary.md" || status=$?
+          python3 fuzz/report.py "$TARGET" "$EXIT" > "$RUNNER_TEMP/summary.md" || status=$?
           cat "$RUNNER_TEMP/summary.md" >> "$GITHUB_STEP_SUMMARY"
           cat "$RUNNER_TEMP/summary.md"
           if [ "$status" != 0 ]; then
