@@ -121,6 +121,7 @@ public static partial class ColorSchemes
             SageGarden,
             ShadesOfPurple,
             Shado,
+            SolarizedDark,
         ];
         All = [builtIn[0], .. builtIn.Skip(1).OrderBy(s => s.Name, StringComparer.OrdinalIgnoreCase)];
     }
