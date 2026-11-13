@@ -51,4 +51,74 @@ public class FuzzFindingTests
         await Assert.That(cpu).IsLessThan(TimeSpan.FromSeconds(2)).Because("one line feed per requested row");
     }
 
+    /// <summary>Bytes allocated on this thread while decoding <paramref name="sixel"/>, and the image (null when refused).</summary>
+    private static (long Allocated, DecodedImage? Image) DecodeSixel(string sixel)
+    {
+        byte[] data = Encoding.ASCII.GetBytes(sixel);
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        DecodedImage? image;
+        try { image = Sixel.Decode(data); }
+        catch (ImageDecodeException) { image = null; }
+        return (GC.GetAllocatedBytesForCurrentThread() - before, image);
+    }
+
+    /// <summary>
+    /// The most decoding a sixel image may allocate in all, 4 bytes a pixel: the canvases it grows through (three times
+    /// <see cref="ImageLimits.MaxPixels"/>) and the RGBA copy. Before the fix it was gigabytes.
+    /// </summary>
+    private const long SixelAllocationBound = 4 * ImageLimits.MaxPixels * 4;
+
+    [Test]
+    public async Task Sixel_growing_one_column_at_a_time_near_the_pixel_limit_allocates_a_bounded_amount()
+    {
+        // A tall declared canvas, painted wide enough that doubling its width no longer fits, then one column more at a time.
+
+        // Arrange
+        string sixel = "\"1;1;8;9393!3332~" + new string('~', 40);
+
+        // Act
+        var (allocated, image) = DecodeSixel(sixel);
+
+        // Assert
+        await Assert.That(image).IsNotNull();
+        await Assert.That(image!.Width).IsEqualTo(3372);
+        await Assert.That(image.Height).IsEqualTo(9393);
+        await Assert.That(allocated).IsLessThan(SixelAllocationBound);
+    }
+
+    [Test]
+    public async Task Sixel_image_without_raster_attributes_still_grows_to_the_pixel_limit()
+    {
+        // The budget on growing must not clip a plain image: one band 7000 wide, then bands below it up to 7140 rows.
+
+        // Arrange
+        var sb = new StringBuilder("!7000~");
+        for (int band = 1; band < 7140 / 6; band++) sb.Append("-!7000~");
+
+        // Act
+        var (_, image) = DecodeSixel(sb.ToString());
+
+        // Assert
+        await Assert.That(image).IsNotNull();
+        await Assert.That(image!.Width).IsEqualTo(7000);
+        await Assert.That(image.Height).IsEqualTo(7140);
+    }
+
+    [Test]
+    public async Task Sixel_growing_by_turns_in_width_and_height_near_the_pixel_limit_allocates_a_bounded_amount()
+    {
+        // Each step paints one band lower and one column wider than anything before it, near half the pixel limit.
+
+        // Arrange
+        var sb = new StringBuilder("\"1;1;5000;5000").Append('-', 5000 / 6);
+        for (int k = 1; k <= 40; k++) sb.Append("-!").Append(5000 + k).Append('~');
+
+        // Act
+        var (allocated, image) = DecodeSixel(sb.ToString());
+
+        // Assert
+        await Assert.That(image).IsNotNull();
+        await Assert.That(allocated).IsLessThan(SixelAllocationBound);
+    }
+
 }

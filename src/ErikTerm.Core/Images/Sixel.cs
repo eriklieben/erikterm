@@ -131,20 +131,36 @@ public static class Sixel
 
         private static int Advance(int x, int repeat) => (int)Math.Min((long)x + repeat, ImageLimits.MaxDimension);
 
+        /// <summary>
+        /// Most pixels all the canvases of one image may add up to. Growing doubles, so an image that grows wider and
+        /// then taller (as sixel is painted) stays under it even at the pixel limit: less than twice its last canvas
+        /// before that, plus the last. Data that makes the canvas grow over and over (a column, then a band, then a
+        /// column...) stops growing here instead of allocating and copying up to the pixel limit again for every few bytes.
+        /// </summary>
+        private const long GrowthBudget = 3 * ImageLimits.MaxPixels;
+
+        private long _allocated;
+
         private bool Ensure(int w, int h)
         {
             if (w <= _capW && h <= _capH) return true;
-            int nw = Math.Max(_capW, w), nh = Math.Max(_capH, h);
-            if (nw > _capW) nw = Math.Min(ImageLimits.MaxDimension, Math.Max(nw, _capW * 2));
-            if (nh > _capH) nh = Math.Min(ImageLimits.MaxDimension, Math.Max(nh, _capH * 2));
+            int needW = Math.Max(_width, w), needH = Math.Max(_height, h);
+            if ((long)needW * needH > ImageLimits.MaxPixels) return false;
+            bool wider = w > _capW, taller = h > _capH;
+            int nw = wider ? Math.Min(ImageLimits.MaxDimension, Math.Max(w, _capW * 2)) : _capW;
+            int nh = taller ? Math.Min(ImageLimits.MaxDimension, Math.Max(h, _capH * 2)) : _capH;
             if ((long)nw * nh > ImageLimits.MaxPixels)
             {
-                // Doubling doesn't fit: no spare width, and all the height the limit leaves, so a tall image isn't copied again for every band.
-                nw = Math.Max(_width, w);
-                int minHeight = Math.Max(_height, h);
-                if ((long)nw * minHeight > ImageLimits.MaxPixels) return false;
-                nh = (int)Math.Max(minHeight, Math.Min(nh, ImageLimits.MaxPixels / nw));
+                // Doubling doesn't fit: the dimension that grows gets the spare room the limit leaves (still doubling at
+                // most), the other one only what is painted, so growing a column or a band at a time doesn't copy the
+                // canvas again for every one of them.
+                if (taller) { nw = needW; nh = (int)Math.Min(nh, ImageLimits.MaxPixels / nw); }
+                else { nh = needH; nw = (int)Math.Min(nw, ImageLimits.MaxPixels / nh); }
+                nw = Math.Max(nw, needW);
+                nh = Math.Max(nh, needH);
             }
+            if (_allocated + (long)nw * nh > GrowthBudget) return false;
+            _allocated += (long)nw * nh;
             var next = new uint[nw * nh];
             int keepW = Math.Min(_capW, nw);
             for (int y = 0; y < Math.Min(_capH, nh); y++) _pixels.AsSpan(y * _stride, keepW).CopyTo(next.AsSpan(y * nw));
