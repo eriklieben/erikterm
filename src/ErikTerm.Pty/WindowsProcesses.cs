@@ -206,7 +206,7 @@ internal static unsafe class WindowsProcesses
             return _orphans = orphans;
         }
 
-        /// <summary>The console host a process is attached to (<see cref="ConsoleHostProcessId(nint)"/>), once per snapshot. Callers hold _gate.</summary>
+        /// <summary>The console host a process is attached to (<see cref="ConsoleHostOfHandle"/>), once per snapshot. Callers hold _gate.</summary>
         private int ConsoleHostOf(int pid)
         {
             if (_consoleHosts.TryGetValue(pid, out int host)) return host;
@@ -214,14 +214,14 @@ internal static unsafe class WindowsProcesses
             nint h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, (uint)pid);
             if (h != 0)
             {
-                try { host = ConsoleHostProcessId(h); }
+                try { host = ConsoleHostOfHandle(h); }
                 finally { CloseHandle(h); }
             }
             return _consoleHosts[pid] = host;
         }
 
         /// <summary>The console host of an open process handle (<see cref="ConsoleHostPid"/>), or 0.</summary>
-        private static int ConsoleHostProcessId(nint process)
+        private static int ConsoleHostOfHandle(nint process)
         {
             nuint value = 0;
             uint returned;

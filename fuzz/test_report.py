@@ -241,15 +241,12 @@ class MainTests(unittest.TestCase):
             f.write(data)
 
     def run_main(self, *args):
-        """(exit code, stdout) of report.main() with these arguments; SystemExit's message stands in for stdout."""
+        """(exit code, stdout) of report.main() with these arguments. A refusal (sys.exit) propagates as SystemExit."""
         env = {'RUNNER_TEMP': self.temp, 'FUZZ_WORK': os.path.join(self.temp, 'work')}
         out = io.StringIO()
         with mock.patch.object(sys, 'argv', ['report.py', *args]), mock.patch.dict(os.environ, env), \
                 contextlib.redirect_stdout(out):
-            try:
-                return report.main(), out.getvalue()
-            except SystemExit as e:
-                return 'exit', str(e.code)
+            return report.main(), out.getvalue()
 
     def test_a_crash_is_reported_with_its_hash_and_stack_but_not_its_input(self):
         # Arrange
@@ -335,19 +332,19 @@ class MainTests(unittest.TestCase):
 
     def test_an_unknown_target_is_refused(self):
         # Act
-        code, message = self.run_main('../../etc', '0')
+        with self.assertRaises(SystemExit) as refused:
+            self.run_main('../../etc', '0')
 
         # Assert
-        self.assertEqual(code, 'exit')
-        self.assertIn('not a fuzz target', message)
+        self.assertIn('not a fuzz target', str(refused.exception.code))
 
     def test_the_old_arguments_are_refused(self):
         # Act
-        code, message = self.run_main('terminal', 'fuzz.log', 'findings', '0')
+        with self.assertRaises(SystemExit) as refused:
+            self.run_main('terminal', 'fuzz.log', 'findings', '0')
 
         # Assert
-        self.assertEqual(code, 'exit')
-        self.assertIn('usage: report.py <target> <libFuzzer exit code>', message)
+        self.assertIn('usage: report.py <target> <libFuzzer exit code>', str(refused.exception.code))
 
 
 if __name__ == '__main__':

@@ -73,7 +73,7 @@ public static partial class ColorSchemes
     public const double BuiltInInactiveMinimumContrast = 3;
 
     /// <summary>Every built-in scheme: erikterm's own first, then by name.</summary>
-    public static ColorScheme[] All => Registry.All;
+    public static ColorScheme[] All => Registry.Schemes;
 
     /// <summary>
     /// The registry: one line per built-in scheme (Schemes/*.cs). A class of its own, so its list is made on first use,
@@ -82,7 +82,7 @@ public static partial class ColorSchemes
     /// </summary>
     private static class Registry
     {
-        public static readonly ColorScheme[] All = Sorted(
+        public static readonly ColorScheme[] Schemes = Sorted(
         [
             Erik,
             CatppuccinMacchiato,
