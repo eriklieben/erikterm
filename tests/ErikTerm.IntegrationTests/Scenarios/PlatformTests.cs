@@ -5,8 +5,9 @@ namespace ErikTerm.IntegrationTests.Scenarios;
 /// <summary>
 /// What only Windows or macOS do, off-screen: the system's own shell when default_prog is unset (PowerShell through
 /// ConPTY; the login shell through the macOS spawn helper), batch files and cmd in panes (Windows' command-line quoting
-/// for cmd), and font lookup without fontconfig (the Windows registry and font folders; the macOS font folders,
-/// emoji from Apple Color Emoji). Linux's counterparts (fontconfig, $SHELL) run in every other scenario.
+/// for cmd), erikterm's own pages in a console of their own (its code page), and font lookup without fontconfig (the
+/// Windows registry and font folders; the macOS font folders, emoji from Apple Color Emoji). Linux's counterparts
+/// (fontconfig, $SHELL) run in every other scenario.
 /// </summary>
 public class PlatformTests
 {
@@ -52,6 +53,28 @@ public class PlatformTests
         await Assert.That(cmdText).Contains("from-cmd-Windows_NT");
         var panes = await run.WaitForPanesAsync(p => p.Length == 3);
         await Assert.That(panes.Single(p => p.Int("pane_id") == int.Parse(second)).Str("foreground_process_name")).IsEqualTo("cmd");
+        run.Release("done");
+        await Checks.CleanExitAsync(run);
+    }
+
+    [Test]
+    [RunOn(OS.Windows)] // only a Windows console decodes a program's output by a code page
+    public async Task The_settings_page_draws_in_utf8_in_a_tab_of_its_own()
+    {
+        // Arrange: the settings page as Ctrl+, opens it, in a tab with a console of its own. A new console decodes
+        // output by the system's OEM code page (437, 850) until a program asks for another one, and the page writes
+        // UTF-8 (Pty/ConsoleTerminal.Windows.cs): its "•" came out as "ΓÇó", three cells for one, which pushed the end
+        // of the row off the edge ("12 p" for "12 pt"). font_size is one of the base settings, so its row has the mark.
+        await using var run = AppRun.Start(new Scenario { Script = "action:OpenSettings\nwait-file:done\nclose-window" });
+        var settings = (await run.WaitForPanesAsync(p => p.Any(x => x.TabTitle() == "Settings"))).Single(p => p.TabTitle() == "Settings");
+        string[] pane = ["--pane-id", settings.Int("pane_id").ToString()];
+
+        // Act: the keys in the last line, so the whole page is drawn.
+        string text = await run.WaitForTextAsync("enter edit", pane, 30_000);
+
+        // Assert: the marked row is whole. Plain ASCII on purpose: what get-text writes to a pipe isn't UTF-8 here, so
+        // the mark itself can't be compared.
+        await Assert.That(text).Contains("12 pt");
         run.Release("done");
         await Checks.CleanExitAsync(run);
     }

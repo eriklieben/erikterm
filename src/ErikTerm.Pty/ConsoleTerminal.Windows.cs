@@ -6,7 +6,8 @@ namespace ErikTerm.Pty;
 /// <summary>
 /// Windows console: virtual-terminal output and input modes, key and resize records from <c>ReadConsoleInputW</c>.
 /// Only the characters of key-down records are forwarded (with virtual-terminal input they already are the
-/// escape sequences); a waitable event plays the part of the self-pipe.
+/// escape sequences); a waitable event plays the part of the self-pipe. Output is UTF-8, so raw mode also switches
+/// the console's output code page to it, and <see cref="Restore"/> puts the old one back.
 /// </summary>
 [SupportedOSPlatform("windows")]
 #pragma warning disable S6640 // the console APIs take pointers to native input records and mode values
@@ -19,9 +20,10 @@ internal sealed unsafe partial class WindowsConsoleTerminal : ConsoleTerminal
     private const uint ENABLE_WINDOW_INPUT = 0x8, ENABLE_VIRTUAL_TERMINAL_INPUT = 0x200, ENABLE_EXTENDED_FLAGS = 0x80;
     private const uint INFINITE = 0xFFFFFFFF, WAIT_OBJECT_0 = 0;
     private const ushort KEY_EVENT = 1, WINDOW_BUFFER_SIZE_EVENT = 4;
+    private const uint Utf8CodePage = 65001;
 
     private readonly nint _in, _out, _wake;
-    private uint _savedIn, _savedOut;
+    private uint _savedIn, _savedOut, _savedCodePage;
     private volatile bool _raw;
     private readonly bool _isTerminal;
 
@@ -48,6 +50,11 @@ internal sealed unsafe partial class WindowsConsoleTerminal : ConsoleTerminal
         if (GetConsoleMode(_in, out _savedIn) == 0 || GetConsoleMode(_out, out _savedOut) == 0) throw new IOException("GetConsoleMode failed");
         SetConsoleMode(_in, ENABLE_WINDOW_INPUT | ENABLE_VIRTUAL_TERMINAL_INPUT | ENABLE_EXTENDED_FLAGS);
         SetConsoleMode(_out, ENABLE_PROCESSED_OUTPUT | ENABLE_VIRTUAL_TERMINAL_PROCESSING | DISABLE_NEWLINE_AUTO_RETURN);
+        // Write sends UTF-8, and a console decodes output by its code page: the system's OEM one (437, 850) until a
+        // program changes it. A shell with a UTF-8 prompt has; the console of a tool tab erikterm opens itself is new,
+        // and there "•" came out as "ΓÇó", three cells wide, pushing the rest of the row off the edge.
+        _savedCodePage = GetConsoleOutputCP();
+        if (_savedCodePage != Utf8CodePage) SetConsoleOutputCP(Utf8CodePage);
         _raw = true;
     }
 
@@ -57,6 +64,8 @@ internal sealed unsafe partial class WindowsConsoleTerminal : ConsoleTerminal
         _raw = false;
         SetConsoleMode(_in, _savedIn);
         SetConsoleMode(_out, _savedOut);
+        // The console is the shell's too when the tool was started from one: it gets its code page back.
+        if (_savedCodePage is not (0 or Utf8CodePage)) SetConsoleOutputCP(_savedCodePage);
     }
 
     public override int Read(Span<byte> buffer, int timeoutMs)
@@ -123,6 +132,8 @@ internal sealed unsafe partial class WindowsConsoleTerminal : ConsoleTerminal
     [LibraryImport(Lib)] private static partial nint GetStdHandle(int std);
     [LibraryImport(Lib)] private static partial int GetConsoleMode(nint handle, out uint mode);
     [LibraryImport(Lib)] private static partial int SetConsoleMode(nint handle, uint mode);
+    [LibraryImport(Lib)] private static partial uint GetConsoleOutputCP();
+    [LibraryImport(Lib)] private static partial int SetConsoleOutputCP(uint codePage);
     [LibraryImport(Lib)] private static partial int GetConsoleScreenBufferInfo(nint handle, out ConsoleScreenBufferInfo info);
     [LibraryImport(Lib, StringMarshalling = StringMarshalling.Utf16)] private static partial nint CreateEventW(nint attributes, int manualReset, int initialState, string? name);
     [LibraryImport(Lib)] private static partial int SetEvent(nint handle);
